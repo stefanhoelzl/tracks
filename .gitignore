@@ -1,0 +1,9 @@
+# Everything the tool produces: OAuth token, raw payload archive, SQLite DB.
+# NOTE: `git clean -xdf` will delete this directory, including the only copy
+# of your manual tags.
+data/
+
+node_modules/
+dist/
+*.log
+.DS_Store
