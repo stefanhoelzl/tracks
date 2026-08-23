@@ -41,6 +41,10 @@ export interface SourceActivity {
  * Deliberately knows nothing about its implementations: `name` is a plain string,
  * and pagination or directory walking stays internal to the async iterable. A
  * directory of files satisfies this exactly as well as an HTTP API does.
+ *
+ * Archiving raw payloads is deliberately absent. A source that is expensive or
+ * unreliable to re-read writes its own payloads as it fetches them, when it
+ * already holds them — the pipeline neither knows nor needs to.
  */
 export interface ActivitySource {
   readonly name: string
@@ -49,15 +53,4 @@ export interface ActivitySource {
 
   /** Null when the source has no track for this activity. */
   fetchTrack(externalId: string): Promise<Track | null>
-
-  /**
-   * Copies whatever this source considers the raw payload into `destDir`, so a
-   * later schema change can backfill from it without re-fetching.
-   *
-   * Optional, and only worth implementing when re-reading the source is expensive
-   * or unreliable — an undocumented API that may change or vanish. A source backed
-   * by files you already hold should omit it: re-importing the original export is
-   * cheaper than keeping a second copy of it.
-   */
-  archiveRaw?(externalId: string, destDir: string): Promise<void>
 }

@@ -5,11 +5,20 @@ import { isReservedTag, toSport } from './sport.ts'
 import { offsetSeconds, utcOffsetAt } from './timezone.ts'
 
 describe('sport mapping', () => {
-  it('maps locale-independent file vocabularies', () => {
+  it('maps locale-independent vocabularies from every source', () => {
     expect(toSport('running')).toBe('run') // GPX <type>
     expect(toSport('Run')).toBe('run') // TCX Sport
     expect(toSport('hiking')).toBe('hike')
-    expect(toSport('Mountain Biking')).toBe('mtb')
+    expect(toSport('touringbicycle')).toBe('bike') // Komoot
+    expect(toSport('racebike')).toBe('bike')
+    expect(toSport('jogging')).toBe('run')
+  })
+
+  it('collapses finer distinctions so sources stay comparable', () => {
+    // Komoot separates these; Strava's files say only 'cycling'.
+    expect(toSport('e_mtb')).toBe('bike')
+    expect(toSport('Mountain Biking')).toBe('bike')
+    expect(toSport('mountaineering')).toBe('hike')
   })
 
   it('distinguishes "said nothing" from "said something unrecognised"', () => {
@@ -20,8 +29,8 @@ describe('sport mapping', () => {
   })
 
   it('reserves canonical names from manual tagging', () => {
-    expect(isReservedTag('ride')).toBe(true)
-    expect(isReservedTag('Ride')).toBe(true)
+    expect(isReservedTag('bike')).toBe(true)
+    expect(isReservedTag('Bike')).toBe(true)
     expect(isReservedTag('alps-2024')).toBe(false)
   })
 })

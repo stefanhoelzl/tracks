@@ -1,4 +1,3 @@
-import { join } from 'node:path'
 import polyline from '@mapbox/polyline'
 import {
   type ActivitySource,
@@ -32,11 +31,7 @@ export function mergeSportTag(existing: string[], sport: string | null): string[
   return [...existing.filter((t) => !isReservedTag(t)), sport]
 }
 
-export async function importSource(
-  db: Db,
-  source: ActivitySource,
-  opts: { rawDir?: string } = {},
-): Promise<ImportResult> {
+export async function importSource(db: Db, source: ActivitySource): Promise<ImportResult> {
   const result: ImportResult = { seen: 0, imported: 0, skippedNoTrack: 0, unchanged: 0, failed: [] }
 
   for await (const activity of source.listActivities()) {
@@ -121,12 +116,6 @@ export async function importSource(
         }
       })
 
-      if (opts.rawDir) {
-        await source.archiveRaw?.(
-          activity.externalId,
-          join(opts.rawDir, source.name, activity.externalId),
-        )
-      }
       result.imported++
     } catch (error) {
       result.failed.push({

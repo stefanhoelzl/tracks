@@ -79,12 +79,12 @@ describe('track files', () => {
 
 describe('mergeSportTag', () => {
   it('replaces reserved names when the source supplies a type', () => {
-    expect(mergeSportTag(['run', 'alps'], 'ride')).toEqual(['alps', 'ride'])
+    expect(mergeSportTag(['run', 'alps'], 'bike')).toEqual(['alps', 'bike'])
   })
 
   it('leaves tags untouched when the source says nothing', () => {
     // The untyped Garmin rides are tagged by hand; a re-import must not undo that.
-    expect(mergeSportTag(['ride', 'alps'], null)).toEqual(['ride', 'alps'])
+    expect(mergeSportTag(['bike', 'alps'], null)).toEqual(['bike', 'alps'])
   })
 })
 
@@ -150,7 +150,7 @@ describe('import', () => {
     // Tag it by hand, then wipe its track so the next import re-processes it.
     handle.sqlite
       .prepare('update activities set tags = ? where external_id = ?')
-      .run(JSON.stringify(['ride', 'alps']), id)
+      .run(JSON.stringify(['bike', 'alps']), id)
     handle.sqlite.prepare('delete from trackpoints where activity_id = ?').run(before?.id)
 
     await run()
@@ -159,7 +159,7 @@ describe('import', () => {
       .from(activities)
       .all()
       .find((r) => r.externalId === id)
-    expect(JSON.parse(after?.tags ?? '[]')).toEqual(['ride', 'alps'])
+    expect(JSON.parse(after?.tags ?? '[]')).toEqual(['bike', 'alps'])
   })
 
   it('stores a decodable polyline', async () => {

@@ -15,11 +15,12 @@
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/mapbox__polyline": "^1.0.5",
     "@types/node": "^24.10.4",
     "drizzle-kit": "^0.31.6",
+    "msw": "^2.15.0",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4",
-    "@types/mapbox__polyline": "^1.0.5"
+    "vitest": "^3.2.4"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -6,9 +6,9 @@ tagged, filtered and counted on your own machine.
 | | |
 |---|---|
 | **Deployment** | Local-only, single user |
-| **Dataset** | 73 Strava activities, 286k trackpoints, plus Komoot |
+| **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
 | **Stack** | Node 24 · pnpm · SQLite |
-| **Status** | M1 complete — 73 activities, 286,327 trackpoints imported |
+| **Status** | M1–M2 complete; M3 (map, list, filters) next |
 
 ---
 
@@ -41,7 +41,16 @@ Metric throughout (km, m, km/h). ISO dates. Weeks start Monday.
 | Source | Access | Risk |
 |---|---|---|
 | Strava | **Bulk archive import** — GPX/TCX files + `activities.csv` | None; a manual, offline file drop |
-| Komoot | Undocumented `api.komoot.de` v007, email + password | Can break without notice |
+| Komoot | Undocumented `api.komoot.de` v006/v007, email + password | Can break without notice |
+
+Komoot notes, all confirmed against the live API: login returns a **session token**,
+not the password, and that token authenticates everything afterwards. Sending
+`Accept: application/json` earns a **406** — the API serves HAL, and sending no
+Accept header is what works. Coordinates arrive as `{lat, lng, alt, t}` where `t`
+is **milliseconds since the tour started**. Tours carry both `duration` (elapsed)
+and `time_in_motion` (moving), which maps onto `elapsed_s` and `duration_s`
+exactly. The `date` field is UTC (`...Z`) despite its format permitting an offset,
+so the offset is derived from coordinates here too.
 
 ### Why not the Strava API
 
@@ -319,7 +328,7 @@ tracks/
 | **Query layer** | Drizzle for schema, migrations and CRUD; hand-written SQL for spatial queries and aggregations, where query builders are worse than the SQL they generate. |
 | **Migrations** | Always generated with an explicit name: `pnpm db:generate --name add-elapsed`. Without `--name`, drizzle-kit invents one like `0000_sharp_lily_hollister`, which tells a future reader nothing. |
 | **Not Deno** | Better DX and a genuinely useful permissions model, but drizzle-kit + `node:sqlite` is an open bug needing a community patch — a patched migration toolchain is the wrong place to spend novelty. |
-| **Testing** | Vitest with msw serving recorded fixtures. The whole suite runs offline in seconds. |
+| **Testing** | Vitest, with msw replaying recorded Komoot responses and file fixtures for Strava. The whole suite runs offline in under a second. |
 | **CLI** | `tracks sync` and `tracks serve`. Nothing else — tagging belongs in the UI. |
 
 ---
@@ -334,7 +343,7 @@ through a SQLite browser.
 | | | |
 |---|---|---|
 | **M1** | Strava archive → SQLite | Schema, migrations, the `ActivitySource` interface, `tracks import <path>`, GPX + TCX parsers, timezone derivation. |
-| **M2** | Komoot | Second source behind the same interface, with its own fixtures. Validates that the schema fits both shapes. |
+| **M2** | Komoot | Second source behind the same interface, with recorded fixtures replayed through msw. Needed no interface change, which validated the M1 abstraction. |
 | **M3** | Map, list and filters | `tracks serve`: REST API, MapLibre map, synced activity list, the full filter sidebar including spatial selection. |
 | **M4** | Tagging | Tag UI and tag-driven filtering, including whatever makes 500 untagged activities tractable. |
 | **M5** | Analytics | The four ECharts views, scoped to the active filter. |

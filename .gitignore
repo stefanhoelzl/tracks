@@ -1,4 +1,5 @@
-# Everything the tool produces: OAuth token, raw payload archive, SQLite DB.
+# Everything the tool produces: the SQLite database and any raw payloads kept
+# by sources that cannot cheaply be re-read.
 # NOTE: `git clean -xdf` will delete this directory, including the only copy
 # of your manual tags.
 data/

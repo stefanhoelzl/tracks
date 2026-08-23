@@ -1,0 +1,43 @@
+{
+  "_embedded": {
+    "tours": [
+      {
+        "id": 1000000002,
+        "name": "Tour 1000000002",
+        "sport": "hike",
+        "type": "tour_recorded",
+        "date": "2026-08-20T06:36:58.000Z",
+        "distance": 7341.283308815461,
+        "duration": 11800,
+        "time_in_motion": 8644,
+        "elevation_up": 425.13136515478607,
+        "elevation_down": 107.88835032532211,
+        "status": "private"
+      },
+      {
+        "id": 1000000001,
+        "name": "Tour 1000000001",
+        "sport": "mountaineering",
+        "type": "tour_recorded",
+        "date": "2026-07-11T08:25:30.000Z",
+        "distance": 12498.678720514015,
+        "duration": 28112,
+        "time_in_motion": 14240,
+        "elevation_up": 1028.6199817205643,
+        "elevation_down": 1028.09969179245,
+        "status": "private"
+      }
+    ]
+  },
+  "_links": {
+    "next": {
+      "href": "https://api.komoot.de/v007/users/1234567890123/tours/?limit=50&page=1"
+    }
+  },
+  "page": {
+    "size": 2,
+    "totalElements": 3,
+    "totalPages": 2,
+    "number": 0
+  }
+}

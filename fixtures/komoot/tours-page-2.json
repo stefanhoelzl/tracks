@@ -1,0 +1,25 @@
+{
+  "_embedded": {
+    "tours": [
+      {
+        "id": 2639630440,
+        "name": "Tour 2639630440",
+        "sport": "hike",
+        "type": "tour_planned",
+        "date": "2025-10-17T18:12:09.883Z",
+        "distance": 14310.439348999651,
+        "duration": 23419,
+        "elevation_up": 1051.552388814252,
+        "elevation_down": 1051.552388814252,
+        "status": "private"
+      }
+    ]
+  },
+  "_links": {},
+  "page": {
+    "size": 1,
+    "totalElements": 3,
+    "totalPages": 2,
+    "number": 1
+  }
+}
