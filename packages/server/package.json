@@ -1,0 +1,15 @@
+{
+  "name": "@tracks/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@mapbox/polyline": "^1.2.1",
+    "@tracks/core": "workspace:*",
+    "better-sqlite3": "^12.4.1",
+    "commander": "^14.0.2",
+    "csv-parse": "^6.1.0",
+    "drizzle-orm": "^0.44.7",
+    "fast-xml-parser": "^5.3.4"
+  }
+}

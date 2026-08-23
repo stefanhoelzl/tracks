@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="StravaGPX" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+ <metadata>
+  <time>2024-10-16T15:57:17Z</time>
+ </metadata>
+ <trk>
+  <name>Evening Run</name>
+  <type>running</type>
+  <trkseg>
+   <trkpt lat="48.1374000" lon="11.5755000">
+    <ele>520.0</ele>
+    <time>2024-10-16T15:57:17Z</time>
+   </trkpt>
+   <trkpt lat="48.1378000" lon="11.5761000">
+    <ele>523.5</ele>
+    <time>2024-10-16T15:57:18Z</time>
+   </trkpt>
+   <trkpt lat="48.1382000" lon="11.5767000">
+    <ele>527.0</ele>
+    <time>2024-10-16T15:57:19Z</time>
+   </trkpt>
+   <trkpt lat="48.1386000" lon="11.5773000">
+    <ele>530.5</ele>
+    <time>2024-10-16T15:57:20Z</time>
+   </trkpt>
+   <trkpt lat="48.1390000" lon="11.5779000">
+    <ele>534.0</ele>
+    <time>2024-10-16T15:57:21Z</time>
+   </trkpt>
+   <trkpt lat="48.1394000" lon="11.5785000">
+    <ele>537.5</ele>
+    <time>2024-10-16T15:57:22Z</time>
+   </trkpt>
+  </trkseg>
+ </trk>
+</gpx>

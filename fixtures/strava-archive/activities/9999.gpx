@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="Garmin Desktop App" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+ <trk>
+  <name>Almenrunde</name>
+  <trkseg>
+   <trkpt lat="48.1374000" lon="11.5755000">
+    <ele>520.0</ele>
+    <time>2020-08-15T07:00:00Z</time>
+   </trkpt>
+   <trkpt lat="48.1383000" lon="11.5766000">
+    <ele>523.5</ele>
+    <time>2020-08-15T07:01:00Z</time>
+   </trkpt>
+   <trkpt lat="48.1392000" lon="11.5777000">
+    <ele>527.0</ele>
+    <time>2020-08-15T07:02:00Z</time>
+   </trkpt>
+   <trkpt lat="48.1401000" lon="11.5788000">
+    <ele>530.5</ele>
+    <time>2020-08-15T07:03:00Z</time>
+   </trkpt>
+   <trkpt lat="48.1410000" lon="11.5799000">
+    <ele>534.0</ele>
+    <time>2020-08-15T07:04:00Z</time>
+   </trkpt>
+   <trkpt lat="48.1419000" lon="11.5810000">
+    <ele>537.5</ele>
+    <time>2020-08-15T07:05:00Z</time>
+   </trkpt>
+   <trkpt lat="48.1428000" lon="11.5821000">
+    <ele>541.0</ele>
+    <time>2020-08-15T07:06:00Z</time>
+   </trkpt>
+  </trkseg>
+ </trk>
+</gpx>

@@ -6,9 +6,9 @@ tagged, filtered and counted on your own machine.
 | | |
 |---|---|
 | **Deployment** | Local-only, single user |
-| **Dataset** | ~500 activities, ~1–3M trackpoints |
+| **Dataset** | 73 Strava activities, 286k trackpoints, plus Komoot |
 | **Stack** | Node 24 · pnpm · SQLite |
-| **Status** | Design settled, M1 not started |
+| **Status** | M1 complete — 73 activities, 286,327 trackpoints imported |
 
 ---
 
@@ -40,8 +40,19 @@ Metric throughout (km, m, km/h). ISO dates. Weeks start Monday.
 
 | Source | Access | Risk |
 |---|---|---|
-| Strava | Official OAuth2 API, scope `activity:read_all` | Documented and stable |
+| Strava | **Bulk archive import** — GPX/TCX files + `activities.csv` | None; a manual, offline file drop |
 | Komoot | Undocumented `api.komoot.de` v007, email + password | Can break without notice |
+
+### Why not the Strava API
+
+Since June 2026 Strava requires a paid subscription for Standard Tier developer API
+access — which is what a personal single-user app is. Extended Access (exempt) needs
+10,000+ users and Strava's approval. The same announcement states that *"every Strava
+athlete can still access and download their data for free, at any time"*, so the bulk
+archive is the free route and the one this tool uses.
+
+Consequence: **Komoot's undocumented API is the only live integration.** Strava data
+refreshes only when you request a new archive and import it.
 
 Both sit behind a single `ActivitySource` interface, with recorded HTTP responses as
 fixtures — so a Komoot schema change surfaces as a specific failing test rather than a
@@ -49,76 +60,99 @@ mystery. Only **recorded** Komoot tours are imported; planned routes are exclude
 
 ### Why there is no cursor table
 
-The activity *list* costs almost nothing — 200 per page means all 500 activities in three
-requests. The *streams* (trackpoints) cost one request each, and Strava allows 100 read
-requests per 15 minutes, 1,000 per day. Re-pulling 500 streams would take 75 minutes and
-half the daily budget.
+Re-importing is idempotent. Every run reads the whole archive (or the whole Komoot tour
+list) and upserts by `(source, external_id)`; an activity that already has trackpoints is
+not re-parsed. The database is its own sync state — there is no cursor to corrupt and no
+`after=` gap that could silently skip a range.
 
-So the sync always pulls the full list and upserts metadata, then fetches streams only for
-activities that have no trackpoints yet:
+Resumability is emergent rather than engineered: a run that dies partway leaves rows
+unfilled, and the next run fills them.
 
-```sql
--- what still needs streams
-SELECT a.id FROM activities a
-LEFT JOIN trackpoints t ON t.activity_id = a.id
-WHERE t.activity_id IS NULL;
-```
+### What the archive actually contains
 
-Resumability stops being a feature and becomes emergent: a sync that dies at activity 200
-leaves 300 rows unfilled, and the next run picks them up. There is no cursor to corrupt and
-no `after=` gap to silently skip a range. Upstream edits propagate automatically, because
-every activity's metadata is re-read on every run.
+Measured against a real export (78 activities, 4.3 years):
 
-### The first backfill
+| | |
+|---|---|
+| Formats | 57 `.gpx`, 14 `.tcx.gz`, 2 `.gpx.gz` — **no FIT files** |
+| Trackpoints | 286,327 total; median 4,098 per activity, max 25,029 |
+| Trackless | 5 pool swims have no file at all — **not imported** |
+| CSV | 103 columns, headers localized to the account language, **duplicate names** |
 
-Fetching streams for ~500 activities costs ~75 minutes of wall clock against the rate limit.
-That is a genuine one-time cost — trackpoints never change, so each activity's streams are
-fetched exactly once, ever. It runs unattended.
+Four traps the importer must handle, each found in the real data:
 
-Nothing is blocked while it happens. The list response includes Strava's own
-`map.summary_polyline`, so **the map is fully populated within seconds** at summary
-resolution, and detailed tracks sharpen as streams arrive behind it.
+1. **The filename is not the activity id.** `4008673018.gpx.gz` belongs to activity
+   `3752382383`. The CSV's `Dateiname` column is the only link, which makes the CSV
+   mandatory rather than optional.
+2. **TCX files begin with whitespace before `<?xml`**, which is strictly malformed; most
+   XML parsers reject the prolog outright unless the input is trimmed first.
+3. **Duplicate CSV header names** (`Distanz` at 7 and 18, `Verstrichene Zeit` at 6 and 16)
+   mean columns must be read by position, never by name.
+4. **Third-party uploads carry no `<type>`.** Both Garmin-uploaded rides lack it, so those
+   two get no automatic sport tag and are tagged by hand.
+
+The CSV has a machine-formatted block — columns 15, 16, 17 and 20 — in SI units with dot
+decimals, so no German number parsing is needed. Only the header names are localized.
+
+| Column | Header | Maps to |
+|---|---|---|
+| 15 | `Verstrichene Zeit` | `elapsed_s` |
+| 16 | `Bewegungszeit` | `duration_s` (moving time) |
+| 17 | `Distanz` | `distance_m` |
+| 20 | `Höhenzunahme` | `elevation_gain_m` |
+
+### Derived at import
+
+**Timezone.** Nothing in the archive records a UTC offset — the CSV date is UTC and matches
+the GPX `Z` timestamp exactly. So the offset is derived from the track itself: the first
+trackpoint's coordinates give an IANA zone via `tz-lookup`, and the zone plus the activity's
+date gives the offset with DST handled. Independent of file format, and it works for Komoot
+too.
+
+**Sport.** Taken from the file — GPX `<type>`, TCX `Sport` — which is English and
+locale-independent. There is no CSV fallback: an activity whose file carries no type gets no
+automatic sport tag and is tagged manually. Accordingly, **re-derivation only acts when the
+source supplies a type**; where it does not, existing tags are left untouched, so a manual
+sport tag survives every future import.
+
+**Title.** The file's own name, falling back to the CSV title. This preserves original names
+from third-party uploads — *"Almenrunde"* rather than Strava's auto-generated *"Fahrt am
+Morgen"*.
+
+### Sync rules
 
 | | |
 |---|---|
 | **Duplicates across services** | Not merged. The two accounts cover different activities; a `source` column lets you split when it matters. |
 | **Upsert key** | `(source, external_id)`. Re-sync refreshes upstream metadata and never touches your tags. |
-| **Deletions** | Not tracked. Local rows persist. (Now cheap to add if wanted, since the full upstream list is in hand every run.) |
+| **Deletions** | Not tracked. Local rows persist. |
 | **Trigger** | Manual. No scheduler, no background daemon. |
-| **Raw payloads** | Archived to `data/raw/<source>/<id>/`. Not the source of truth — an archive to backfill from when the schema or a derivation changes. |
+| **Raw payloads** | Archived to `data/raw/<source>/<id>/` only by sources that cannot cheaply be re-read — Komoot. The Strava export is already a durable copy on disk, so re-deriving means re-running the import against it rather than storing a second copy. |
 
 ---
 
 ## Secrets & auth
 
+Strava needs no credentials at all — the archive is a file you already have. Only Komoot
+requires secrets, and they are never written anywhere.
+
 | Secret | Where | Why |
 |---|---|---|
-| `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` | proton-env | Long-lived identity. Never changes, never written. |
-| `KOMOOT_EMAIL`, `KOMOOT_PASSWORD` | proton-env | Same. Session held in memory per run. |
-| Strava refresh token | `data/token.json` — gitignored, chmod 600 | Machine-generated state the app must be able to *rewrite*. |
+| `KOMOOT_EMAIL`, `KOMOOT_PASSWORD` | proton-env | Injected at run time; the session is held in memory and discarded. |
 
-Everything the tool produces lives under `data/`: the token, the raw payload archive and
-`tracks.db`. One directory to back up, one to wipe.
+There is no OAuth flow, no token file and no token rotation to handle. Everything the tool
+*produces* lives under `data/`: the raw payload archive and `tracks.db`. One directory to
+back up, one to wipe.
 
 > `data/` is gitignored, which means `git clean -xdf` deletes all of it — including the only
-> copy of your tags. The token is the cheapest thing in there to lose.
-
-Strava access tokens expire after six hours, and the refresh token *rotates* — their docs
-are explicit that the old one stops working the moment a new one is issued. A rotating value
-cannot live in a read-only injection tool: it would go stale silently and surface as a broken
-sync plus a manual re-paste. On disk, the app writes the new token back in place and rotation
-becomes a non-event.
-
-> Consent is genuinely one-time. `approval_prompt` defaults to `auto`, so a previously
-> authorized app skips the prompt entirely — a re-auth is a browser tab that bounces straight
-> back with no click. `localhost` and `127.0.0.1` are whitelisted redirect targets.
+> copy of your tags.
 
 ---
 
 ## Data model
 
-SQLite, not DuckDB — at 500 activities and a few million trackpoints, a columnar engine buys
-nothing and costs a second writer-hostile store. The schema started at six tables and every
+SQLite, not DuckDB — at this scale (~300k trackpoints) a columnar engine buys nothing and
+costs a second writer-hostile store. The schema started at six tables and every
 cut below was justified by something being derivable, archived, or speculative.
 
 ```sql
@@ -130,7 +164,8 @@ activities (
   started_at   TEXT NOT NULL,               -- UTC, ISO8601
   utc_offset   INTEGER NOT NULL,            -- seconds
   distance_m       REAL,                    -- service-reported
-  duration_s       INTEGER,                 -- service-reported
+  duration_s       INTEGER,                 -- service-reported, moving time
+  elapsed_s        INTEGER,                 -- service-reported, wall clock
   elevation_gain_m REAL,                    -- service-reported
   polyline     TEXT,                        -- simplified, encoded
   tags         TEXT NOT NULL DEFAULT '[]',  -- JSON array
@@ -208,7 +243,7 @@ WHERE lat BETWEEN ?min_lat AND ?max_lat
   AND lon BETWEEN ?min_lon AND ?max_lon;
 ```
 
-Tens of milliseconds over ~3M rows on the covering index. The only theoretical gap — a track
+Effectively instant over ~300k rows on the covering index. The only theoretical gap — a track
 crossing the box with no sampled point inside it — is irrelevant at one-second sampling.
 
 ---
@@ -274,7 +309,7 @@ tracks/
 ├─ packages/web      # React · MapLibre · ECharts
 ├─ migrations/       # drizzle-kit
 ├─ fixtures/         # recorded Strava & Komoot responses
-└─ data/             # gitignored: token.json, raw JSON, tracks.db
+└─ data/             # gitignored: tracks.db, Komoot raw payloads
 ```
 
 | | |
@@ -282,6 +317,7 @@ tracks/
 | **Language** | TypeScript end to end. Every heavy-geo case that would have justified Python — FIT parsing, segment matching, performance analysis — is an explicit non-goal, and a shared filter package is worth more than a stronger geo ecosystem. |
 | **Driver** | `better-sqlite3`. Required by drizzle-kit, which does not support `node:sqlite`, and hardened besides. |
 | **Query layer** | Drizzle for schema, migrations and CRUD; hand-written SQL for spatial queries and aggregations, where query builders are worse than the SQL they generate. |
+| **Migrations** | Always generated with an explicit name: `pnpm db:generate --name add-elapsed`. Without `--name`, drizzle-kit invents one like `0000_sharp_lily_hollister`, which tells a future reader nothing. |
 | **Not Deno** | Better DX and a genuinely useful permissions model, but drizzle-kit + `node:sqlite` is an open bug needing a community patch — a patched migration toolchain is the wrong place to spend novelty. |
 | **Testing** | Vitest with msw serving recorded fixtures. The whole suite runs offline in seconds. |
 | **CLI** | `tracks sync` and `tracks serve`. Nothing else — tagging belongs in the UI. |
@@ -290,13 +326,14 @@ tracks/
 
 ## Milestones
 
-Strava leads because it is documented: the schema and sync loop get debugged against a stable
-API before the undocumented one is attempted. Until M3 there is no UI, so M1 and M2 are
-inspected through a SQLite browser.
+Strava leads because it is entirely offline: the schema and import pipeline get debugged
+against files on disk, with no network, no credentials and no rate limits, before the
+undocumented Komoot API is attempted. Until M3 there is no UI, so M1 and M2 are inspected
+through a SQLite browser.
 
 | | | |
 |---|---|---|
-| **M1** | Strava → SQLite | Schema, migrations, the `ActivitySource` interface, Strava OAuth, `tracks sync`, recorded fixtures. |
+| **M1** | Strava archive → SQLite | Schema, migrations, the `ActivitySource` interface, `tracks import <path>`, GPX + TCX parsers, timezone derivation. |
 | **M2** | Komoot | Second source behind the same interface, with its own fixtures. Validates that the schema fits both shapes. |
 | **M3** | Map, list and filters | `tracks serve`: REST API, MapLibre map, synced activity list, the full filter sidebar including spatial selection. |
 | **M4** | Tagging | Tag UI and tag-driven filtering, including whatever makes 500 untagged activities tractable. |
@@ -312,8 +349,10 @@ will otherwise propose all of these again.
 
 | Rejected | Why |
 |---|---|
-| DuckDB | Columnar storage earns nothing at 3M rows, and it is single-writer — hostile to interactive tagging. |
-| Strava bulk archive for backfill | It exists (Settings → Download or Delete Your Account → Request Your Archive) but Strava takes hours to 10 days to prepare it — *slower* than the 75-minute unattended API backfill. Archive files are a mix of GPX, FIT and TCX, so it would also mean three parsers and a second permanent ingestion path for a one-time job. Komoot has no bulk export at all. |
+| DuckDB | Columnar storage earns nothing at this scale, and it is single-writer — hostile to interactive tagging. |
+| Strava API (Standard tier) | Requires a paid Strava subscription since June 2026. The free bulk archive gives the same data for a personal tool. |
+| FIT parser (`@garmin/fitsdk`) | A real archive contains zero FIT files — only GPX and TCX. Add one if a future export needs it. |
+| CSV as sport fallback | Its sport vocabulary is localized to the account language. Two untyped rides are tagged by hand instead. |
 | Deno 2 | drizzle-kit has an open bug with `node:sqlite`; the workaround is a third-party patch on core tooling. |
 | H3 cell precompute | Deferred with the heatmap. The trackpoint table supports it and every alternative. |
 | bbox column + turf refine | Trackpoint rows make the bounding-box query exact and index-covered. Superseded. |
