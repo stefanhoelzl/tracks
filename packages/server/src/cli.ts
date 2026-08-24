@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path'
-import type { ActivitySource } from '@tracks/core'
 import { Command } from 'commander'
 import { openDb } from './db.ts'
 import { importSource } from './import.ts'
+import type { ActivitySource } from './source.ts'
 import { KomootSource } from './sources/komoot/index.ts'
 import { StravaArchiveSource } from './sources/strava-archive/index.ts'
 

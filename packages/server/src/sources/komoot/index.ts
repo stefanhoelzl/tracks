@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ActivitySource, SourceActivity, Track, TrackPoint } from '@tracks/core'
+import type { ActivitySource, SourceActivity, Track, TrackPoint } from '../../source.ts'
 import { KomootClient, type KomootClientOptions, type KomootTourDetail } from './client.ts'
 import { sportTags } from './sport.ts'
 

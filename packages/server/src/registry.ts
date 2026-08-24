@@ -1,6 +1,7 @@
-import { type TagRegistry, type TagType, tagTypes } from '@tracks/core'
+import type { TagRegistry, TagType } from '@tracks/core'
 import { eq } from 'drizzle-orm'
 import type { Db } from './db.ts'
+import { tagTypes } from './schema.ts'
 
 /**
  * Reads the tag type registry.

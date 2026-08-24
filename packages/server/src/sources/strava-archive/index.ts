@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ActivitySource, SourceActivity, Track } from '@tracks/core'
+import type { ActivitySource, SourceActivity, Track } from '../../source.ts'
 import { type ArchiveRow, readArchiveCsv } from './csv.ts'
 import { sportTags } from './sport.ts'
 import { readTrackFile } from './track.ts'

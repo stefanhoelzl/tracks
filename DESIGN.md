@@ -7,8 +7,8 @@ tagged, filtered and counted on your own machine.
 |---|---|
 | **Deployment** | Local-only, single user |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
-| **Stack** | Node 24 · pnpm · SQLite |
-| **Status** | M1–M2 complete; M2.5 (typed tags) next, then M3 (map, list, filters) |
+| **Stack** | Node 24 · pnpm · SQLite · React · MapLibre |
+| **Status** | M1–M2.5 complete; M3 (map, list, filters) in progress |
 
 ---
 
@@ -284,24 +284,40 @@ table lookups.
 ## Map
 
 [VersaTiles](https://versatiles.org/) serves OpenStreetMap-derived vector tiles with no API
-key, no usage fees and no user tracking, on the CC-0 Shortbread schema. Global elevation data
-shipped in April 2026, so hillshading works — the one thing it lacked for outdoor use. Contour
-lines are still unimplemented; that is the only gap against a commercial outdoor style. The
-basemap is a config value, so swapping providers or dropping to a locally-served container is
-a one-line change.
+key, no usage fees and no user tracking, on the CC-0 Shortbread schema. The style is
+`@versatiles/style`'s `graybeard`, warmed by a `recolor` blend — neutral grey, so the tracks own
+the only real colour on screen. It lives in one `basemap.ts` module, which is what keeps swapping
+providers or dropping to a locally-served container a one-line change.
+
+Global elevation shipped in April 2026 as a `raster-dem` tileset — terrarium encoding, 512 px,
+z0–12 — and it closes both gaps that kept VersaTiles from being an outdoor basemap. Hillshading
+is a MapLibre `hillshade` layer over that source, tuned to sit under the track colours rather
+than compete with them. Contours come from `maplibre-contour`, which generates contour vector
+tiles from the same DEM in a worker: always on above z11, with no toggle, because a contour is a
+property of the basemap and this app has no map-options surface for one control to live in.
 
 | | |
 |---|---|
-| **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance. All 500 ship as a single GeoJSON of a few megabytes; full-resolution points load only when you open one activity. |
-| **Colour** | A *colour by* selector over the values of any registered type, or year — never over types themselves, since a type has one colour and colouring by it would draw every ride, hike and run identically. Colours come from a hash of `type:value` into a categorical palette, so they are stable across sessions and never shuffle as you filter; two visible values can collide, which is the price of not depending on what is currently on screen. The registry's own `color` is for chips and sidebar group headers, not for tracks. |
+| **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance, decoded server-side and served as one GeoJSON by `/api/tracks`. All 197 measure 214 KB stored, under a megabyte as GeoJSON; full-resolution points load only when you open one activity. |
+| **Colour** | A *colour by* selector over the values of any registered type, or year, or none — never over types themselves, since a type has one colour and colouring by it would draw every ride, hike and run identically. Colours come from a hash of `type:value` into a categorical palette, so they are stable across sessions and never shuffle as you filter; two visible values can collide, which is the price of not depending on what is currently on screen. The registry's own `color` is for chips and sidebar group headers, not for tracks. |
 | **Hover linking** | Two-way. Hover a list row and its track highlights while the rest dim; hover a track and the list scrolls to it. |
-| **Viewport** | Auto-fits to the active filter, with a lock toggle for when you're studying one area. |
-| **Low zoom** | Clustered start-point markers, for seeing where rides actually begin. |
+| **Viewport** | Eases to the result bounds once the filter settles — debounced, so dragging a slider fits at the end rather than every frame. It holds still when nothing matches, rather than lurching at empty bounds, and stays put entirely while *filter to this area* is on. |
+| **Low zoom** | Clustered start-point markers, for seeing where rides actually begin. The client derives the start points from the track payload it already holds, so clustering costs no endpoint. |
 
-### Spatial filtering is exact
+### Spatial filtering is the viewport
 
-Because trackpoints are rows, drawing a box on the map is a direct query — no bounding-box
-column, no client-side refinement pass, no approximation:
+**You don't draw a box; you look at a place.** A *filter to this area* toggle in the map chrome
+turns the camera's own bounds into the `bbox` term, refetched on a debounced `moveend`. The
+toggle is also the viewport lock — it has to be, since a filter that follows the camera while the
+camera follows the filter is a loop — so one control replaces two, and the drag handling, the
+overlay rectangle, the armed mode and the fight with MapLibre's own shift-drag all cease to exist.
+It is the more discoverable gesture as well: a labelled switch against a modifier nobody guesses.
+
+The bbox is the whole canvas, including what shows through the translucent panels. Insetting it to
+the unobstructed strip would hide a track that is plainly visible, which reads as a bug.
+
+Because trackpoints are rows, the query is direct — no bounding-box column, no client-side
+refinement pass, no approximation:
 
 ```sql
 SELECT DISTINCT activity_id FROM trackpoints
@@ -309,22 +325,58 @@ WHERE lat BETWEEN ?min_lat AND ?max_lat
   AND lon BETWEEN ?min_lon AND ?max_lon;
 ```
 
-Effectively instant over ~300k rows on the covering index. The only theoretical gap — a track
-crossing the box with no sampled point inside it — is irrelevant at one-second sampling.
+Effectively instant over ~1M rows on the covering index. The only theoretical gap — a track
+crossing the viewport with no sampled point inside it — is irrelevant at one-second sampling.
 
 ---
 
 ## Filters & UI
 
-The map fills the window. A collapsible sidebar carries the filters; the activity list stays
-synced beside it. Filter state lives in the URL, so any view is bookmarkable.
+The map runs full-bleed and every panel floats over it, frosted and rounded, rather than sitting
+in a docked column. Filters are on the left, the activity list on the right, and each collapses to
+a slim rail so the map can be seen unobstructed. Filter state lives in the URL, so any view is
+bookmarkable.
+
+A list row is a coloured bar plus title, distance, elevation, duration and date. The bar follows
+the active *colour by* rather than being hardwired to sport, so the list and the map never read as
+two different legends. Clicking one selects it — `?activity=123` — and the right panel swaps to a
+read-only detail while the full-resolution track draws and everything else dims. Selection is
+single; the checkboxes and shift-click ranges belong to the M4 flow that needs them.
+
+Zero results show an empty state naming the facets doing the narrowing, with the map holding its
+camera rather than lurching at empty bounds. A filter change keeps the previous results on screen
+until the new ones arrive, so nothing flashes empty mid-drag. The layout is fluid to about 1100 px;
+below that the panels would eat the map, and it says so instead of degrading. This is a desktop
+tool and does not pretend otherwise.
 
 | Group | Facets |
 |---|---|
-| Core | Date range · tags of any registered type (include / exclude / *not set*) · spatial box |
+| Core | Date range · tags of any registered type (include / exclude / *not set*) · the map viewport |
 | Ranges | Distance, elevation, duration, average speed — dual-handle sliders over histogram backgrounds, so the distribution is visible while you drag |
-| Text | Free-text match on title and description |
-| Presets | This year · last 30 days · **not set**, per type |
+| Presets | Last 30 days · this year · **not set**, per type |
+
+Average speed is `distance_m / duration_s`, computed in SQL rather than stored. An activity
+missing either input has no speed, so it is absent from that histogram and matches no speed
+range — the same way an untagged activity matches no `sport:` term. Every range facet treats
+nulls that way, which is what keeps narrowing a filter monotonic.
+
+A preset resolves to concrete dates the moment you click it: *last 30 days* writes
+`from=2026-07-26&to=2026-08-25`, not `date=last30`. One representation of a range in the URL,
+nothing on the server ever computes *now*, and a bookmark means the same thirty days a year from
+now. The popover re-highlights a preset when the current range happens to match it.
+
+### Counts are self-excluded
+
+Every facet is counted over the active filter **minus its own terms**. Selecting `sport:hike`
+still shows `bike 102` beside it, so the sidebar keeps telling you what widening would give
+instead of collapsing to a column of zeroes; but those counts do still respect an active date
+range or viewport. Range sliders work the same way — their endpoints come from the self-excluded
+filter, so choosing a sport rescales the distance axis to the useful range while dragging distance
+can never rescale distance. A handle at the top of its track therefore means *unbounded*, not *at
+the current maximum*, or widening some other facet would silently apply a cap you never set.
+
+Costing one query per facet group is the price, which at 197 rows on a local file is not a
+price.
 
 > **The discipline that holds this together:** one filter serialization, defined once in
 > `packages/core` and imported by both the server and the browser. Every endpoint parses
@@ -342,18 +394,52 @@ type the values are ORed, across types ANDed; a leading `-` negates, and an empt
      └── bike or hike ───────┘  └ not that trip ──┘  └ no trip at all
 ```
 
+Everything else is a plain named parameter, and every range is **two** of them rather than one
+compound value — `distance_min` / `distance_max`, matching `sort_key` / `sort_order`. An absent
+bound simply means unbounded, so there is no `..` syntax to parse, escape or explain.
+
+```
+?tag=sport:bike&tag=-trip:Balkan 2026
+&from=2024-01-01&to=2024-12-31
+&bbox=13.68,46.31,13.86,46.44
+&distance_min=0&distance_max=50000&elevation_min=500&duration_max=7200&speed_min=4.2
+&sort_key=distance&sort_order=desc&colour_by=sport&activity=123
+```
+
+Units in the URL are **SI** — metres, seconds, metres per second — because those are the column
+units, so nothing converts on the way in and the boundary has no rounding question. The browser
+converts for display, which it must do anyway. `bbox` is GeoJSON order: `minLon,minLat,maxLon,maxLat`.
+
+The URL carries the filters *and* the view state that changes what you see — `colour_by`, the sort
+and the selected activity — but not the camera. The camera auto-fits to the filter, so a bookmark
+reproduces the view without storing it, and pan/zoom never churns history. The one case where the
+camera *is* meaningful is `bbox`, and there it is already a filter term.
+
 ### API surface
 
 | Route | Returns |
 |---|---|
-| `GET /api/activities?<filters>` | List rows plus simplified polylines |
+| `GET /api/activities?<filters>` | List rows, ordered by `sort_key`/`sort_order` |
+| `GET /api/tracks?<filters>` | GeoJSON FeatureCollection of the simplified polylines; each feature carries its `id` and `tags` |
+| `GET /api/facets?<filters>` | Summary totals, per-value counts and range bounds + histograms — all self-excluded |
 | `GET /api/activities/:id` | Detail plus full trackpoints |
-| `GET /api/stats?<filters>` | Aggregates for the analytics views |
-| `GET /api/heatmap?<filters>` | Grid cell counts — **deferred** |
-| `POST` / `DELETE /api/activities/:id/tags` | Tag mutations for one activity |
-| `POST /api/tags` | Bulk: a filter plus `add` / `remove`. The lever that makes 500 untagged activities tractable, and nearly free once filters are shared code |
 | `GET /api/tag-types` | The registry, which the browser needs to render and validate |
-| `POST` / `PUT` / `DELETE /api/tag-types/:name` | Registry mutations. Delete and enum-shrink cascade onto activities |
+| `GET /api/stats?<filters>` | Aggregates for the analytics views — **M5** |
+| `GET /api/heatmap?<filters>` | Grid cell counts — **deferred** |
+| `POST` / `DELETE /api/activities/:id/tags` | Tag mutations for one activity — **M4** |
+| `POST /api/tags` | Bulk: a filter plus `add` / `remove`. The lever that makes 500 untagged activities tractable, and nearly free once filters are shared code — **M4** |
+| `POST` / `PUT` / `DELETE /api/tag-types/:name` | Registry mutations. Delete and enum-shrink cascade onto activities — **M4** |
+
+**Rows, geometry and facets are three routes, not one payload.** They change at different rates and
+for different reasons: the geometry is the same bytes whether you are sorting the list or not, and
+the facets are ten small aggregates where the rows are one big select. Three cache keys let each
+settle on its own. The client holds every matching row — 197 activities is 214 KB of polyline
+total — so nothing paginates, and the detail route returns its trackpoints as plain point objects
+rather than a packed encoding, because 2.5 MB over loopback costs less than a decoder does.
+
+The contract itself is **Zod schemas in `packages/core`**, parsed at both ends. The filter parses
+from `URLSearchParams` through the same schemas, so a malformed URL is a 400 naming the field
+rather than an undefined three frames later.
 
 ---
 
@@ -383,13 +469,21 @@ enough to justify one.
 
 ```
 tracks/
-├─ packages/core     # schema, types, tag grammar, THE filter serialization
-├─ packages/server   # Hono REST API · CLI · ActivitySources
+├─ packages/core     # tag grammar · THE filter serialization · the API contract
+├─ packages/server   # schema · ActivitySources · Hono REST API · CLI
 ├─ packages/web      # React · MapLibre · ECharts
 ├─ migrations/       # drizzle-kit
 ├─ fixtures/         # recorded Strava & Komoot responses
 └─ data/             # gitignored: tracks.db, Komoot raw payloads
 ```
+
+**Core is what both sides run identically, and nothing else.** It held the schema, the timezone
+derivation, the simplifier and the `ActivitySource` interface for as long as the server was its
+only consumer, which made *shared* and *server-side* indistinguishable. A browser makes the
+boundary observable, so those four moved into `packages/server` and core was left with the tag
+grammar, the filter serialization and the API contract — **zero runtime dependencies**. The
+browser cannot accidentally bundle drizzle or a timezone dataset, because they are not reachable
+from anything it imports; no subpath exports, no tree-shaking to trust.
 
 | | |
 |---|---|
@@ -398,8 +492,14 @@ tracks/
 | **Query layer** | Drizzle for schema, migrations and CRUD; hand-written SQL for spatial queries and aggregations, where query builders are worse than the SQL they generate. |
 | **Migrations** | Always generated with an explicit name: `pnpm db:generate --name add-elapsed`. Without `--name`, drizzle-kit invents one like `0000_sharp_lily_hollister`, which tells a future reader nothing. |
 | **Not Deno** | Better DX and a genuinely useful permissions model, but drizzle-kit + `node:sqlite` is an open bug needing a community patch — a patched migration toolchain is the wrong place to spend novelty. |
-| **Testing** | Vitest, with msw replaying recorded Komoot responses and file fixtures for Strava. The whole suite runs offline in under a second. |
-| **CLI** | `tracks sync` and `tracks serve`. Nothing else — tagging belongs in the UI. |
+| **Validation** | Zod, in core, for the filter and every response shape — parsed on the way in *and* on the way out. |
+| **Web build** | Vite. In development the Hono app runs inside it via `@hono/vite-dev-server`, so one command HMRs both sides; `tracks serve` mounts the built `dist` beside the API. |
+| **Web state** | No router — the app is one page, and core already parses the query string. A `useFilterState` hook over `useSyncExternalStore` is the whole of it. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
+| **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover, dimming and a viewport-derived filter are all things a declarative wrapper would be in the way of. |
+| **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file. |
+| **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
+| **Testing** | Vitest in two projects: `node` (core, server, msw-replayed Komoot, file fixtures for Strava) stays offline and under a second; `web` (jsdom) covers the components. `--project node` keeps the fast lane. |
+| **CLI** | `tracks import` and `tracks serve [--port 8080] [--open]`. Nothing else — tagging belongs in the UI. A missing web build exits naming the build command rather than serving 404s. |
 
 ---
 
@@ -407,7 +507,7 @@ tracks/
 
 Strava leads because it is entirely offline: the schema and import pipeline get debugged
 against files on disk, with no network, no credentials and no rate limits, before the
-undocumented Komoot API is attempted. Until M3 there is no UI, so M1 through M2.5 are
+undocumented Komoot API is attempted. There was no UI until M3, so M1 through M2.5 were
 inspected through a SQLite browser.
 
 | | | |
@@ -415,8 +515,8 @@ inspected through a SQLite browser.
 | **M1** | Strava archive → SQLite | Schema, migrations, the `ActivitySource` interface, `tracks import <path>`, GPX + TCX parsers, timezone derivation. |
 | **M2** | Komoot | Second source behind the same interface, with recorded fixtures replayed through msw. Needed no interface change, which validated the M1 abstraction. |
 | **M2.5** | Typed tags | The `tag_types` registry, the `<type>:<value>` grammar and validator in core, per-source auto-tagging, and a migration that rewrites the existing arrays. No UI — done before M3 so the map and sidebar are built against the final tag model rather than twice. |
-| **M3** | Map, list and filters | `tracks serve`: REST API, MapLibre map, synced activity list, the full filter sidebar including spatial selection. |
-| **M4** | Tagging | Tag UI and tag-driven filtering, including whatever makes 500 untagged activities tractable. |
+| **M3** | Map, list and filters | `tracks serve`: the REST API, the MapLibre map with hillshade and contours, the synced activity list, a read-only activity detail, and the full filter sidebar with viewport spatial filtering. Lands in three commits — the core split, the backend, the browser. |
+| **M4** | Tagging | Tag UI and tag-driven filtering, including whatever makes 500 untagged activities tractable. Free-text search arrives here too, since the flow that needs it is finding untagged activities by name. |
 | **M5** | Analytics | The four ECharts views, scoped to the active filter. |
 | **M6** | Heatmap and coverage | "Everywhere I've been", percentage of terrain covered, new-versus-repeated per activity. |
 
@@ -454,6 +554,19 @@ will otherwise propose all of these again.
 | Tag export / backup | Accepted risk, deliberately. Tags are the only non-regenerable data in the system. |
 | Observable Plot | More elegant, but the calendar heatmap and map-linked cursor would both be hand-rolled. |
 | MapTiler · OSM raster | MapTiler costs a key and a quota for contour lines alone; raster OSM has no hillshading and a usage policy this would strain. |
+| Schema and timezone in `packages/core` | True while the server was core's only consumer. A browser makes *shared* and *server-side* different things, and core is the first one. |
+| A `description` column | Only Strava has one, so 124 of 197 rows would be null, and reaching them means the backfill problem below. Text search moves to M4 and searches titles. |
+| A drawn spatial box | The viewport already expresses "this area", and turning it into the filter deletes the drag handling, the overlay, the armed mode and the shift-drag conflict — and doubles as the viewport lock, which otherwise needs its own control. |
+| Symbolic date presets | `date=last30` puts two representations of one range in the URL and makes *now* a server input. Presets resolve to dates on click instead. |
+| Pinning the seeded sport colours | Reintroduces the per-value colour table already rejected above, just in the browser instead of the registry. Everything hashes. |
+| One combined `/api/activities` payload | Rows, geometry and facets change at different rates; three cache keys let each settle without refetching the other two. |
+| Hono RPC (`hc<AppType>`) | End-to-end types for free, as an inferred blob nobody can read, coupling the browser to the server's framework. Zod schemas in core are the readable version. |
+| List pagination | 197 activities is 214 KB of polyline. The client holds all of it, so sorting is a query key and nothing has an offset to get wrong. |
+| A router library | One page, one query string, and core already parses it. `useSyncExternalStore` over `history` is the whole requirement. |
+| `hillshade-vectors` | Pre-baked shading composites like any vector layer, but its light angle and intensity are fixed. The `raster-dem` source is tunable and also feeds the contours. |
+| A contours toggle | A contour is a property of the basemap, not a filter. One display toggle would invent a map-options surface that nothing else needs. |
+| Rendering M4/M5 controls inert | A dead button invites a click and answers with a shrug. The layout absorbs the analytics switch and the bulk-tag button when they do something. |
+| Multi-select in M3 | Selection sets, a selection summary and a clear affordance, built a milestone before the bulk-tagging flow that consumes them. |
 
 ---
 
@@ -469,10 +582,9 @@ filter-blind. Nothing in the schema forecloses either.
 the current filter, paired with the per-type *not set* preset — but not the workflow that
 makes 500 activities tractable, nor how a type is created without leaving the tagging flow.
 
-**REST surface detail** *(M3)* — Payload shapes and pagination for the list are still open.
-The tag mutation contract is not: `POST /api/tags` takes a filter, the per-activity routes
-take one id, and both run the same merge, where assigning a single-valued type replaces
-rather than appends.
+**Tag mutation contract** *(M4)* — Settled ahead of its milestone: `POST /api/tags` takes a
+filter, the per-activity routes take one id, and both run the same merge, where assigning a
+single-valued type replaces rather than appends.
 
 **Backfilling a new derived type** *(M2.5)* — `importSource` skips any activity that already
 has trackpoints, which is what makes re-import cheap. So a type added to the registry later

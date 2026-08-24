@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { gunzipSync } from 'node:zlib'
-import type { TrackPoint } from '@tracks/core'
 import { XMLParser } from 'fast-xml-parser'
+import type { TrackPoint } from '../../source.ts'
 
 const parser = new XMLParser({
   ignoreAttributes: false,

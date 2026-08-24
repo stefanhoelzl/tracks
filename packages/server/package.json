@@ -10,6 +10,7 @@
     "commander": "^14.0.2",
     "csv-parse": "^6.1.0",
     "drizzle-orm": "^0.44.7",
-    "fast-xml-parser": "^5.3.4"
+    "fast-xml-parser": "^5.3.4",
+    "tz-lookup": "^6.1.25"
   }
 }

@@ -1,18 +1,12 @@
 import polyline from '@mapbox/polyline'
-import {
-  type ActivitySource,
-  activities,
-  mergeDerivedTags,
-  parseTag,
-  simplify,
-  type TagRegistry,
-  trackpoints,
-  utcOffsetAt,
-  validateTag,
-} from '@tracks/core'
+import { mergeDerivedTags, parseTag, type TagRegistry, validateTag } from '@tracks/core'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Db } from './db.ts'
+import { simplify } from './polyline.ts'
 import { addEnumValue, loadRegistry } from './registry.ts'
+import { activities, trackpoints } from './schema.ts'
+import type { ActivitySource } from './source.ts'
+import { utcOffsetAt } from './timezone.ts'
 
 export interface ImportResult {
   seen: number
