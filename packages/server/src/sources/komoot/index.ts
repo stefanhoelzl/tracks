@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ActivitySource, SourceActivity, Track, TrackPoint } from '@tracks/core'
 import { KomootClient, type KomootClientOptions, type KomootTourDetail } from './client.ts'
+import { sportTags } from './sport.ts'
 
 export interface KomootSourceOptions extends KomootClientOptions {
   /**
@@ -76,7 +77,7 @@ export class KomootSource implements ActivitySource {
       recordedAt: timed ? startEpoch + Math.round((item.t ?? 0) / 1000) : null,
     }))
 
-    return { points, sportRaw: tour.sport ?? null, title: tour.name ?? null }
+    return { points, tags: sportTags(tour.sport), title: tour.name ?? null }
   }
 
   async #archive(externalId: string, tour: KomootTourDetail): Promise<void> {

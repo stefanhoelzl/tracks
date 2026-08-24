@@ -2,14 +2,17 @@ import polyline from '@mapbox/polyline'
 import {
   type ActivitySource,
   activities,
-  isReservedTag,
+  mergeDerivedTags,
+  parseTag,
   simplify,
-  toSport,
+  type TagRegistry,
   trackpoints,
   utcOffsetAt,
+  validateTag,
 } from '@tracks/core'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Db } from './db.ts'
+import { addEnumValue, loadRegistry } from './registry.ts'
 
 export interface ImportResult {
   seen: number
@@ -17,22 +20,55 @@ export interface ImportResult {
   skippedNoTrack: number
   unchanged: number
   failed: Array<{ externalId: string; error: string }>
+  /** Enum values a source derived that the registry had lost, and got back. */
+  readdedValues: string[]
+  /** Derived tags no registry type could accept, counted by tag. */
+  rejectedTags: Map<string, number>
 }
 
 /**
- * Merges the automatic sport tag into an activity's existing tags.
+ * Accepts the tags a source derived, against the registry.
  *
- * Re-derivation only acts when the source actually supplies a type. Where it does
- * not, existing tags are returned untouched — so a manual `ride` tag on a
- * third-party upload with no `<type>` survives every future import.
+ * A source's vocabulary is a fact and the registry is a preference, so a value an
+ * enum has lost is put back rather than dropped. A tag whose *type* is unknown is a
+ * different matter — nothing says what it means — so it is dropped and reported.
+ * Either way the activity itself imports: a taxonomy choice never fails an import.
  */
-export function mergeSportTag(existing: string[], sport: string | null): string[] {
-  if (sport === null) return existing
-  return [...existing.filter((t) => !isReservedTag(t)), sport]
+function acceptDerived(db: Db, registry: TagRegistry, derived: string[], result: ImportResult) {
+  const accepted: string[] = []
+
+  for (const raw of derived) {
+    const tag = parseTag(raw)
+    const type = tag ? registry.get(tag.type) : undefined
+
+    if (tag && type?.enumValues && !type.enumValues.includes(tag.value)) {
+      addEnumValue(db, type, tag.value)
+      result.readdedValues.push(raw)
+      accepted.push(raw)
+      continue
+    }
+
+    if (validateTag(registry, raw) !== null) {
+      result.rejectedTags.set(raw, (result.rejectedTags.get(raw) ?? 0) + 1)
+      continue
+    }
+    accepted.push(raw)
+  }
+
+  return accepted
 }
 
 export async function importSource(db: Db, source: ActivitySource): Promise<ImportResult> {
-  const result: ImportResult = { seen: 0, imported: 0, skippedNoTrack: 0, unchanged: 0, failed: [] }
+  const registry = loadRegistry(db)
+  const result: ImportResult = {
+    seen: 0,
+    imported: 0,
+    skippedNoTrack: 0,
+    unchanged: 0,
+    failed: [],
+    readdedValues: [],
+    rejectedTags: new Map(),
+  }
 
   for await (const activity of source.listActivities()) {
     result.seen++
@@ -81,10 +117,12 @@ export async function importSource(db: Db, source: ActivitySource): Promise<Impo
         polyline: polyline.encode(
           simplify(track.points).map((p) => [p.lat, p.lon] as [number, number]),
         ),
+        // `source:` duplicates the column on purpose: the upsert key needs the
+        // column, and the tag is what makes source one more facet like any other.
         tags: JSON.stringify(
-          mergeSportTag(
+          mergeDerivedTags(
             existing ? (JSON.parse(existing.tags) as string[]) : [],
-            toSport(track.sportRaw),
+            acceptDerived(db, registry, [...track.tags, `source:${source.name}`], result),
           ),
         ),
       }

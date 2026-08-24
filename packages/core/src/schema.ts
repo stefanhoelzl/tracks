@@ -33,7 +33,7 @@ export const activities = sqliteTable(
     elevationGainM: real('elevation_gain_m'),
     /** Simplified track, encoded polyline. What the map renders. */
     polyline: text('polyline'),
-    /** JSON array of tag names. Queried with json_each(). */
+    /** JSON array of '<type>:<value>' tags, sorted. Queried with json_each(). */
     tags: text('tags').notNull().default('[]'),
   },
   (t) => [unique('activities_source_external').on(t.source, t.externalId)],
@@ -63,3 +63,24 @@ export const trackpoints = sqliteTable(
     index('trackpoints_spatial').on(t.lat, t.lon, t.activityId),
   ],
 )
+
+/**
+ * The tag type registry.
+ *
+ * Types, never values: `trip:Balkan 2026` stays a string in an activity's array, so
+ * tagging is one UPDATE and there is nothing to garbage collect. What a type carries
+ * is what a bare string cannot — which values it permits, whether an activity may
+ * hold more than one, and how the sidebar draws it.
+ */
+export const tagTypes = sqliteTable('tag_types', {
+  /** Identifier, and the prefix of every tag of this type. */
+  name: text('name').primaryKey(),
+  label: text('label').notNull(),
+  /** JSON array of allowed values. NULL means any non-empty string is one. */
+  enumValues: text('enum_values'),
+  singleValued: integer('single_valued', { mode: 'boolean' }).notNull(),
+  /** Chips and sidebar group headers. Per type — track colours are hashed per value. */
+  color: text('color').notNull(),
+  /** Sidebar order; unique so it is never ambiguous. */
+  sort: integer('sort').notNull().unique(),
+})

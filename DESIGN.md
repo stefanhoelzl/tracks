@@ -8,7 +8,7 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | Local-only, single user |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
 | **Stack** | Node 24 · pnpm · SQLite |
-| **Status** | M1–M2 complete; M3 (map, list, filters) next |
+| **Status** | M1–M2 complete; M2.5 (typed tags) next, then M3 (map, list, filters) |
 
 ---
 
@@ -120,9 +120,12 @@ too.
 
 **Sport.** Taken from the file — GPX `<type>`, TCX `Sport` — which is English and
 locale-independent. There is no CSV fallback: an activity whose file carries no type gets no
-automatic sport tag and is tagged manually. Accordingly, **re-derivation only acts when the
-source supplies a type**; where it does not, existing tags are left untouched, so a manual
-sport tag survives every future import.
+automatic sport tag and is tagged manually. Each source maps its own vocabulary to a `sport:`
+tag itself rather than handing a raw string to the pipeline, so Komoot's `touringbicycle` and
+Strava's `cycling` are two facts about two services that are free to drift apart. A string
+neither source's map recognises derives nothing at all. Accordingly, **re-derivation only acts
+when the source supplies a type**; where it does not, existing tags are left untouched, so a
+manual sport tag survives every future import.
 
 **Title.** The file's own name, falling back to the CSV title. This preserves original names
 from third-party uploads — *"Almenrunde"* rather than Strava's auto-generated *"Fahrt am
@@ -177,8 +180,17 @@ activities (
   elapsed_s        INTEGER,                 -- service-reported, wall clock
   elevation_gain_m REAL,                    -- service-reported
   polyline     TEXT,                        -- simplified, encoded
-  tags         TEXT NOT NULL DEFAULT '[]',  -- JSON array
+  tags         TEXT NOT NULL DEFAULT '[]',  -- JSON array of '<type>:<value>'
   UNIQUE (source, external_id)
+);
+
+tag_types (
+  name          TEXT PRIMARY KEY,           -- 'sport', 'trip', 'source'
+  label         TEXT NOT NULL,              -- 'Sport'
+  enum_values   TEXT,                       -- JSON array, or NULL = free string
+  single_valued INTEGER NOT NULL,           -- one radio, or many checkboxes
+  color         TEXT NOT NULL,              -- per type, not per value
+  sort          INTEGER NOT NULL UNIQUE     -- sidebar order
 );
 
 trackpoints (
@@ -196,16 +208,61 @@ CREATE INDEX trackpoints_spatial ON trackpoints (lat, lon, activity_id);
 
 ### Tags
 
-A flat JSON array on the activity, queried with `json_each()`. No join table, no tag ids.
-Sport is **auto-derived on import** into that same array, which makes the canonical sport
-vocabulary — `ride`, `mtb`, `gravel`, `run`, `hike` … — *reserved*: the UI must refuse a
-manual tag with one of those names, or a re-derive will quietly eat it. That is the entire
-cost of the flat model.
+Every tag is `<type>:<value>` — `sport:hike`, `trip:Balkan 2026`, `source:komoot`. The
+assignment stays a flat JSON array on the activity, queried with `json_each()`. What the
+schema gains is a registry of the *types*, because a type carries what a bare string cannot:
+which values it permits, whether an activity may hold more than one, and how the sidebar
+draws it.
+
+| Seeded type | Values | Single | Written by |
+|---|---|---|---|
+| `sport` | enum: `bike`, `hike`, `run` | yes | import |
+| `trip` | free string | yes | you |
+| `source` | free string | yes | import |
+
+Splitting on the **first** colon makes the type an identifier (`/^[a-z][a-z0-9_]*$/`) and
+leaves the value free — `trip:Balkan 2026` keeps its capitals and its space, so nothing has
+to un-mangle it for display. Values compare exactly; autocomplete over existing values is
+what stops `balkan 2026` becoming a second trip. Arrays are sorted on write, so a re-import
+that changes nothing produces a byte-identical row.
 
 ```sql
 SELECT a.* FROM activities a, json_each(a.tags) t
-WHERE t.value = 'alps';
+WHERE t.value = 'trip:Balkan 2026';
 ```
+
+**A registry instead of a reserved word list.** The flat model's one cost used to be that
+sport names were reserved: the UI had to refuse a manual `hike` tag, or a re-derive would
+quietly eat it. The type prefix removes the collision rather than policing it — the importer
+owns `sport:` and `source:`, you own everything else, and no name is forbidden anywhere.
+What replaces `isReservedTag` is one merge rule: **for each `(type, value)` a source derives,
+drop that type's existing tags and add the new one.** A type the source says nothing about is
+untouched, which is exactly the property that keeps a hand-tagged Garmin upload hand-tagged.
+
+**Types only — still no tag ids.** The registry holds types, never values, so `trip:Balkan
+2026` remains a string in an array: tagging is one `UPDATE`, and there is nothing to garbage
+collect when the last activity loses a trip. The price is that renaming a trip rewrites every
+array mentioning it — a 500-row update measured in milliseconds, against a join table that
+would have to exist all the time.
+
+**`source:` duplicates `activities.source` on purpose.** The column cannot go: the upsert key
+`(source, external_id)` needs it, and it decides which importer owns a row and which raw
+directory it lands in. The tag is a derived copy, written in the same transaction, bought
+deliberately so that every facet in the sidebar is the same kind of thing.
+
+**Enforcement is in code, not in SQLite.** `validateTag(registry, tag)` lives in
+`packages/core` beside the filter serialization — the same discipline the filters already
+depend on. The server validates on write, the browser validates before submitting, and both
+run the identical function. The JSON array itself carries no constraints, and the registry is
+read per request rather than cached, so a hand-edit in a SQLite browser takes effect without
+a restart.
+
+**The registry is authoritative, so it cascades.** Deleting a type, or removing a value from
+an enum, strips those tags from every activity in the same transaction; no tag outlives its
+type. The one flow that runs the other way is the importer: a derived value the enum no
+longer contains is **re-added** to the registry, and the run reports it. A source's
+vocabulary is a fact, the registry is a preference — so deleting `run` only sticks until you
+go for a run.
 
 ### Time
 
@@ -236,7 +293,7 @@ a one-line change.
 | | |
 |---|---|
 | **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance. All 500 ship as a single GeoJSON of a few megabytes; full-resolution points load only when you open one activity. |
-| **Colour** | By sport as default, switchable to tag, recency or year. Turns the map into an instrument rather than a tangle of identical lines. |
+| **Colour** | A *colour by* selector over the values of any registered type, or year — never over types themselves, since a type has one colour and colouring by it would draw every ride, hike and run identically. Colours come from a hash of `type:value` into a categorical palette, so they are stable across sessions and never shuffle as you filter; two visible values can collide, which is the price of not depending on what is currently on screen. The registry's own `color` is for chips and sidebar group headers, not for tracks. |
 | **Hover linking** | Two-way. Hover a list row and its track highlights while the rest dim; hover a track and the list scrolls to it. |
 | **Viewport** | Auto-fits to the active filter, with a lock toggle for when you're studying one area. |
 | **Low zoom** | Clustered start-point markers, for seeing where rides actually begin. |
@@ -264,16 +321,26 @@ synced beside it. Filter state lives in the URL, so any view is bookmarkable.
 
 | Group | Facets |
 |---|---|
-| Core | Date range · sport · tags (include / exclude, AND / OR) · source · spatial box |
+| Core | Date range · tags of any registered type (include / exclude / *not set*) · spatial box |
 | Ranges | Distance, elevation, duration, average speed — dual-handle sliders over histogram backgrounds, so the distribution is visible while you drag |
 | Text | Free-text match on title and description |
-| Presets | This year · last 30 days · **untagged** |
+| Presets | This year · last 30 days · **not set**, per type |
 
 > **The discipline that holds this together:** one filter serialization, defined once in
 > `packages/core` and imported by both the server and the browser. Every endpoint parses
 > filters with the same code, so "the current filter" means precisely the same thing on the
 > map, in the list and in the charts. This is the single biggest reason the stack is one
 > language.
+
+Tags serialize as a repeated generic key rather than one query parameter per type, so a new
+type never has to claim a parameter name that another filter might already want. Within a
+type the values are ORed, across types ANDed; a leading `-` negates, and an empty value means
+*absence* — unambiguous because the grammar forbids an empty value anywhere else.
+
+```
+?tag=sport:bike&tag=sport:hike&tag=-trip:Balkan 2026&tag=trip:
+     └── bike or hike ───────┘  └ not that trip ──┘  └ no trip at all
+```
 
 ### API surface
 
@@ -283,7 +350,10 @@ synced beside it. Filter state lives in the URL, so any view is bookmarkable.
 | `GET /api/activities/:id` | Detail plus full trackpoints |
 | `GET /api/stats?<filters>` | Aggregates for the analytics views |
 | `GET /api/heatmap?<filters>` | Grid cell counts — **deferred** |
-| `POST` / `DELETE /api/activities/:id/tags` | Tag mutations |
+| `POST` / `DELETE /api/activities/:id/tags` | Tag mutations for one activity |
+| `POST /api/tags` | Bulk: a filter plus `add` / `remove`. The lever that makes 500 untagged activities tractable, and nearly free once filters are shared code |
+| `GET /api/tag-types` | The registry, which the browser needs to render and validate |
+| `POST` / `PUT` / `DELETE /api/tag-types/:name` | Registry mutations. Delete and enum-shrink cascade onto activities |
 
 ---
 
@@ -292,7 +362,7 @@ synced beside it. Filter state lives in the URL, so any view is bookmarkable.
 Analytics recomputes over whatever the filter currently selects — so "gravel rides in the Alps
 in 2024" is one filter away from a full breakdown. No compare-to-previous-period selector.
 
-- **Volume trends** — distance, elevation, moving time and count by week, month or year, split by sport or tag.
+- **Volume trends** — distance, elevation, moving time and count by week, month or year, split by the values of any tag type.
 - **Calendar heatmap** — a year grid coloured by distance or duration, for spotting consistency and gaps.
 - **Distributions and records** — histograms of distance, elevation, duration and speed, plus longest, highest, fastest and longest streak.
 - **Elevation profile** — per activity, with the cursor linked to a marker on the map.
@@ -313,7 +383,7 @@ enough to justify one.
 
 ```
 tracks/
-├─ packages/core     # schema, types, THE filter serialization
+├─ packages/core     # schema, types, tag grammar, THE filter serialization
 ├─ packages/server   # Hono REST API · CLI · ActivitySources
 ├─ packages/web      # React · MapLibre · ECharts
 ├─ migrations/       # drizzle-kit
@@ -337,13 +407,14 @@ tracks/
 
 Strava leads because it is entirely offline: the schema and import pipeline get debugged
 against files on disk, with no network, no credentials and no rate limits, before the
-undocumented Komoot API is attempted. Until M3 there is no UI, so M1 and M2 are inspected
-through a SQLite browser.
+undocumented Komoot API is attempted. Until M3 there is no UI, so M1 through M2.5 are
+inspected through a SQLite browser.
 
 | | | |
 |---|---|---|
 | **M1** | Strava archive → SQLite | Schema, migrations, the `ActivitySource` interface, `tracks import <path>`, GPX + TCX parsers, timezone derivation. |
 | **M2** | Komoot | Second source behind the same interface, with recorded fixtures replayed through msw. Needed no interface change, which validated the M1 abstraction. |
+| **M2.5** | Typed tags | The `tag_types` registry, the `<type>:<value>` grammar and validator in core, per-source auto-tagging, and a migration that rewrites the existing arrays. No UI — done before M3 so the map and sidebar are built against the final tag model rather than twice. |
 | **M3** | Map, list and filters | `tracks serve`: REST API, MapLibre map, synced activity list, the full filter sidebar including spatial selection. |
 | **M4** | Tagging | Tag UI and tag-driven filtering, including whatever makes 500 untagged activities tractable. |
 | **M5** | Analytics | The four ECharts views, scoped to the active filter. |
@@ -371,8 +442,14 @@ will otherwise propose all of these again.
 | `kind` discriminator | Reserved space for planned routes that have no design. Adding a nullable column later is trivial. |
 | Self-computed metrics | Segment metrics must be dynamic regardless, so storing whole-activity copies duplicates code that already exists. |
 | `sync_runs` / `sync_state` | The full-list-plus-missing-streams strategy makes the database its own sync state. |
-| Tags join table | A JSON array with `json_each()` does the job at this size. A tags table only earns its keep once tags need metadata. |
-| `tags_auto` / `tags_manual` | Traded for a reserved sport vocabulary. Simpler schema, one convention to honour in the UI. |
+| Tags join table | Still no join table for *assignments*: a JSON array with `json_each()` does the job at this size. The registry that arrived in M2.5 holds types, not values, so tags never gained ids. |
+| `tags_auto` / `tags_manual` | Traded for the type prefix. Which tags the importer owns is a property of their type, not a second column. |
+| Reserved sport vocabulary | Superseded by `<type>:<value>`. A prefix removes the collision outright; reserving names only forbade it. |
+| `sport:other` | An unrecognised sport now derives nothing and reads as *not set*. Keeping `other` would also mean the importer resurrects the value every time you delete it. |
+| Per-value colour in the registry | A type has one colour, for chips. Track colours are hashed from `type:value` in the browser, so adding a trip needs no registry edit to be visible on the map. |
+| Sport vocabulary in `packages/core` | It describes what Strava and Komoot emit, not what you mean — so it lives in each source, and the browser never ships a table it cannot use. |
+| Bare, untyped tags | One parse rule is worth the extra keystrokes. Allowing both would make `alps` and `place:alps` two tags that look identical. |
+| A generic `tag:` type | No junk drawer: every type is a facet you introduced deliberately, which is what keeps the sidebar and the colour-by selector meaningful. |
 | Cross-service dedup | The two accounts cover different activities. Merge logic would be risk without benefit. |
 | Tag export / backup | Accepted risk, deliberately. Tags are the only non-regenerable data in the system. |
 | Observable Plot | More elegant, but the calendar heatmap and map-linked cursor would both be hand-rolled. |
@@ -388,9 +465,17 @@ active filter for free. Precomputed H3 cells give equal-area hexagons and instan
 set-difference queries for "was this new terrain?", at the cost of an import step that is
 filter-blind. Nothing in the schema forecloses either.
 
-**Tag UX** *(M4)* — Deferred until the UI exists. The open question is how 500 untagged
-activities get worked through — bulk-applying a tag to everything matching the current filter
-is the obvious lever, paired with the *untagged* preset.
+**Tag UX** *(M4)* — Deferred until the UI exists. The mechanism is settled — bulk-apply over
+the current filter, paired with the per-type *not set* preset — but not the workflow that
+makes 500 activities tractable, nor how a type is created without leaving the tagging flow.
 
-**REST surface detail** *(M3)* — Routes are sketched; payload shapes, pagination for the list,
-and the tag mutation contract are not.
+**REST surface detail** *(M3)* — Payload shapes and pagination for the list are still open.
+The tag mutation contract is not: `POST /api/tags` takes a filter, the per-activity routes
+take one id, and both run the same merge, where assigning a single-valued type replaces
+rather than appends.
+
+**Backfilling a new derived type** *(M2.5)* — `importSource` skips any activity that already
+has trackpoints, which is what makes re-import cheap. So a type added to the registry later
+does not reach existing rows by re-running the import; it needs a one-off rewrite. Not a
+problem yet — `source:` is handled by M2.5's own migration — but the second auto-derived type
+will have to answer it.

@@ -12,11 +12,16 @@ export interface TrackPoint {
 export interface Track {
   points: TrackPoint[]
   /**
-   * The sport in a locale-independent vocabulary (GPX `<type>`, TCX `Sport`).
-   * Null when the source does not say, which is meaningfully different from
-   * saying something unrecognised — see `toSport`.
+   * Finished `<type>:<value>` tags the source derived for this activity — today
+   * just `sport:`. Each source owns its own vocabulary, because what Komoot means
+   * by `touringbicycle` and what a GPX `<type>` means are facts about two services,
+   * free to drift apart.
+   *
+   * Empty means the source said nothing, which is meaningfully different from
+   * saying something it does not recognise: both derive no tag, and both leave a
+   * manual tag alone.
    */
-  sportRaw: string | null
+  tags: string[]
   /** The track's own name, which may beat the service's title. */
   title: string | null
 }

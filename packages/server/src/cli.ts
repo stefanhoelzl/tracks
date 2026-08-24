@@ -48,6 +48,14 @@ program
           `${result.skippedNoTrack} without a track, ${result.failed.length} failed ` +
           `(${result.seen} seen)`,
       )
+      // A source's vocabulary is a fact, so a value the registry had lost comes back
+      // rather than costing a tag — but never silently.
+      for (const tag of result.readdedValues) {
+        console.log(`  re-added ${tag} to the registry`)
+      }
+      for (const [tag, count] of result.rejectedTags) {
+        console.log(`  ${count} derived tags rejected: ${tag} is not in the registry`)
+      }
       for (const failure of result.failed) {
         console.error(`  ${failure.externalId}: ${failure.error}`)
       }

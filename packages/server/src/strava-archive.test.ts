@@ -6,9 +6,10 @@ import { sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { materializeArchive } from './archive-fixture.ts'
 import { openDb } from './db.ts'
-import { importSource, mergeSportTag } from './import.ts'
+import { importSource } from './import.ts'
 import { parseCsvDate, readArchiveCsv } from './sources/strava-archive/csv.ts'
 import { StravaArchiveSource } from './sources/strava-archive/index.ts'
+import { sportTags } from './sources/strava-archive/sport.ts'
 import { readTrackFile } from './sources/strava-archive/track.ts'
 
 const FIXTURES = resolve(import.meta.dirname, '../../../fixtures/strava-archive')
@@ -77,14 +78,19 @@ describe('track files', () => {
   })
 })
 
-describe('mergeSportTag', () => {
-  it('replaces reserved names when the source supplies a type', () => {
-    expect(mergeSportTag(['run', 'alps'], 'bike')).toEqual(['alps', 'bike'])
+describe("the archive's own sport vocabulary", () => {
+  it('maps what GPX <type> and TCX Sport actually say', () => {
+    expect(sportTags('running')).toEqual(['sport:run']) // GPX <type>
+    expect(sportTags('Run')).toEqual(['sport:run']) // TCX Sport
+    expect(sportTags('cycling')).toEqual(['sport:bike'])
+    expect(sportTags('Mountain Bike Ride')).toEqual(['sport:bike'])
   })
 
-  it('leaves tags untouched when the source says nothing', () => {
-    // The untyped Garmin rides are tagged by hand; a re-import must not undo that.
-    expect(mergeSportTag(['bike', 'alps'], null)).toEqual(['bike', 'alps'])
+  it('derives nothing from silence, and nothing from a word it does not know', () => {
+    // Both leave existing tags alone, and both read as 'not set' in the UI.
+    expect(sportTags(null)).toEqual([])
+    expect(sportTags('')).toEqual([])
+    expect(sportTags('curling')).toEqual([])
   })
 })
 
@@ -145,12 +151,13 @@ describe('import', () => {
       .from(activities)
       .all()
       .find((r) => r.externalId === id)
-    expect(JSON.parse(before?.tags ?? '[]')).toEqual([])
+    // No sport, because the file carries no <type>; source is always derived.
+    expect(JSON.parse(before?.tags ?? '[]')).toEqual(['source:strava'])
 
     // Tag it by hand, then wipe its track so the next import re-processes it.
     handle.sqlite
       .prepare('update activities set tags = ? where external_id = ?')
-      .run(JSON.stringify(['bike', 'alps']), id)
+      .run(JSON.stringify(['source:strava', 'sport:bike', 'trip:Alps']), id)
     handle.sqlite.prepare('delete from trackpoints where activity_id = ?').run(before?.id)
 
     await run()
@@ -159,7 +166,42 @@ describe('import', () => {
       .from(activities)
       .all()
       .find((r) => r.externalId === id)
-    expect(JSON.parse(after?.tags ?? '[]')).toEqual(['bike', 'alps'])
+    expect(JSON.parse(after?.tags ?? '[]')).toEqual(['source:strava', 'sport:bike', 'trip:Alps'])
+  })
+
+  it('tags every activity with its source, and its sport where the file says one', async () => {
+    await run()
+    const rows = handle.db.select().from(activities).all()
+    const tags = Object.fromEntries(rows.map((r) => [r.externalId, JSON.parse(r.tags)]))
+
+    expect(tags['1001']).toEqual(['source:strava', 'sport:run'])
+    expect(tags['1002']).toEqual(['source:strava', 'sport:run'])
+    expect(tags['3752382383']).toEqual(['source:strava']) // no <type> in the file
+  })
+
+  it('re-adds an enum value a source still derives, rather than dropping the tag', async () => {
+    // A source's vocabulary is a fact; the registry is a preference.
+    handle.sqlite
+      .prepare(`update tag_types set enum_values = '["bike"]' where name = 'sport'`)
+      .run()
+
+    const result = await run()
+    expect(result.readdedValues).toEqual(['sport:run'])
+    expect(result.rejectedTags.size).toBe(0)
+    expect(
+      handle.sqlite.prepare(`select enum_values as v from tag_types where name = 'sport'`).get(),
+    ).toEqual({ v: '["bike","run"]' })
+  })
+
+  it('drops a derived tag whose type is unknown, without failing the import', async () => {
+    handle.sqlite.prepare(`delete from tag_types where name = 'source'`).run()
+
+    const result = await run()
+    expect(result).toMatchObject({ imported: 3, failed: [] })
+    expect(result.rejectedTags.get('source:strava')).toBe(3)
+
+    const rows = handle.db.select().from(activities).all()
+    expect(rows.flatMap((r) => JSON.parse(r.tags))).not.toContain('source:strava')
   })
 
   it('stores a decodable polyline', async () => {

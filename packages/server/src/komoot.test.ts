@@ -11,6 +11,7 @@ import { openDb } from './db.ts'
 import { importSource } from './import.ts'
 import { KomootClient } from './sources/komoot/client.ts'
 import { KomootSource } from './sources/komoot/index.ts'
+import { sportTags } from './sources/komoot/sport.ts'
 
 const FIXTURES = resolve(import.meta.dirname, '../../../fixtures/komoot')
 const MIGRATIONS = resolve(import.meta.dirname, '../../../migrations')
@@ -157,6 +158,23 @@ describe('KomootSource', () => {
   })
 })
 
+describe("Komoot's own sport vocabulary", () => {
+  it('collapses distinctions Strava does not make', () => {
+    // Komoot separates these three; a Strava GPX says only 'cycling'. Keeping them
+    // apart would make the two accounts incomparable.
+    expect(sportTags('touringbicycle')).toEqual(['sport:bike'])
+    expect(sportTags('racebike')).toEqual(['sport:bike'])
+    expect(sportTags('e_mtb')).toEqual(['sport:bike'])
+    expect(sportTags('mountaineering')).toEqual(['sport:hike'])
+    expect(sportTags('jogging')).toEqual(['sport:run'])
+  })
+
+  it('derives nothing from a sport it does not know', () => {
+    expect(sportTags(null)).toEqual([])
+    expect(sportTags('skitour')).toEqual([])
+  })
+})
+
 describe('import via Komoot', () => {
   let dir: string
   let handle: ReturnType<typeof openDb>
@@ -175,8 +193,10 @@ describe('import via Komoot', () => {
     expect(result).toMatchObject({ seen: 2, imported: 2, failed: [] })
 
     const rows = handle.db.select().from(activities).all()
-    expect(rows.flatMap((r) => JSON.parse(r.tags)).sort()).toEqual(['hike', 'hike'])
-    // mountaineering collapses to hike; both are Komoot, both keep source='komoot'.
+    // mountaineering collapses to hike; source is derived alongside the column.
+    for (const row of rows) {
+      expect(JSON.parse(row.tags)).toEqual(['source:komoot', 'sport:hike'])
+    }
     expect(new Set(rows.map((r) => r.source))).toEqual(new Set(['komoot']))
     expect(handle.db.select({ n: sql<number>`count(*)` }).from(trackpoints).get()?.n).toBe(16)
   })

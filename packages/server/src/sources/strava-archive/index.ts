@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ActivitySource, SourceActivity, Track } from '@tracks/core'
 import { type ArchiveRow, readArchiveCsv } from './csv.ts'
+import { sportTags } from './sport.ts'
 import { readTrackFile } from './track.ts'
 
 /**
@@ -49,7 +50,11 @@ export class StravaArchiveSource implements ActivitySource {
 
   async fetchTrack(externalId: string): Promise<Track | null> {
     const path = await this.#pathFor(externalId)
-    return path ? readTrackFile(path) : null
+    if (!path) return null
+
+    // The parser reports what the file said; this source decides what it means.
+    const { points, sportRaw, title } = await readTrackFile(path)
+    return { points, tags: sportTags(sportRaw), title }
   }
 
   async #pathFor(externalId: string): Promise<string | null> {
