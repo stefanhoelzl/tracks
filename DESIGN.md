@@ -298,7 +298,7 @@ property of the basemap and this app has no map-options surface for one control 
 
 | | |
 |---|---|
-| **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance, decoded server-side and served as one GeoJSON by `/api/tracks`. All 197 measure 214 KB stored, under a megabyte as GeoJSON; full-resolution points load only when you open one activity. |
+| **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance, decoded server-side and served as one GeoJSON by `/api/tracks`. All 197 measure 214 KB stored, 1.1 MB as GeoJSON — 50 ms to build, over loopback; full-resolution points load only when you open one activity. |
 | **Colour** | A *colour by* selector over the values of any registered type, or year, or none — never over types themselves, since a type has one colour and colouring by it would draw every ride, hike and run identically. Colours come from a hash of `type:value` into a categorical palette, so they are stable across sessions and never shuffle as you filter; two visible values can collide, which is the price of not depending on what is currently on screen. The registry's own `color` is for chips and sidebar group headers, not for tracks. |
 | **Hover linking** | Two-way. Hover a list row and its track highlights while the rest dim; hover a track and the list scrolls to it. |
 | **Viewport** | Eases to the result bounds once the filter settles — debounced, so dragging a slider fits at the end rather than every frame. It holds still when nothing matches, rather than lurching at empty bounds, and stays put entirely while *filter to this area* is on. |
@@ -481,9 +481,9 @@ tracks/
 derivation, the simplifier and the `ActivitySource` interface for as long as the server was its
 only consumer, which made *shared* and *server-side* indistinguishable. A browser makes the
 boundary observable, so those four moved into `packages/server` and core was left with the tag
-grammar, the filter serialization and the API contract — **zero runtime dependencies**. The
-browser cannot accidentally bundle drizzle or a timezone dataset, because they are not reachable
-from anything it imports; no subpath exports, no tree-shaking to trust.
+grammar, the filter serialization and the API contract — whose only dependency is Zod, which both
+sides run. The browser cannot accidentally bundle drizzle or a timezone dataset, because they are
+not reachable from anything it imports; no subpath exports, no tree-shaking to trust.
 
 | | |
 |---|---|

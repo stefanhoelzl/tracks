@@ -10,21 +10,29 @@
  * and `source:`, you own everything else, and no name is forbidden anywhere.
  */
 
+import { z } from 'zod'
+
 export interface Tag {
   type: string
   value: string
 }
 
-/** One entry of the `tag_types` registry, parsed. */
-export interface TagType {
-  name: string
-  label: string
+/**
+ * One entry of the `tag_types` registry, parsed. A schema rather than an interface
+ * because the browser receives these over the wire and validates what it renders
+ * against the same definition the server validates what it stores.
+ */
+export const tagTypeSchema = z.object({
+  name: z.string(),
+  label: z.string(),
   /** Allowed values, or null when any non-empty string is one. */
-  enumValues: string[] | null
-  singleValued: boolean
-  color: string
-  sort: number
-}
+  enumValues: z.array(z.string()).nullable(),
+  singleValued: z.boolean(),
+  color: z.string(),
+  sort: z.number().int(),
+})
+
+export type TagType = z.infer<typeof tagTypeSchema>
 
 /** The registry, by type name. Read per request — see `loadRegistry`. */
 export type TagRegistry = ReadonlyMap<string, TagType>

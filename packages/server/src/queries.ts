@@ -1,0 +1,207 @@
+import polyline from '@mapbox/polyline'
+import {
+  type ActivityDetail,
+  type ActivityRow,
+  type FacetsResponse,
+  type Filter,
+  RANGE_KEYS,
+  type RangeFacet,
+  type RangeKey,
+  type TagRegistry,
+  type TracksResponse,
+} from '@tracks/core'
+import { sql } from 'drizzle-orm'
+import type { Db } from './db.ts'
+import { LOCAL_DATE, orderFor, RANGE_EXPR, SPEED, whereFor } from './query.ts'
+
+/** Enough bars to show a distribution, few enough to stay legible at 300 px wide. */
+const BUCKET_COUNT = 24
+
+interface RawRow {
+  id: number
+  source: string
+  title: string | null
+  started_at: string
+  utc_offset: number
+  local_date: string
+  distance_m: number | null
+  duration_s: number | null
+  elapsed_s: number | null
+  elevation_gain_m: number | null
+  speed_ms: number | null
+  tags: string
+}
+
+const ROW_COLUMNS = sql`
+  a.id, a.source, a.title, a.started_at, a.utc_offset,
+  ${LOCAL_DATE} AS local_date,
+  a.distance_m, a.duration_s, a.elapsed_s, a.elevation_gain_m,
+  ${SPEED} AS speed_ms, a.tags`
+
+function toRow(raw: RawRow): ActivityRow {
+  return {
+    id: raw.id,
+    source: raw.source,
+    title: raw.title,
+    startedAt: raw.started_at,
+    utcOffset: raw.utc_offset,
+    localDate: raw.local_date,
+    distanceM: raw.distance_m,
+    durationS: raw.duration_s,
+    elapsedS: raw.elapsed_s,
+    elevationGainM: raw.elevation_gain_m,
+    speedMs: raw.speed_ms,
+    tags: JSON.parse(raw.tags) as string[],
+  }
+}
+
+export function listActivities(db: Db, filter: Filter): ActivityRow[] {
+  const rows = db.all<RawRow>(sql`
+    SELECT ${ROW_COLUMNS} FROM activities a
+    WHERE ${whereFor(filter)}
+    ORDER BY ${orderFor(filter)}`)
+
+  return rows.map(toRow)
+}
+
+/**
+ * The map's payload. Decoded server-side so the browser hands it straight to
+ * `setData()` and owns no codec; the tags and year ride along as properties so
+ * changing *colour by* repaints from what is already in memory.
+ */
+export function listTracks(db: Db, filter: Filter): TracksResponse {
+  const rows = db.all<{ id: number; polyline: string | null; local_date: string }>(sql`
+    SELECT a.id, a.polyline, ${LOCAL_DATE} AS local_date, a.tags FROM activities a
+    WHERE ${whereFor(filter)} AND a.polyline IS NOT NULL
+    ORDER BY ${orderFor(filter)}`)
+
+  const tagged = rows as Array<(typeof rows)[number] & { tags: string }>
+
+  return {
+    type: 'FeatureCollection',
+    features: tagged.map((row) => ({
+      type: 'Feature' as const,
+      id: row.id,
+      geometry: {
+        type: 'LineString' as const,
+        // Stored as [lat, lon] pairs; GeoJSON wants them the other way round.
+        coordinates: polyline
+          .decode(row.polyline!)
+          .map(([lat, lon]) => [lon, lat] as [number, number]),
+      },
+      properties: {
+        id: row.id,
+        tags: JSON.parse(row.tags) as string[],
+        year: Number(row.local_date.slice(0, 4)),
+      },
+    })),
+  }
+}
+
+export function activityDetail(db: Db, id: number): ActivityDetail | null {
+  const raw = db.get<RawRow>(sql`
+    SELECT ${ROW_COLUMNS} FROM activities a WHERE a.id = ${id}`)
+  if (!raw) return null
+
+  const points = db.all<{
+    lat: number
+    lon: number
+    altitude_m: number | null
+    recorded_at: number | null
+  }>(sql`
+    SELECT lat, lon, altitude_m, recorded_at FROM trackpoints
+    WHERE activity_id = ${id} ORDER BY seq`)
+
+  return {
+    activity: toRow(raw),
+    track: points.map((p) => ({
+      lat: p.lat,
+      lon: p.lon,
+      altitudeM: p.altitude_m,
+      recordedAt: p.recorded_at,
+    })),
+  }
+}
+
+/**
+ * Equal-width buckets over the observed span.
+ *
+ * Bucketed here rather than in SQL because the edge cases — a single distinct value,
+ * the maximum landing one past the last bucket — are three lines of JavaScript and a
+ * paragraph of `CASE` otherwise, over a few hundred numbers either way.
+ */
+function bucket(values: number[]): RangeFacet {
+  if (values.length === 0) return { min: null, max: null, buckets: [] }
+
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  if (min === max) return { min, max, buckets: [values.length] }
+
+  const buckets = new Array<number>(BUCKET_COUNT).fill(0)
+  const width = (max - min) / BUCKET_COUNT
+  for (const value of values) {
+    // The maximum would otherwise index one past the end.
+    const index = Math.min(BUCKET_COUNT - 1, Math.floor((value - min) / width))
+    buckets[index]!++
+  }
+  return { min, max, buckets }
+}
+
+function rangeFacet(db: Db, filter: Filter, key: RangeKey): RangeFacet {
+  const rows = db.all<{ v: number }>(sql`
+    SELECT ${RANGE_EXPR[key]} AS v FROM activities a
+    WHERE ${whereFor(filter, { range: key })} AND ${RANGE_EXPR[key]} IS NOT NULL`)
+
+  return bucket(rows.map((r) => r.v))
+}
+
+export function facets(db: Db, filter: Filter, registry: TagRegistry): FacetsResponse {
+  const summary = db.get<{ n: number; d: number; e: number; t: number }>(sql`
+    SELECT count(*) AS n,
+           coalesce(sum(a.distance_m), 0) AS d,
+           coalesce(sum(a.elevation_gain_m), 0) AS e,
+           coalesce(sum(a.duration_s), 0) AS t
+    FROM activities a WHERE ${whereFor(filter)}`)!
+
+  const tags = [...registry.values()]
+    .sort((a, b) => a.sort - b.sort)
+    .map((type) => {
+      const prefix = `${type.name}:`
+      const where = whereFor(filter, { tagType: type.name })
+
+      const counted = db.all<{ v: string; n: number }>(sql`
+        SELECT substr(t.value, ${prefix.length + 1}) AS v, count(*) AS n
+        FROM activities a, json_each(a.tags) t
+        WHERE ${where} AND substr(t.value, 1, ${prefix.length}) = ${prefix}
+        GROUP BY t.value`)
+
+      const counts = new Map(counted.map((r) => [r.v, r.n]))
+      // An enum keeps its declared order and shows a value at zero, so a facet you
+      // filtered yourself out of still says what putting it back would give. A free
+      // string has no declared vocabulary, so it lists what exists, commonest first.
+      const values = type.enumValues
+        ? type.enumValues.map((value) => ({ value, count: counts.get(value) ?? 0 }))
+        : counted.map((r) => ({ value: r.v, count: r.n })).sort((a, b) => b.count - a.count)
+
+      const notSet = db.get<{ n: number }>(sql`
+        SELECT count(*) AS n FROM activities a
+        WHERE ${where} AND NOT EXISTS (
+          SELECT 1 FROM json_each(a.tags) WHERE substr(value, 1, ${prefix.length}) = ${prefix}
+        )`)!
+
+      return { type: type.name, values, notSet: notSet.n }
+    })
+
+  return {
+    summary: {
+      count: summary.n,
+      distanceM: summary.d,
+      elevationGainM: summary.e,
+      durationS: summary.t,
+    },
+    tags,
+    ranges: Object.fromEntries(
+      RANGE_KEYS.map((key) => [key, rangeFacet(db, filter, key)]),
+    ) as FacetsResponse['ranges'],
+  }
+}

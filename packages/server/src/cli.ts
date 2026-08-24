@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { Command } from 'commander'
 import { openDb } from './db.ts'
 import { importSource } from './import.ts'
+import { startServer } from './serve.ts'
 import type { ActivitySource } from './source.ts'
 import { KomootSource } from './sources/komoot/index.ts'
 import { StravaArchiveSource } from './sources/strava-archive/index.ts'
@@ -63,6 +64,27 @@ program
     } finally {
       close()
     }
+  })
+
+program
+  .command('serve')
+  .description('Serve the map, list and filters on a local port')
+  .option('-p, --port <port>', 'port to listen on', '8080')
+  .option('--open', 'open the browser once it is listening')
+  .action((options: { port: string; open?: boolean }) => {
+    const port = Number(options.port)
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error(`${options.port} is not a port`)
+    }
+
+    // Deliberately not closed: the process lives until you stop it, and the
+    // database handle lives exactly as long.
+    const { db } = openDb(resolve(DATA_DIR, 'tracks.db'))
+    startServer(db, {
+      port,
+      webRoot: resolve(import.meta.dirname, '../../web/dist'),
+      open: options.open,
+    })
   })
 
 program.parseAsync().catch((error) => {

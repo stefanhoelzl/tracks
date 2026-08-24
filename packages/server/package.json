@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@hono/node-server": "^2.1.1",
     "@mapbox/polyline": "^1.2.1",
     "@tracks/core": "workspace:*",
     "better-sqlite3": "^12.4.1",
@@ -11,6 +12,8 @@
     "csv-parse": "^6.1.0",
     "drizzle-orm": "^0.44.7",
     "fast-xml-parser": "^5.3.4",
-    "tz-lookup": "^6.1.25"
+    "hono": "^4.13.4",
+    "tz-lookup": "^6.1.25",
+    "zod": "^4.4.3"
   }
 }
