@@ -3,14 +3,16 @@ import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap }
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import type { ColourScale } from '../lib/colour.ts'
 import { basemapStyle } from '../map/basemap.ts'
+import { ClusterMarkers } from '../map/clusters.ts'
 import {
   addTrackLayers,
   FOCUS_LAYER,
   paint,
+  paintTracks,
   SELECTED_SOURCE,
   STARTS_SOURCE,
-  setFocus,
   startPoints,
   TRACKS_LAYER,
   TRACKS_SOURCE,
@@ -52,6 +54,8 @@ export function MapView({
   tracks,
   detail,
   colourBy,
+  scale,
+  grouped,
   filter,
   hoveredId,
   selectedId,
@@ -65,6 +69,8 @@ export function MapView({
   tracks: TracksResponse | undefined
   detail: ActivityDetail | undefined
   colourBy: string | null
+  scale: ColourScale
+  grouped: boolean
   filter: Filter
   hoveredId: number | null
   selectedId: number | null
@@ -77,6 +83,7 @@ export function MapView({
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
+  const clusters = useRef<ClusterMarkers | null>(null)
   const [ready, setReady] = useState(false)
 
   useImperativeHandle(ref, () => ({
@@ -86,8 +93,8 @@ export function MapView({
 
   // Read inside listeners that are attached once; a stale closure here would mean
   // panning writes a bbox after the toggle was turned off.
-  const live = useRef({ areaFilter, onViewportChange, onSelect, onHover })
-  live.current = { areaFilter, onViewportChange, onSelect, onHover }
+  const live = useRef({ areaFilter, grouped, onViewportChange, onSelect, onHover })
+  live.current = { areaFilter, grouped, onViewportChange, onSelect, onHover }
 
   useEffect(() => {
     if (!container.current) return
@@ -113,6 +120,7 @@ export function MapView({
         instance.once('styledata', () => {
           if (cancelled) return
           addTrackLayers(instance)
+          clusters.current = new ClusterMarkers(instance)
           setReady(true)
         })
       })
@@ -132,6 +140,10 @@ export function MapView({
       if (typeof id === 'number') live.current.onSelect(id)
     })
 
+    instance.on('render', () => {
+      if (live.current.grouped) clusters.current?.refresh()
+    })
+
     let moveTimer: ReturnType<typeof setTimeout> | undefined
     instance.on('moveend', () => {
       if (!live.current.areaFilter) return
@@ -145,6 +157,8 @@ export function MapView({
     return () => {
       cancelled = true
       clearTimeout(moveTimer)
+      clusters.current?.clear()
+      clusters.current = null
       instance.remove()
       map.current = null
     }
@@ -154,15 +168,22 @@ export function MapView({
 
   useEffect(() => {
     if (!ready || !map.current || !tracks) return
-    map.current.getSource<GeoJSONSource>(TRACKS_SOURCE)?.setData(paint(tracks, colourBy))
-    map.current.getSource<GeoJSONSource>(STARTS_SOURCE)?.setData(startPoints(tracks, colourBy))
-  }, [ready, tracks, colourBy])
+    map.current.getSource<GeoJSONSource>(TRACKS_SOURCE)?.setData(paint(tracks, colourBy, scale))
+    map.current
+      .getSource<GeoJSONSource>(STARTS_SOURCE)
+      ?.setData(startPoints(tracks, colourBy, scale))
+  }, [ready, tracks, colourBy, scale])
 
   // Hovering a row highlights its track; selecting one focuses it and dims the rest.
   useEffect(() => {
     if (!ready || !map.current) return
-    setFocus(map.current, hoveredId ?? selectedId)
-  }, [ready, hoveredId, selectedId])
+    paintTracks(map.current, { focusId: hoveredId ?? selectedId, grouped })
+  }, [ready, hoveredId, selectedId, grouped])
+
+  // Ungrouped, the donuts have nothing to say — the tracks themselves are drawn.
+  useEffect(() => {
+    if (!grouped) clusters.current?.clear()
+  }, [grouped])
 
   // Full resolution, drawn over the simplified line it replaces.
   useEffect(() => {

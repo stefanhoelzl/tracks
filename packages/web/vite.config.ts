@@ -24,6 +24,9 @@ export default defineConfig({
   ssr: {
     external: ['better-sqlite3', 'drizzle-orm', '@mapbox/polyline'],
   },
+  // MapLibre spawns its worker with `{ type: 'module' }`, so the bundled worker has
+  // to be an ES module — Vite's build default is iife.
+  worker: { format: 'es' },
   build: {
     // Named so `tracks serve` can find it without configuration.
     outDir: 'dist',

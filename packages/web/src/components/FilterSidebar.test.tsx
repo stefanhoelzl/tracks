@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { FacetsResponse, Filter, TagType } from '@tracks/core'
 import { emptyFilter, formatFilter } from '@tracks/core'
 import { describe, expect, it, vi } from 'vitest'
+import { buildScale } from '../lib/colour.ts'
 import { FilterSidebar } from './FilterSidebar.tsx'
 
 /**
@@ -45,6 +46,11 @@ const FACETS: FacetsResponse = {
   },
 }
 
+const SCALE = buildScale([
+  { type: 'sport', values: ['bike', 'hike', 'run'] },
+  { type: 'trip', values: ['Alps'] },
+])
+
 function setup(filter: Filter = emptyFilter()) {
   const onChange = vi.fn()
   render(
@@ -53,6 +59,7 @@ function setup(filter: Filter = emptyFilter()) {
       facets={FACETS}
       filter={filter}
       areaFilter={false}
+      scale={SCALE}
       onChange={onChange}
       onClearArea={vi.fn()}
     />,
@@ -137,6 +144,7 @@ describe('the filter sidebar', () => {
         }}
         filter={emptyFilter()}
         areaFilter={false}
+        scale={SCALE}
         onChange={vi.fn()}
         onClearArea={vi.fn()}
       />,

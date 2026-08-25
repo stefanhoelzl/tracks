@@ -1,6 +1,7 @@
 import type { TracksResponse } from '@tracks/core'
 import type { ExpressionSpecification, MapLibreMap } from 'maplibre-gl'
-import { activityColour, neutralColour } from '../lib/colour.ts'
+import { activityColour, activitySlot, type ColourScale, HASHED } from '../lib/colour.ts'
+import { clusterProperties } from './clusters.ts'
 
 /**
  * The track layers, and the rules for painting them.
@@ -18,7 +19,6 @@ export const SELECTED_SOURCE = 'selected'
 export const TRACKS_LAYER = 'tracks-base'
 export const FOCUS_LAYER = 'tracks-focus'
 export const STARTS_LAYER = 'starts-circles'
-export const STARTS_COUNT_LAYER = 'starts-count'
 export const SELECTED_LAYER = 'selected-track'
 
 /**
@@ -28,10 +28,35 @@ export const SELECTED_LAYER = 'selected-track'
  */
 const CLUSTER_MAX_ZOOM = 8
 
+/** Full strength for an unfocused track, and what it recedes to when one is focused. */
+const RESTING_OPACITY = 0.85
+const DIMMED_OPACITY = 0.18
+
+/**
+ * A zoom fade that ends at `opacity`.
+ *
+ * The multiplication has to live in the interpolate's own output stops: MapLibre
+ * requires `zoom` to be the direct input of a *top-level* `step` or `interpolate`,
+ * so wrapping one in `['*', k, …]` is rejected at `addLayer` — which takes the layer
+ * with it, and every later `setPaintProperty` on it.
+ */
+function fadeInTo(opacity: number): ExpressionSpecification {
+  return ['interpolate', ['linear'], ['zoom'], CLUSTER_MAX_ZOOM - 1, 0, CLUSTER_MAX_ZOOM, opacity]
+}
+
+/** The inverse, for the clustered start points that hand over to the lines. */
+function fadeOutFrom(opacity: number): ExpressionSpecification {
+  return ['interpolate', ['linear'], ['zoom'], CLUSTER_MAX_ZOOM - 1, opacity, CLUSTER_MAX_ZOOM, 0]
+}
+
 type Coloured = TracksResponse['features'][number] & { properties: { colour: string } }
 
 /** The same payload with a `colour` property baked in, ready for `setData`. */
-export function paint(tracks: TracksResponse, colourBy: string | null) {
+export function paint(
+  tracks: TracksResponse,
+  colourBy: string | null,
+  scale: ColourScale = HASHED,
+) {
   return {
     type: 'FeatureCollection' as const,
     features: tracks.features.map(
@@ -39,7 +64,7 @@ export function paint(tracks: TracksResponse, colourBy: string | null) {
         ...feature,
         properties: {
           ...feature.properties,
-          colour: activityColour(feature.properties.tags, feature.properties.year, colourBy),
+          colour: activityColour(feature.properties.tags, feature.properties.year, colourBy, scale),
         },
       }),
     ),
@@ -47,7 +72,11 @@ export function paint(tracks: TracksResponse, colourBy: string | null) {
 }
 
 /** Start points, derived from the tracks already in memory — no second request. */
-export function startPoints(tracks: TracksResponse, colourBy: string | null) {
+export function startPoints(
+  tracks: TracksResponse,
+  colourBy: string | null,
+  scale: ColourScale = HASHED,
+) {
   return {
     type: 'FeatureCollection' as const,
     features: tracks.features.flatMap((feature) => {
@@ -59,7 +88,14 @@ export function startPoints(tracks: TracksResponse, colourBy: string | null) {
           geometry: { type: 'Point' as const, coordinates: start },
           properties: {
             id: feature.properties.id,
-            colour: activityColour(feature.properties.tags, feature.properties.year, colourBy),
+            colour: activityColour(
+              feature.properties.tags,
+              feature.properties.year,
+              colourBy,
+              scale,
+            ),
+            // The donut tally is summed over this by MapLibre's own clusterer.
+            slot: activitySlot(feature.properties.tags, feature.properties.year, colourBy, scale),
           },
         },
       ]
@@ -78,17 +114,9 @@ export function addTrackLayers(map: MapLibreMap): void {
     cluster: true,
     clusterMaxZoom: CLUSTER_MAX_ZOOM,
     clusterRadius: 44,
+    // Eleven counters, one per palette slot: the tally each donut is drawn from.
+    clusterProperties: clusterProperties(),
   })
-
-  const fadeIn: ExpressionSpecification = [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    CLUSTER_MAX_ZOOM - 1,
-    0,
-    CLUSTER_MAX_ZOOM,
-    1,
-  ]
 
   map.addLayer({
     id: TRACKS_LAYER,
@@ -100,7 +128,7 @@ export function addTrackLayers(map: MapLibreMap): void {
       // Thin enough at country scale to show a shape rather than a blot, heavy
       // enough at valley scale to follow.
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.2, 10, 2, 14, 3],
-      'line-opacity': ['*', 0.85, fadeIn],
+      'line-opacity': fadeInTo(RESTING_OPACITY),
     },
   })
 
@@ -130,52 +158,48 @@ export function addTrackLayers(map: MapLibreMap): void {
     },
   })
 
-  const fadeOut: ExpressionSpecification = [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    CLUSTER_MAX_ZOOM - 1,
-    1,
-    CLUSTER_MAX_ZOOM,
-    0,
-  ]
-
+  // Only the lone starts. A cluster is a mixture, and a circle layer can paint one
+  // colour per feature — so clusters are drawn as donut markers over the canvas.
   map.addLayer({
     id: STARTS_LAYER,
     type: 'circle',
     source: STARTS_SOURCE,
+    filter: ['!', ['has', 'point_count']],
     paint: {
-      // A cluster is grey because it holds several things; a lone start keeps the
-      // colour of the activity it belongs to.
-      'circle-color': ['case', ['has', 'point_count'], neutralColour(), ['get', 'colour']],
-      'circle-radius': ['step', ['get', 'point_count'], 7, 5, 11, 20, 15, 50, 20],
+      'circle-color': ['get', 'colour'],
+      'circle-radius': 7,
       'circle-stroke-width': 2,
       'circle-stroke-color': '#ffffff',
-      'circle-opacity': fadeOut,
-      'circle-stroke-opacity': fadeOut,
+      'circle-opacity': fadeOutFrom(1),
+      'circle-stroke-opacity': fadeOutFrom(1),
     },
-  })
-
-  map.addLayer({
-    id: STARTS_COUNT_LAYER,
-    type: 'symbol',
-    source: STARTS_SOURCE,
-    filter: ['has', 'point_count'],
-    layout: {
-      'text-field': ['get', 'point_count_abbreviated'],
-      'text-font': ['noto_sans_bold'],
-      'text-size': 11,
-    },
-    paint: { 'text-color': '#ffffff', 'text-opacity': fadeOut },
   })
 }
 
-/** Everything but the focused track recedes, so the focused one is legible over it. */
-export function setFocus(map: MapLibreMap, id: number | null): void {
-  map.setFilter(FOCUS_LAYER, ['==', ['get', 'id'], id ?? -1])
-  map.setPaintProperty(TRACKS_LAYER, 'line-opacity', [
-    '*',
-    id === null ? 0.85 : 0.18,
-    ['interpolate', ['linear'], ['zoom'], CLUSTER_MAX_ZOOM - 1, 0, CLUSTER_MAX_ZOOM, 1],
-  ])
+/**
+ * How the tracks are painted right now: what is focused, and whether the map groups.
+ *
+ * One function rather than two because both decide `line-opacity`, and two writers
+ * of one property means whichever ran last wins — releasing a hover would undo the
+ * grouping toggle, or the other way about.
+ *
+ * Ungrouped, the tracks simply never fade: there are no clusters to hand over to, so
+ * the zoom interpolation that made room for them has nothing left to do.
+ */
+export function paintTracks(
+  map: MapLibreMap,
+  { focusId, grouped }: { focusId: number | null; grouped: boolean },
+): void {
+  // A style reload drops every layer this module added, and the effects that call
+  // this do not know that happened — so check rather than throw into the console.
+  if (!map.getLayer(TRACKS_LAYER)) return
+
+  const resting = focusId === null ? RESTING_OPACITY : DIMMED_OPACITY
+
+  map.setFilter(FOCUS_LAYER, ['==', ['get', 'id'], focusId ?? -1])
+  map.setPaintProperty(TRACKS_LAYER, 'line-opacity', grouped ? fadeInTo(resting) : resting)
+  map.setLayoutProperty(STARTS_LAYER, 'visibility', grouped ? 'visible' : 'none')
 }
+
+/** Exported for the style-spec test, which validates what `addTrackLayers` builds. */
+export const OPACITY = { RESTING_OPACITY, DIMMED_OPACITY, fadeInTo, fadeOutFrom }

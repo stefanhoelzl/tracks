@@ -301,10 +301,32 @@ map-options surface for one control to live in.
 | | |
 |---|---|
 | **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance, decoded server-side and served as one GeoJSON by `/api/tracks`. All 197 measure 214 KB stored, 1.1 MB as GeoJSON — 50 ms to build, over loopback; full-resolution points load only when you open one activity. |
-| **Colour** | A *colour by* selector over the values of any registered type, or year, or none — never over types themselves, since a type has one colour and colouring by it would draw every ride, hike and run identically. Colours come from a hash of `type:value` into a categorical palette, so they are stable across sessions and never shuffle as you filter; two visible values can collide, which is the price of not depending on what is currently on screen. The registry's own `color` is for chips and sidebar group headers, not for tracks. |
+| **Colour** | A *colour by* selector over the values of any registered type, or year — never over types themselves, since a type has one colour and colouring by it would draw every ride, hike and run identically. There is no *nothing*: a single-colour map answers no question the list does not answer better, so the default is the registry's first type. The registry's own `color` is for chips and sidebar group headers, not for tracks. |
 | **Hover linking** | Two-way. Hover a list row and its track highlights while the rest dim; hover a track and the list scrolls to it. |
 | **Viewport** | Eases to the result bounds once the filter settles — debounced, so dragging a slider fits at the end rather than every frame. It holds still when nothing matches, rather than lurching at empty bounds, and stays put entirely while *filter to this area* is on. |
-| **Low zoom** | Clustered start-point markers, for seeing where rides actually begin. The client derives the start points from the track payload it already holds, so clustering costs no endpoint. |
+| **Low zoom** | Start points cluster into **donuts**, split by the same colour-by that paints the tracks — which valley is all hiking and which is half rides, before you zoom in to find out. The client derives the start points from the track payload it already holds, so clustering costs no endpoint. A toggle turns grouping off entirely, and the tracks then never fade: the zoom interpolation existed only to make room for the donuts. |
+
+### Colour is hashed, then unjammed
+
+A colour has to belong to a value for as long as the value exists, with nothing stored
+and no registry edit needed to make a new trip visible. A hash of `type:value` into a
+categorical palette does all of that, and it is what the first cut shipped.
+
+It collided on the first data it met. `sport:bike` and `sport:hike` both landed on slot
+four, and a map that cannot tell a ride from a walk has failed at the one comparison it
+exists for. With three values in ten slots the odds of *some* collision are about one in
+four — not a bet worth taking on the most-used facet in the app.
+
+So the hash is a **preference** now, not a verdict: each type's values are laid out over
+the palette once, and a value that finds its hashed slot taken moves to the next free one.
+Nothing else changes. Crucially the layout depends on the type's *value set*, never on what
+is currently drawn — for an enum that set is the registry's declaration, and for a free
+string it is the self-excluded facet list, which by construction does not move when you
+filter by that same type. **Filtering by sport still never repaints the sports.**
+
+Past ten values of one type it wraps and two values share a colour again. That is a real
+limit in the honest place for it: an archive with eleven trips gets one repeat, not a
+broken layout.
 
 ### Spatial filtering is the viewport
 
@@ -338,6 +360,11 @@ The map runs full-bleed and every panel floats over it, frosted and rounded, rat
 in a docked column. Filters are on the left, the activity list on the right, and each collapses to
 a slim rail so the map can be seen unobstructed. Filter state lives in the URL, so any view is
 bookmarkable.
+
+The top bar carries the totals *and* the active filter, as a chip per term that removes
+its own term when clicked. The sidebar says what a filter could be; only the chips say what
+it is — and they stay visible when the sidebar is collapsed, which is exactly when you have
+stopped adjusting the filter and started reading the map under it.
 
 A list row is a coloured bar plus title, distance, elevation, duration and date. The bar follows
 the active *colour by* rather than being hardwired to sport, so the list and the map never read as
@@ -405,15 +432,15 @@ bound simply means unbounded, so there is no `..` syntax to parse, escape or exp
 &from=2024-01-01&to=2024-12-31
 &bbox=13.68,46.31,13.86,46.44
 &distance_min=0&distance_max=50000&elevation_min=500&duration_max=7200&speed_min=4.2
-&sort_key=distance&sort_order=desc&colour_by=sport&activity=123
+&sort_key=distance&sort_order=desc&colour_by=sport&activity=123&grouped=0
 ```
 
 Units in the URL are **SI** — metres, seconds, metres per second — because those are the column
 units, so nothing converts on the way in and the boundary has no rounding question. The browser
 converts for display, which it must do anyway. `bbox` is GeoJSON order: `minLon,minLat,maxLon,maxLat`.
 
-The URL carries the filters *and* the view state that changes what you see — `colour_by`, the sort
-and the selected activity — but not the camera. The camera auto-fits to the filter, so a bookmark
+The URL carries the filters *and* the view state that changes what you see — `colour_by`, the sort,
+the selected activity and whether the map groups — but not the camera. The camera auto-fits to the filter, so a bookmark
 reproduces the view without storing it, and pan/zoom never churns history. The one case where the
 camera *is* meaningful is `bbox`, and there it is already a filter term.
 
@@ -500,7 +527,7 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover, dimming and a viewport-derived filter are all things a declarative wrapper would be in the way of. |
 | **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file. |
 | **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
-| **Testing** | Vitest in two projects: `node` (core, server, msw-replayed Komoot, file fixtures for Strava) stays offline and under a second; `web` (jsdom) covers the components and mounts the whole app against a mocked API. `--project node` keeps the fast lane. |
+| **Testing** | Vitest in two projects: `node` (core, server, msw-replayed Komoot, file fixtures for Strava) stays offline and under a second; `web` (jsdom) covers the components and mounts the whole app against a mocked API. `--project node` keeps the fast lane. Map styles are checked against `@maplibre/maplibre-gl-style-spec` — validated *and* evaluated against the features each layer will actually meet, because the expression bugs that matter are legal ones that meet the wrong data. |
 | **CLI** | `tracks import` and `tracks serve [--port 8080] [--open]`. Nothing else — tagging belongs in the UI. A missing web build exits naming the build command rather than serving 404s. |
 
 ---
@@ -569,6 +596,11 @@ will otherwise propose all of these again.
 | A contours toggle | A contour is a property of the basemap, not a filter. One display toggle would invent a map-options surface that nothing else needs. |
 | Rendering M4/M5 controls inert | A dead button invites a click and answers with a shrug. The layout absorbs the analytics switch and the bulk-tag button when they do something. |
 | Multi-select in M3 | Selection sets, a selection summary and a clear affordance, built a milestone before the bulk-tagging flow that consumes them. |
+| A pure hash for colours | Collided `sport:bike` with `sport:hike` in the real data. The hash survives as the *preference*; collisions now probe to the next free slot. |
+| Per-value colours in the token file | Nothing in CSS can read them — they are painted into GeoJSON properties and passed as props. A round trip through `getComputedStyle` bought nothing and failed silently, since an empty string is a valid CSS value and an invisible track. |
+| *Colour by nothing* | A single-colour map answers no question the list does not answer better. The default is the registry's first type instead. |
+| Clusters as a circle layer | A circle layer paints one colour per feature, and a cluster is a mixture. Donut markers over the canvas, tallied by `clusterProperties` inside the clustering worker. |
+| A separate cluster-count layer | The donut carries its own number in the middle of the ring. |
 
 ---
 

@@ -2,7 +2,7 @@ import type { ActivityRow, FacetsResponse, Filter, SortKey, TagType } from '@tra
 import { SORT_KEYS } from '@tracks/core'
 import { ArrowDownUp, Check, ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { activityColour, colourFor, neutralColour } from '../lib/colour.ts'
+import { activityColour, type ColourScale } from '../lib/colour.ts'
 import { isNarrowed, narrowingFacets } from '../lib/filter-ops.ts'
 import { duration, km, metres, shortDate } from '../lib/format.ts'
 import styles from './ActivityList.module.css'
@@ -20,6 +20,7 @@ const SORT_LABELS: Record<SortKey, string> = {
 function Row({
   activity,
   colourBy,
+  scale,
   hovered,
   selected,
   onHover,
@@ -27,6 +28,7 @@ function Row({
 }: {
   activity: ActivityRow
   colourBy: string | null
+  scale: ColourScale
   hovered: boolean
   selected: boolean
   onHover: (id: number | null) => void
@@ -58,6 +60,7 @@ function Row({
             activity.tags,
             Number(activity.localDate.slice(0, 4)),
             colourBy,
+            scale,
           ),
         }}
       />
@@ -85,21 +88,24 @@ function ColourByRow({
   tagTypes,
   facets,
   colourBy,
+  scale,
   onChange,
 }: {
   tagTypes: TagType[]
   facets: FacetsResponse | undefined
   colourBy: string | null
-  onChange: (next: string | null) => void
+  scale: ColourScale
+  onChange: (next: string) => void
 }) {
   const [open, setOpen] = useState(false)
 
-  const options: Array<{ value: string | null; label: string }> = [
-    { value: null, label: 'Nothing' },
+  // No "nothing": a single-colour map answers no question the list does not answer
+  // better, and the registry always has a first type to fall back to.
+  const options: Array<{ value: string; label: string }> = [
     ...tagTypes.map((t) => ({ value: t.name, label: t.label })),
     { value: 'year', label: 'Year' },
   ]
-  const current = options.find((o) => o.value === colourBy)?.label ?? 'Nothing'
+  const current = options.find((o) => o.value === colourBy)?.label ?? options[0]?.label ?? '—'
 
   const facet = facets?.tags.find((t) => t.type === colourBy)
   const entries =
@@ -109,7 +115,7 @@ function ColourByRow({
         ? []
         : (facet?.values ?? [])
             .filter((v) => v.count > 0)
-            .map((v) => ({ label: v.value, colour: colourFor(`${colourBy}:${v.value}`) }))
+            .map((v) => ({ label: v.value, colour: scale.colour(colourBy, v.value) }))
 
   return (
     <div className={styles.colourBy}>
@@ -158,12 +164,6 @@ function ColourByRow({
           </span>
         ) : null}
         {colourBy === 'year' ? <span className={styles.legendNote}>one hue per year</span> : null}
-        {colourBy === null ? (
-          <span className={styles.legendItem}>
-            <Dot colour={neutralColour()} size={8} />
-            all tracks
-          </span>
-        ) : null}
       </div>
     </div>
   )
@@ -175,6 +175,7 @@ export function ActivityList({
   tagTypes,
   filter,
   colourBy,
+  scale,
   hoveredId,
   selectedId,
   loading,
@@ -190,13 +191,14 @@ export function ActivityList({
   tagTypes: TagType[]
   filter: Filter
   colourBy: string | null
+  scale: ColourScale
   hoveredId: number | null
   selectedId: number | null
   loading: boolean
   error: string | null
   onHover: (id: number | null) => void
   onSelect: (id: number) => void
-  onColourBy: (next: string | null) => void
+  onColourBy: (next: string) => void
   onSort: (key: SortKey, order: 'asc' | 'desc') => void
   onClear: () => void
 }) {
@@ -246,7 +248,13 @@ export function ActivityList({
         </div>
       </div>
 
-      <ColourByRow tagTypes={tagTypes} facets={facets} colourBy={colourBy} onChange={onColourBy} />
+      <ColourByRow
+        tagTypes={tagTypes}
+        facets={facets}
+        colourBy={colourBy}
+        scale={scale}
+        onChange={onColourBy}
+      />
 
       <div className={styles.rows}>
         {error ? (
@@ -290,6 +298,7 @@ export function ActivityList({
             key={activity.id}
             activity={activity}
             colourBy={colourBy}
+            scale={scale}
             hovered={hoveredId === activity.id}
             selected={selectedId === activity.id}
             onHover={onHover}

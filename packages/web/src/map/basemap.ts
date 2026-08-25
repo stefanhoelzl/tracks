@@ -2,6 +2,8 @@ import { graybeard } from '@versatiles/style'
 import mlcontour from 'maplibre-contour'
 import type { StyleSpecification } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
+// `?worker&url` bundles the worker *and its imports*, then hands back the URL — see below.
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
 /**
  * The basemap, in one module.
@@ -10,6 +12,21 @@ import * as maplibregl from 'maplibre-gl'
  * to be a one-line change, which only stays true while every tile URL and every
  * style decision lives here.
  */
+
+/**
+ * Where MapLibre's worker lives.
+ *
+ * MapLibre resolves its own worker as a sibling of `import.meta.url`. After bundling
+ * that is `assets/index-<hash>.js`, and no `maplibre-gl-worker.mjs` sits beside it —
+ * the reference is built at runtime from a string, so Vite never sees it and never
+ * emits it.
+ *
+ * `?worker` rather than a plain `?url`: the shipped worker imports a shared chunk of
+ * its own, and a plain `?url` copies the file verbatim with that import dangling. The
+ * worker plugin bundles it and its dependencies into one module, and `&url` hands back
+ * the address instead of a constructor, which is what `setWorkerUrl` wants.
+ */
+maplibregl.setWorkerUrl(workerUrl)
 
 const TILES = 'https://tiles.versatiles.org'
 

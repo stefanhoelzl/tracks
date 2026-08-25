@@ -30,10 +30,18 @@
   background: var(--line);
 }
 
-.area {
+/* Stacked above the zoom control, so every map-level control shares one column. */
+.toggles {
   position: absolute;
   bottom: calc(var(--gap) + 78px);
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.toggle {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -52,16 +60,16 @@
     color 140ms var(--ease);
 }
 
-.area:hover {
+.toggle:hover {
   color: var(--ink);
 }
 
-.areaOn {
+.toggleOn {
   background: var(--accent);
   color: var(--surface);
 }
 
-.areaOn:hover {
+.toggleOn:hover {
   color: var(--surface);
 }
 

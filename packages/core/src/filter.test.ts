@@ -3,6 +3,7 @@ import {
   emptyFilter,
   formatFilter,
   formatSearch,
+  formatView,
   parseFilter,
   parseView,
   RANGE_KEYS,
@@ -90,13 +91,27 @@ describe('filter serialization', () => {
 
 describe('view state', () => {
   it('is parsed apart from the filter, since the server has no use for it', () => {
-    expect(parseView('colour_by=trip&activity=123')).toEqual({ colourBy: 'trip', activity: 123 })
-    expect(parseView('')).toEqual({ colourBy: null, activity: null })
+    expect(parseView('colour_by=trip&activity=123')).toEqual({
+      colourBy: 'trip',
+      activity: 123,
+      grouped: true,
+    })
+    expect(parseView('')).toEqual({ colourBy: null, activity: null, grouped: true })
+  })
+
+  it('treats grouping as on unless the URL turns it off', () => {
+    // Only the departure from the default is worth a parameter.
+    expect(parseView('grouped=0').grouped).toBe(false)
+    expect(parseView('grouped=1').grouped).toBe(true)
+    expect(formatView({ colourBy: null, activity: null, grouped: true }).toString()).toBe('')
+    expect(formatView({ colourBy: null, activity: null, grouped: false }).toString()).toBe(
+      'grouped=0',
+    )
   })
 
   it('joins the filter in one URL', () => {
     const filter = parseFilter('tag=sport:bike')
-    expect(formatSearch(filter, { colourBy: 'sport', activity: 42 })).toBe(
+    expect(formatSearch(filter, { colourBy: 'sport', activity: 42, grouped: true })).toBe(
       'tag=sport%3Abike&colour_by=sport&activity=42',
     )
   })

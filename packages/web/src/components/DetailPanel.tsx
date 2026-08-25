@@ -1,6 +1,6 @@
 import type { ActivityDetail, TagType } from '@tracks/core'
 import { ChevronLeft } from 'lucide-react'
-import { colourFor } from '../lib/colour.ts'
+import type { ColourScale } from '../lib/colour.ts'
 import { duration, group, km, localTime, longDate, metres } from '../lib/format.ts'
 import styles from './DetailPanel.module.css'
 import { Chip } from './ui/Chip.tsx'
@@ -16,12 +16,14 @@ import { StatTile } from './ui/StatTile.tsx'
 export function DetailPanel({
   detail,
   tagTypes,
+  scale,
   loading,
   error,
   onBack,
 }: {
   detail: ActivityDetail | undefined
   tagTypes: TagType[]
+  scale: ColourScale
   loading: boolean
   error: string | null
   onBack: () => void
@@ -77,7 +79,7 @@ export function DetailPanel({
                       key={tag}
                       type={labels.get(type)?.toLowerCase() ?? type}
                       value={tag.slice(at + 1)}
-                      colour={colourFor(tag)}
+                      colour={scale.colourForTag(tag)}
                     />
                   )
                 })}

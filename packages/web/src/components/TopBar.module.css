@@ -29,13 +29,12 @@
   letter-spacing: var(--tracking-tighter);
 }
 
+/* The totals keep their room; the chips take whatever is left and scroll. */
 .stats {
   display: flex;
   align-items: center;
   gap: 9px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .stat {

@@ -173,9 +173,17 @@ export function formatFilter(filter: Filter): URLSearchParams {
  * a cache key for queries it cannot change.
  */
 const viewShape = z.object({
-  /** A registry type name, `year`, or null for a single neutral colour. */
+  /** A registry type name, `year`, or null to fall back to the registry's first. */
   colourBy: z.string().nullable(),
   activity: z.number().int().positive().nullable(),
+  /**
+   * Whether the map collapses nearby starts into clusters at low zoom.
+   *
+   * View state rather than a filter — it changes nothing about which activities
+   * match — but it belongs in the URL for the same reason *colour by* does: it
+   * changes what a shared link shows you.
+   */
+  grouped: z.boolean(),
 })
 
 export type View = z.infer<typeof viewShape>
@@ -187,6 +195,8 @@ export const viewSchema = z.preprocess((input) => {
   return {
     colourBy: params.get('colour_by'),
     activity: activity === null || activity.trim() === '' ? null : Number(activity),
+    // Grouping is the default, so only its absence is worth writing down.
+    grouped: params.get('grouped') !== '0',
   }
 }, viewShape)
 
@@ -198,6 +208,7 @@ export function formatView(view: View): URLSearchParams {
   const params = new URLSearchParams()
   if (view.colourBy !== null) params.set('colour_by', view.colourBy)
   if (view.activity !== null) params.set('activity', String(view.activity))
+  if (!view.grouped) params.set('grouped', '0')
   return params
 }
 

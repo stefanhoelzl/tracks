@@ -1,4 +1,4 @@
-import type { Filter, RangeKey, TagTerm } from '@tracks/core'
+import { type Filter, RANGE_KEYS, type RangeKey, type TagTerm } from '@tracks/core'
 import type { RowState } from '../components/ui/ValueRow.tsx'
 
 /**
@@ -92,6 +92,89 @@ export function narrowingFacets(filter: Filter, labels: Map<string, string>): st
   }
 
   return names
+}
+
+/**
+ * The active filter, as a list of removable things.
+ *
+ * Derived here rather than in the top bar so the rules — what counts as active, what
+ * removing one leaves behind — are stated once and can be tested without rendering.
+ * Each term carries the filter it would leave, so the caller never has to know how a
+ * date range differs from a tag.
+ */
+export interface ActiveTerm {
+  /** Stable across renders, so React keeps the chip rather than rebuilding it. */
+  key: string
+  /** The badge: a type name for a tag, a facet name otherwise. */
+  facet: string
+  value: string
+  /** Set for tag terms, so the chip can take the value's own colour. */
+  tag?: { type: string; value: string | null }
+  negated: boolean
+  without: Filter
+}
+
+export function activeTerms(
+  filter: Filter,
+  labels: Map<string, string>,
+  units: Record<RangeKey, { label: string; unit: string; format: (v: number) => string }>,
+): ActiveTerm[] {
+  const terms: ActiveTerm[] = []
+
+  for (const term of filter.tags) {
+    terms.push({
+      key: `tag:${formatTermKey(term)}`,
+      facet: labels.get(term.type) ?? term.type,
+      value: term.value ?? 'not set',
+      tag: { type: term.type, value: term.value },
+      negated: term.negated,
+      without: {
+        ...filter,
+        tags: filter.tags.filter((t) => t !== term),
+      },
+    })
+  }
+
+  if (filter.from !== null || filter.to !== null) {
+    terms.push({
+      key: 'date',
+      facet: 'Date',
+      value: `${filter.from ?? '…'} → ${filter.to ?? '…'}`,
+      negated: false,
+      without: { ...filter, from: null, to: null },
+    })
+  }
+
+  if (filter.bbox !== null) {
+    terms.push({
+      key: 'bbox',
+      facet: 'Area',
+      value: 'this area',
+      negated: false,
+      without: { ...filter, bbox: null },
+    })
+  }
+
+  for (const key of RANGE_KEYS) {
+    const { min, max } = filter.ranges[key]
+    if (min === null && max === null) continue
+
+    const { label, unit, format } = units[key]
+    terms.push({
+      key: `range:${key}`,
+      facet: label,
+      // An open end reads as open rather than as the axis it happens to sit on.
+      value: `${min === null ? '…' : format(min)}–${max === null ? '…' : format(max)} ${unit}`,
+      negated: false,
+      without: { ...filter, ranges: { ...filter.ranges, [key]: { min: null, max: null } } },
+    })
+  }
+
+  return terms
+}
+
+function formatTermKey(term: TagTerm): string {
+  return `${term.negated ? '-' : ''}${term.type}:${term.value ?? ''}`
 }
 
 /** Presets resolve to dates on click, so the URL never holds a relative range. */

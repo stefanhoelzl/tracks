@@ -5,6 +5,12 @@
  * here and nowhere else. A component that needs a new value adds a token rather than
  * a literal, which is what stops the same pill being drawn four slightly different
  * ways as the app grows.
+ *
+ * The one thing deliberately absent is the categorical palette that *colour by*
+ * hashes into. No CSS rule can consume it — it is painted into GeoJSON properties and
+ * passed as props — so it lives in `lib/colour.ts` with the hash that indexes it,
+ * rather than making a round trip through `getComputedStyle` to reach the code that
+ * is its only reader.
  */
 
 :root {
@@ -77,29 +83,4 @@
   --min-width: 1100px;
 
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-/*
- * The categorical palette that *colour by* hashes into.
- *
- * Ten hues that hold up against a grey basemap and against each other; the first
- * three are the validated bike/hike/run set from the design canvas. Assignment is by
- * hash of `type:value`, not by position, so a colour belongs to a value for as long
- * as the value exists — and two visible values can collide, which is the price of
- * never shuffling as you filter.
- */
-:root {
-  --cat-0: #0a6b48;
-  --cat-1: #ce7a0c;
-  --cat-2: #2f63c6;
-  --cat-3: #b0304b;
-  --cat-4: #7a4fbf;
-  --cat-5: #0e7c86;
-  --cat-6: #8a6d1f;
-  --cat-7: #c2571a;
-  --cat-8: #4a7a2b;
-  --cat-9: #a0357e;
-
-  /* Not a category: what *not set* and an unfiltered track are drawn in. */
-  --cat-none: #8a9691;
 }

@@ -2,7 +2,7 @@ import type { FacetsResponse, Filter, RangeKey, TagType } from '@tracks/core'
 import { RANGE_KEYS } from '@tracks/core'
 import { CalendarDays, Check, ChevronDown, Square, X } from 'lucide-react'
 import { useState } from 'react'
-import { colourFor } from '../lib/colour.ts'
+import type { ColourScale } from '../lib/colour.ts'
 import {
   datePresets,
   excludeTag,
@@ -32,11 +32,13 @@ function TagGroup({
   type,
   facet,
   filter,
+  scale,
   onChange,
 }: {
   type: TagType
   facet: FacetsResponse['tags'][number] | undefined
   filter: Filter
+  scale: ColourScale
   onChange: (next: Filter, mode?: 'push' | 'replace') => void
 }) {
   const values = facet?.values ?? []
@@ -61,7 +63,7 @@ function TagGroup({
                 key={value.value}
                 label={value.value}
                 count={value.count}
-                colour={colourFor(`${type.name}:${value.value}`)}
+                colour={scale.colour(type.name, value.value)}
                 state={termState(filter, type.name, value.value)}
                 onToggle={() => onChange(toggleTag(filter, type.name, value.value))}
                 onExclude={() => onChange(excludeTag(filter, type.name, value.value))}
@@ -202,6 +204,7 @@ export function FilterSidebar({
   facets,
   filter,
   areaFilter,
+  scale,
   onChange,
   onClearArea,
 }: {
@@ -209,6 +212,7 @@ export function FilterSidebar({
   facets: FacetsResponse | undefined
   filter: Filter
   areaFilter: boolean
+  scale: ColourScale
   onChange: (next: Filter, mode?: 'push' | 'replace') => void
   onClearArea: () => void
 }) {
@@ -241,6 +245,7 @@ export function FilterSidebar({
               type={type}
               facet={byType.get(type.name)}
               filter={filter}
+              scale={scale}
               onChange={onChange}
             />
           ))}

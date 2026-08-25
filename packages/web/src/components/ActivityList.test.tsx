@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { ActivityRow, FacetsResponse, TagType } from '@tracks/core'
 import { emptyFilter } from '@tracks/core'
 import { describe, expect, it, vi } from 'vitest'
+import { HASHED } from '../lib/colour.ts'
 import { ActivityList } from './ActivityList.tsx'
 
 const TAG_TYPES: TagType[] = [
@@ -75,6 +76,7 @@ function setup(overrides: Partial<Parameters<typeof ActivityList>[0]> = {}) {
     tagTypes: TAG_TYPES,
     filter: emptyFilter(),
     colourBy: 'sport' as string | null,
+    scale: HASHED,
     hoveredId: null,
     selectedId: null,
     loading: false,

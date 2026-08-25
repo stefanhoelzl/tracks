@@ -1,6 +1,6 @@
 import type { SortKey } from '@tracks/core'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { ActivityList } from './components/ActivityList.tsx'
 import { DetailPanel } from './components/DetailPanel.tsx'
@@ -18,6 +18,7 @@ import {
   useTagTypes,
   useTracks,
 } from './lib/api.ts'
+import { buildScale, type ColourGroup } from './lib/colour.ts'
 import { setBbox } from './lib/filter-ops.ts'
 import { useUrlState } from './lib/url.ts'
 
@@ -50,6 +51,40 @@ export function App() {
   const facets = useFacets(filter)
   const detail = useActivityDetail(view.activity)
 
+  /**
+   * Colour by the registry's first type unless the URL says otherwise.
+   *
+   * The default stays out of the URL — writing it would mean every link carried a
+   * choice nobody made — so it is resolved here, where the registry is known.
+   */
+  const colourBy = view.colourBy ?? tagTypes.data?.tagTypes[0]?.name ?? null
+
+  /**
+   * The colour layout, rebuilt only when the value sets change.
+   *
+   * Values come from the registry where a type declares them and from the facets
+   * where it does not. Facet counts are self-excluded, so this does not change when
+   * you filter by a type — which is what stops the map repainting mid-comparison.
+   * Years come from the tracks themselves, since no facet enumerates them.
+   */
+  const scale = useMemo(() => {
+    const groups: ColourGroup[] = []
+
+    for (const type of tagTypes.data?.tagTypes ?? []) {
+      const facet = facets.data?.tags.find((t) => t.type === type.name)
+      groups.push({
+        type: type.name,
+        values: type.enumValues ?? (facet?.values ?? []).map((v) => v.value),
+      })
+    }
+
+    const years = new Set<string>()
+    for (const feature of tracks.data?.features ?? []) years.add(String(feature.properties.year))
+    groups.push({ type: 'year', values: [...years] })
+
+    return buildScale(groups)
+  }, [tagTypes.data, facets.data, tracks.data])
+
   const insets = {
     left: (filtersOpen ? PANEL_W : RAIL_W) + 16,
     right: (listOpen ? LIST_W : RAIL_W) + 16,
@@ -81,7 +116,9 @@ export function App() {
         ref={mapHandle}
         tracks={tracks.data}
         detail={detail.data}
-        colourBy={view.colourBy}
+        colourBy={colourBy}
+        scale={scale}
+        grouped={view.grouped}
         filter={filter}
         hoveredId={hoveredId}
         selectedId={view.activity}
@@ -93,7 +130,14 @@ export function App() {
       />
 
       <div className={styles.top} style={{ left: 16, right: 16 }}>
-        <TopBar summary={facets.data?.summary} />
+        <TopBar
+          summary={facets.data?.summary}
+          filter={filter}
+          tagTypes={tagTypes.data?.tagTypes ?? []}
+          scale={scale}
+          onChange={setFilter}
+          onClear={reset}
+        />
       </div>
 
       {filtersOpen ? (
@@ -112,6 +156,7 @@ export function App() {
               facets={facets.data}
               filter={filter}
               areaFilter={areaFilter}
+              scale={scale}
               onChange={setFilter}
               onClearArea={() => {
                 setAreaFilter(false)
@@ -145,6 +190,7 @@ export function App() {
             <DetailPanel
               detail={detail.data}
               tagTypes={tagTypes.data?.tagTypes ?? []}
+              scale={scale}
               loading={detail.isLoading}
               error={message(detail.error)}
               onBack={() => setView({ ...view, activity: null })}
@@ -155,14 +201,15 @@ export function App() {
               facets={facets.data}
               tagTypes={tagTypes.data?.tagTypes ?? []}
               filter={filter}
-              colourBy={view.colourBy}
+              colourBy={colourBy}
+              scale={scale}
               hoveredId={hoveredId}
               selectedId={view.activity}
               loading={activities.isLoading}
               error={listError}
               onHover={setHoveredId}
               onSelect={(id) => setView({ ...view, activity: id })}
-              onColourBy={(colourBy) => setView({ ...view, colourBy })}
+              onColourBy={(next) => setView({ ...view, colourBy: next })}
               onSort={(sortKey: SortKey, sortOrder) => setFilter({ ...filter, sortKey, sortOrder })}
               onClear={reset}
             />
@@ -181,7 +228,9 @@ export function App() {
 
       <MapChrome
         areaFilter={areaFilter}
+        grouped={view.grouped}
         onToggleArea={toggleArea}
+        onToggleGrouping={() => setView({ ...view, grouped: !view.grouped })}
         onZoom={zoom}
         insetLeft={insets.left}
         insetRight={insets.right}
