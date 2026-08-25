@@ -1,0 +1,105 @@
+/*
+ * Every colour, radius, shadow and type step in the app.
+ *
+ * The rule this file exists to enforce: a hex code, a px radius or a shadow appears
+ * here and nowhere else. A component that needs a new value adds a token rather than
+ * a literal, which is what stops the same pill being drawn four slightly different
+ * ways as the app grows.
+ */
+
+:root {
+  /* --- Surfaces ------------------------------------------------------------
+   * The map is the ground; everything else floats over it. `--glass` is what makes
+   * a panel readable without hiding the terrain it sits on.
+   */
+  --ground: #eef1ee;
+  --surface: #ffffff;
+  --glass: rgba(255, 255, 255, 0.82);
+  --glass-hi: rgba(255, 255, 255, 0.92);
+  --sunk: #f1f4f1;
+
+  /* --- Ink --- */
+  --ink: #0f1513;
+  --ink-2: #3e4945;
+  --muted: #77837e;
+
+  /* --- Lines --- */
+  --line: #e5e9e5;
+  --line-2: #d3dad5;
+
+  /* --- Accent: interactive state, never data. Data colour comes from the hash. --- */
+  --accent: #0d8a5f;
+  --accent-deep: #0a6e4c;
+  --accent-soft: #e4f3ec;
+
+  /* --- Type --- */
+  --font-body: "Manrope Variable", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-base: 12.5px;
+  --text-md: 13.5px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --text-2xl: 22px;
+  --text-3xl: 26px;
+
+  /* Manrope is a tight face; display sizes need negative tracking to look drawn
+     rather than merely set. */
+  --tracking-tight: -0.01em;
+  --tracking-tighter: -0.03em;
+  --tracking-tightest: -0.04em;
+  --tracking-wide: 0.12em;
+
+  /* --- Shape --- */
+  --radius-panel: 14px;
+  --radius-ctrl: 9px;
+  --radius-pill: 999px;
+
+  --blur: saturate(180%) blur(20px);
+
+  --shadow-sm: 0 1px 2px rgba(15, 21, 19, 0.05), 0 2px 8px rgba(15, 21, 19, 0.05);
+  --shadow-md: 0 1px 2px rgba(15, 21, 19, 0.05), 0 10px 28px rgba(15, 21, 19, 0.1);
+  --shadow-lg: 0 2px 4px rgba(15, 21, 19, 0.05), 0 18px 44px rgba(15, 21, 19, 0.14);
+
+  /* --- Layout ---
+   * Panel widths are fixed and the map takes the remainder, which is what keeps the
+   * dense sidebar legible instead of letting histograms and sliders compress.
+   */
+  --panel-w: 300px;
+  --list-w: 356px;
+  --rail-w: 44px;
+  --topbar-h: 56px;
+  --gap: 16px;
+
+  /* Below this the panels would eat the map. */
+  --min-width: 1100px;
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/*
+ * The categorical palette that *colour by* hashes into.
+ *
+ * Ten hues that hold up against a grey basemap and against each other; the first
+ * three are the validated bike/hike/run set from the design canvas. Assignment is by
+ * hash of `type:value`, not by position, so a colour belongs to a value for as long
+ * as the value exists — and two visible values can collide, which is the price of
+ * never shuffling as you filter.
+ */
+:root {
+  --cat-0: #0a6b48;
+  --cat-1: #ce7a0c;
+  --cat-2: #2f63c6;
+  --cat-3: #b0304b;
+  --cat-4: #7a4fbf;
+  --cat-5: #0e7c86;
+  --cat-6: #8a6d1f;
+  --cat-7: #c2571a;
+  --cat-8: #4a7a2b;
+  --cat-9: #a0357e;
+
+  /* Not a category: what *not set* and an unfiltered track are drawn in. */
+  --cat-none: #8a9691;
+}

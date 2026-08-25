@@ -1,0 +1,266 @@
+import type { ActivityDetail, Filter, TracksResponse } from '@tracks/core'
+import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap } from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { basemapStyle } from '../map/basemap.ts'
+import {
+  addTrackLayers,
+  FOCUS_LAYER,
+  paint,
+  SELECTED_SOURCE,
+  STARTS_SOURCE,
+  setFocus,
+  startPoints,
+  TRACKS_LAYER,
+  TRACKS_SOURCE,
+} from '../map/layers.ts'
+import styles from './MapView.module.css'
+
+/**
+ * The map.
+ *
+ * Driven imperatively: every interesting thing here — hover linking against a
+ * feature filter, a camera that is sometimes the filter, a fit that must wait for
+ * the filter to settle — is a sequence of side effects on one long-lived object, and
+ * a declarative wrapper would be a layer to fight rather than a layer to use.
+ */
+
+/** Long enough that a slider drag fits once, short enough to feel immediate. */
+const SETTLE_MS = 300
+
+/** The map is the filter while this is on, so it must not chase itself. */
+const MOVE_MS = 250
+
+const INITIAL = { center: [11.0, 47.5] as [number, number], zoom: 5 }
+
+function boundsOf(tracks: TracksResponse): LngLatBoundsLike | null {
+  const bounds = new maplibregl.LngLatBounds()
+  for (const feature of tracks.features) {
+    for (const coordinate of feature.geometry.coordinates) bounds.extend(coordinate)
+  }
+  return bounds.isEmpty() ? null : bounds
+}
+
+/** What the map chrome needs from the map, and nothing more. */
+export interface MapHandle {
+  zoomBy: (delta: number) => void
+}
+
+export function MapView({
+  ref,
+  tracks,
+  detail,
+  colourBy,
+  filter,
+  hoveredId,
+  selectedId,
+  areaFilter,
+  panelInsets,
+  onHover,
+  onSelect,
+  onViewportChange,
+}: {
+  ref?: Ref<MapHandle>
+  tracks: TracksResponse | undefined
+  detail: ActivityDetail | undefined
+  colourBy: string | null
+  filter: Filter
+  hoveredId: number | null
+  selectedId: number | null
+  areaFilter: boolean
+  /** Left and right panel widths, so a fit centres in the visible map, not under glass. */
+  panelInsets: { left: number; right: number }
+  onHover: (id: number | null) => void
+  onSelect: (id: number | null) => void
+  onViewportChange: (bbox: [number, number, number, number]) => void
+}) {
+  const container = useRef<HTMLDivElement>(null)
+  const map = useRef<MapLibreMap | null>(null)
+  const [ready, setReady] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    zoomBy: (delta: number) =>
+      map.current?.zoomTo(map.current.getZoom() + delta, { duration: 250 }),
+  }))
+
+  // Read inside listeners that are attached once; a stale closure here would mean
+  // panning writes a bbox after the toggle was turned off.
+  const live = useRef({ areaFilter, onViewportChange, onSelect, onHover })
+  live.current = { areaFilter, onViewportChange, onSelect, onHover }
+
+  useEffect(() => {
+    if (!container.current) return
+    let cancelled = false
+
+    const instance = new maplibregl.Map({
+      container: container.current,
+      style: { version: 8, sources: {}, layers: [] },
+      center: INITIAL.center,
+      zoom: INITIAL.zoom,
+      attributionControl: false,
+      // Ours lives in the map chrome, alongside the scale.
+    })
+    map.current = instance
+
+    // The style is fetched (the elevation TileJSON is a real request), so the map
+    // exists before it is dressed — which also gets a grey canvas up immediately
+    // rather than waiting on the network for first paint.
+    basemapStyle()
+      .then((style) => {
+        if (cancelled) return
+        instance.setStyle(style)
+        instance.once('styledata', () => {
+          if (cancelled) return
+          addTrackLayers(instance)
+          setReady(true)
+        })
+      })
+      .catch((error) => console.error('basemap failed to load', error))
+
+    instance.on('mousemove', TRACKS_LAYER, (event: MapLayerMouseEvent) => {
+      const id = event.features?.[0]?.properties?.id
+      instance.getCanvas().style.cursor = 'pointer'
+      if (typeof id === 'number') live.current.onHover(id)
+    })
+    instance.on('mouseleave', TRACKS_LAYER, () => {
+      instance.getCanvas().style.cursor = ''
+      live.current.onHover(null)
+    })
+    instance.on('click', TRACKS_LAYER, (event: MapLayerMouseEvent) => {
+      const id = event.features?.[0]?.properties?.id
+      if (typeof id === 'number') live.current.onSelect(id)
+    })
+
+    let moveTimer: ReturnType<typeof setTimeout> | undefined
+    instance.on('moveend', () => {
+      if (!live.current.areaFilter) return
+      clearTimeout(moveTimer)
+      moveTimer = setTimeout(() => {
+        const [[west, south], [east, north]] = instance.getBounds().toArray()
+        live.current.onViewportChange([west!, south!, east!, north!])
+      }, MOVE_MS)
+    })
+
+    return () => {
+      cancelled = true
+      clearTimeout(moveTimer)
+      instance.remove()
+      map.current = null
+    }
+  }, [])
+
+  // --- Data -----------------------------------------------------------------
+
+  useEffect(() => {
+    if (!ready || !map.current || !tracks) return
+    map.current.getSource<GeoJSONSource>(TRACKS_SOURCE)?.setData(paint(tracks, colourBy))
+    map.current.getSource<GeoJSONSource>(STARTS_SOURCE)?.setData(startPoints(tracks, colourBy))
+  }, [ready, tracks, colourBy])
+
+  // Hovering a row highlights its track; selecting one focuses it and dims the rest.
+  useEffect(() => {
+    if (!ready || !map.current) return
+    setFocus(map.current, hoveredId ?? selectedId)
+  }, [ready, hoveredId, selectedId])
+
+  // Full resolution, drawn over the simplified line it replaces.
+  useEffect(() => {
+    if (!ready || !map.current) return
+    const source = map.current.getSource<GeoJSONSource>(SELECTED_SOURCE)
+    if (!source) return
+
+    if (!detail) {
+      source.setData({ type: 'FeatureCollection', features: [] })
+      return
+    }
+    source.setData({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: detail.track.map((p) => [p.lon, p.lat]),
+          },
+        },
+      ],
+    })
+  }, [ready, detail])
+
+  // --- Camera ---------------------------------------------------------------
+
+  const fitted = useRef<string>('')
+
+  useEffect(() => {
+    if (!ready || !map.current || !tracks) return
+
+    // Drawing the area filter told the camera where to look; refitting to what it
+    // then selected would be the map arguing with you.
+    if (areaFilter) return
+
+    const bounds = boundsOf(tracks)
+    // Nothing matches: hold the camera rather than lurching at empty bounds.
+    if (!bounds) return
+
+    // The same result set must not refit on every unrelated re-render.
+    const signature = JSON.stringify([tracks.features.map((f) => f.properties.id), selectedId])
+    if (signature === fitted.current) return
+
+    const timer = setTimeout(() => {
+      fitted.current = signature
+      const target =
+        selectedId !== null && detail
+          ? boundsOf({
+              type: 'FeatureCollection',
+              features: [
+                {
+                  type: 'Feature',
+                  id: selectedId,
+                  geometry: {
+                    type: 'LineString',
+                    coordinates: detail.track.map((p) => [p.lon, p.lat] as [number, number]),
+                  },
+                  properties: { id: selectedId, tags: [], year: 0 },
+                },
+              ],
+            })
+          : bounds
+
+      map.current?.fitBounds(target ?? bounds, {
+        padding: {
+          top: 88 + 24,
+          bottom: 40,
+          left: panelInsets.left + 32,
+          right: panelInsets.right + 32,
+        },
+        duration: 700,
+        maxZoom: 14,
+      })
+    }, SETTLE_MS)
+
+    return () => clearTimeout(timer)
+  }, [ready, tracks, selectedId, detail, areaFilter, panelInsets.left, panelInsets.right])
+
+  // Turning the toggle on adopts the current view immediately, rather than waiting
+  // for the next pan to make anything happen. It fires on the transition alone:
+  // `onViewportChange` writes `filter.bbox`, so depending on it would make this
+  // effect re-trigger on its own output.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fires on the transition only
+  useEffect(() => {
+    if (!ready || !map.current || !areaFilter) return
+    const [[west, south], [east, north]] = map.current.getBounds().toArray()
+    onViewportChange([west!, south!, east!, north!])
+  }, [ready, areaFilter])
+
+  // A filter change while the area toggle is off can leave a stale bbox in the URL;
+  // the sidebar clears it, and the camera should be free again the moment it does.
+  useEffect(() => {
+    if (filter.bbox === null) fitted.current = ''
+  }, [filter.bbox])
+
+  return <div ref={container} className={styles.map} data-testid="map" />
+}
+
+export { FOCUS_LAYER }

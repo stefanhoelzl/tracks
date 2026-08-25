@@ -1,0 +1,10 @@
+.dot,
+.empty {
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+}
+
+.empty {
+  border: 1.5px dashed var(--line-2);
+}

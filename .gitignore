@@ -8,3 +8,6 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# Vite build output; `tracks serve` mounts it, `pnpm build` makes it.
+packages/web/dist/

@@ -1,0 +1,26 @@
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  border: 1px solid transparent;
+  transition:
+    background 120ms var(--ease),
+    color 120ms var(--ease);
+}
+
+.button:hover {
+  background: var(--sunk);
+}
+
+.active {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.active:hover {
+  background: var(--ink);
+}

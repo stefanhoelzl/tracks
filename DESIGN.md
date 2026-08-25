@@ -291,10 +291,12 @@ providers or dropping to a locally-served container a one-line change.
 
 Global elevation shipped in April 2026 as a `raster-dem` tileset — terrarium encoding, 512 px,
 z0–12 — and it closes both gaps that kept VersaTiles from being an outdoor basemap. Hillshading
-is a MapLibre `hillshade` layer over that source, tuned to sit under the track colours rather
-than compete with them. Contours come from `maplibre-contour`, which generates contour vector
-tiles from the same DEM in a worker: always on above z11, with no toggle, because a contour is a
-property of the basemap and this app has no map-options surface for one control to live in.
+is a first-class option of the style builder rather than a layer to assemble: passing `hillshade`
+returns a style with the elevation source wired in, and its shadow, highlight and exaggeration are
+tuned here to sit under the track colours rather than compete with them. Contours come from
+`maplibre-contour`, which generates contour vector tiles from the same DEM in a worker: always on
+above z11, with no toggle, because a contour is a property of the basemap and this app has no
+map-options surface for one control to live in.
 
 | | |
 |---|---|
@@ -498,7 +500,7 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover, dimming and a viewport-derived filter are all things a declarative wrapper would be in the way of. |
 | **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file. |
 | **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
-| **Testing** | Vitest in two projects: `node` (core, server, msw-replayed Komoot, file fixtures for Strava) stays offline and under a second; `web` (jsdom) covers the components. `--project node` keeps the fast lane. |
+| **Testing** | Vitest in two projects: `node` (core, server, msw-replayed Komoot, file fixtures for Strava) stays offline and under a second; `web` (jsdom) covers the components and mounts the whole app against a mocked API. `--project node` keeps the fast lane. |
 | **CLI** | `tracks import` and `tracks serve [--port 8080] [--open]`. Nothing else — tagging belongs in the UI. A missing web build exits naming the build command rather than serving 404s. |
 
 ---

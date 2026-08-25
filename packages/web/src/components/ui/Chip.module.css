@@ -1,0 +1,28 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.type {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--surface);
+  padding: 6px 8px;
+  flex-shrink: 0;
+}
+
+.value {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--ink);
+  padding: 6px 11px 6px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

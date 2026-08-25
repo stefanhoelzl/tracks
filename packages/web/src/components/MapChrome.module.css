@@ -1,0 +1,80 @@
+.zoom {
+  position: absolute;
+  bottom: var(--gap);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-ctrl);
+  background: var(--glass-hi);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.zoom button {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-2);
+}
+
+.zoom button:hover {
+  background: var(--sunk);
+}
+
+.divider {
+  height: 1px;
+  background: var(--line);
+}
+
+.area {
+  position: absolute;
+  bottom: calc(var(--gap) + 78px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-hi);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition:
+    background 140ms var(--ease),
+    color 140ms var(--ease);
+}
+
+.area:hover {
+  color: var(--ink);
+}
+
+.areaOn {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.areaOn:hover {
+  color: var(--surface);
+}
+
+.attribution {
+  position: absolute;
+  bottom: var(--gap);
+  z-index: 10;
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}

@@ -1,0 +1,22 @@
+.popover {
+  position: absolute;
+  z-index: 40;
+}
+
+.below {
+  top: calc(100% + 6px);
+  left: 0;
+}
+
+/* Clears the sidebar rather than overlapping it — the column is only 300px wide. */
+.right {
+  left: calc(100% + 26px);
+  top: 0;
+}
+
+.panel {
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
