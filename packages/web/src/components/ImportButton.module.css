@@ -1,0 +1,50 @@
+/* The chips beside it scroll; this never shrinks, so the action stays reachable. */
+.anchor {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--sunk);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.button:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 11px;
+  border-radius: 7px;
+  text-align: left;
+  width: 100%;
+}
+
+.option:hover {
+  background: var(--sunk);
+}
+
+.optionLabel {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.optionDetail {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

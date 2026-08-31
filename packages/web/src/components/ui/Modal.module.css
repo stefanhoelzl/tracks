@@ -1,0 +1,33 @@
+/*
+ * The <dialog> element itself is only a positioner — the surface is a Panel inside it,
+ * so a dialog and a popover are visibly the same material.
+ */
+.dialog {
+  border: none;
+  padding: 0;
+  background: transparent;
+  max-width: min(420px, calc(100vw - 32px));
+  width: 100%;
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+.dialog::backdrop {
+  background: rgba(15, 21, 19, 0.32);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.panel {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tighter);
+}

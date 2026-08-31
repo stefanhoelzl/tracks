@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import type { SortKey } from '@tracks/core'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
@@ -5,6 +6,7 @@ import styles from './App.module.css'
 import { ActivityList } from './components/ActivityList.tsx'
 import { DetailPanel } from './components/DetailPanel.tsx'
 import { FilterSidebar } from './components/FilterSidebar.tsx'
+import { ImportDialog, type ImportSource } from './components/ImportDialog.tsx'
 import { MapChrome } from './components/MapChrome.tsx'
 import { type MapHandle, MapView } from './components/MapView.tsx'
 import { TopBar } from './components/TopBar.tsx'
@@ -41,6 +43,9 @@ export function App() {
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [listOpen, setListOpen] = useState(true)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
+  const [importing, setImporting] = useState<ImportSource | null>(null)
+
+  const queryClient = useQueryClient()
 
   const mapHandle = useRef<MapHandle>(null)
 
@@ -101,6 +106,20 @@ export function App() {
   const zoom = useCallback((delta: number) => mapHandle.current?.zoomBy(delta), [])
 
   /**
+   * An import landed, so everything on screen is stale: the rows, the geometry, the
+   * counts and histogram bounds, and possibly the registry itself if a source put an
+   * enum value back. All four caches go.
+   *
+   * The filter goes with them. New activities arriving behind an active filter would
+   * be imported and invisible in the same breath — and the viewport is part of the
+   * filter, so "behind" includes "somewhere else on the map".
+   */
+  const onImported = useCallback(() => {
+    queryClient.invalidateQueries()
+    reset()
+  }, [queryClient, reset])
+
+  /**
    * Where everything matching the non-spatial filters is, so the camera can go there.
    *
    * Null while a request is in flight: react-query keeps the previous response as
@@ -139,8 +158,11 @@ export function App() {
           scale={scale}
           onChange={setFilter}
           onClear={reset}
+          onImport={setImporting}
         />
       </div>
+
+      <ImportDialog source={importing} onClose={() => setImporting(null)} onImported={onImported} />
 
       {filtersOpen ? (
         <Panel className={styles.filters}>

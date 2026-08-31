@@ -3,6 +3,8 @@ import { Activity } from 'lucide-react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, km, metres } from '../lib/format.ts'
 import { FilterChips } from './FilterChips.tsx'
+import { ImportButton } from './ImportButton.tsx'
+import type { ImportSource } from './ImportDialog.tsx'
 import styles from './TopBar.module.css'
 import { Panel } from './ui/Panel.tsx'
 
@@ -12,9 +14,14 @@ import { Panel } from './ui/Panel.tsx'
  * collapsed the map fills the window, and this is the only thing still saying why
  * you are looking at 23 activities rather than 197.
  *
- * The analytics switch the design canvas puts here is deliberately absent: it has
- * nowhere to go until M5, and a control that answers a click with nothing is worse
- * than one that is not there yet. The space it will take is already in the flex row.
+ * The right edge carries Import — the one control in the app that writes anything,
+ * and the only thing here that is not a readout. It never shrinks while the chips
+ * beside it scroll, because an action you cannot reach is worse than a filter term
+ * you have to scroll to.
+ *
+ * The analytics switch the design canvas puts here is still absent: it has nowhere to
+ * go until M5, and a control that answers a click with nothing is worse than one that
+ * is not there yet. It lands beside Import when it does something.
  */
 export function TopBar({
   summary,
@@ -23,6 +30,7 @@ export function TopBar({
   scale,
   onChange,
   onClear,
+  onImport,
 }: {
   summary: FacetsResponse['summary'] | undefined
   filter: Filter
@@ -30,6 +38,7 @@ export function TopBar({
   scale: ColourScale
   onChange: (next: Filter) => void
   onClear: () => void
+  onImport: (source: ImportSource) => void
 }) {
   return (
     <Panel className={styles.bar}>
@@ -61,6 +70,8 @@ export function TopBar({
         onChange={onChange}
         onClear={onClear}
       />
+
+      <ImportButton onPick={onImport} />
     </Panel>
   )
 }

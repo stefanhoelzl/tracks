@@ -8,15 +8,16 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | Local-only, single user |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
 | **Stack** | Node 24 · pnpm · SQLite · React · MapLibre |
-| **Status** | M1–M2.5 complete; M3 (map, list, filters) in progress |
+| **Status** | M1–M3.5 complete; M4 (tagging) next |
 
 ---
 
 ## Scope
 
 One command starts a local server; you open it in a browser. Nothing is hosted, nobody
-signs in, no data leaves the machine except tile requests. The tool imports activities
-from Strava and Komoot, draws them on a map, lets you tag and filter them, and counts them.
+signs in, no data leaves the machine except tile requests and the browser's own calls to
+Komoot. The tool imports activities from Strava and Komoot, draws them on a map, lets you
+tag and filter them, and counts them.
 
 ### Non-goals
 
@@ -38,10 +39,37 @@ Metric throughout (km, m, km/h). ISO dates. Weeks start Monday.
 
 ## Ingestion & sync
 
+**The browser reads; the server writes.** Both sources run in the tab, and the server
+receives finished activities without knowing where they came from. This is the single
+decision the rest of this section follows from.
+
 | Source | Access | Risk |
 |---|---|---|
-| Strava | **Bulk archive import** — GPX/TCX files + `activities.csv` | None; a manual, offline file drop |
-| Komoot | Undocumented `api.komoot.de` v006/v007, email + password | Can break without notice |
+| Strava | **Bulk archive import** — the downloaded `.zip`, read in the browser | None; a local file, never uploaded whole |
+| Komoot | Undocumented `api.komoot.de` v006/v007, called **from the tab** | Can break without notice |
+
+### Why the browser does the reading
+
+Komoot answers with `Access-Control-Allow-Origin: *` on both the v006 login and the v007
+tour endpoints, and its preflight permits `Authorization`. Verified against the live API,
+and the whole design rests on it: because a tab may call Komoot directly, **your password
+never reaches the server** — there is nothing to store, leak or forget to discard.
+
+A Strava export is a file you already have, and the importer opens exactly two things in
+it: `activities.csv`, and the paths named in its column 12. Photos, comments, followers,
+clubs and routes are the bulk of the archive and are never read. Uploading the whole zip
+to reach the tracks inside it was only ever a consequence of the parsers living on the
+wrong side of the wire.
+
+So the sources moved to `packages/web`. The server kept what only it can do — the timezone
+dataset, the simplifier, the bounding box, the tag registry — and stopped knowing what a
+Strava export or a Komoot tour is.
+
+The move also paid for itself in dependencies. `DOMParser` replaces `fast-xml-parser`,
+`DecompressionStream` replaces `node:zlib`; reading an archive costs one new dependency
+(`@zip.js/zip.js`) rather than three. zip.js reads the central directory off the end of
+the `File` with range reads, so opening a 500 MB export costs a few KB and each entry is
+inflated by name.
 
 Komoot notes, all confirmed against the live API: login returns a **session token**,
 not the password, and that token authenticates everything afterwards. Sending
@@ -67,15 +95,39 @@ Both sit behind a single `ActivitySource` interface, with recorded HTTP response
 fixtures — so a Komoot schema change surfaces as a specific failing test rather than a
 mystery. Only **recorded** Komoot tours are imported; planned routes are excluded.
 
+### The import, end to end
+
+1. The browser lists the source — a zip's CSV, or Komoot's paginated tour list.
+2. It offers the ids to `POST /api/import/select`, which answers with the ones the
+   database has no track for. A re-import gets an empty list and **fetches nothing**.
+3. It reads only those, one at a time, and serializes each as an NDJSON frame.
+4. It posts them all to `POST /api/import/:source`, which writes them and streams its
+   progress back.
+
+Two phases rather than one continuous stream because streaming a *request* body needs
+`duplex: 'half'`, which only Chromium ships. Buffering between them costs the browser
+~25 MB on a first import of a full account and nothing afterwards — and all-or-nothing is
+what the server's single transaction does anyway.
+
+One line per activity: `[lat, lon]` through the polyline codec at precision 6 (lossless,
+and the same one the detail route uses), with altitude and time as parallel arrays that
+collapse to a single `null` when a track carries neither. Times are seconds from the
+start rather than ten-digit epochs. `source:` is **not** on the wire — the server derives
+it from the frame's own `source` field, so a client cannot send a column and a tag that
+disagree.
+
 ### Why there is no cursor table
 
-Re-importing is idempotent. Every run reads the whole archive (or the whole Komoot tour
-list) and upserts by `(source, external_id)`; an activity that already has trackpoints is
-not re-parsed. The database is its own sync state — there is no cursor to corrupt and no
-`after=` gap that could silently skip a range.
+Re-importing is idempotent. Every run lists the whole archive (or the whole Komoot tour
+list) and upserts by `(source, external_id)`; an activity that already has a track is
+never fetched, because `select` filtered it out before anything was read. The database is
+its own sync state — there is no cursor to corrupt and no `after=` gap that could silently
+skip a range.
 
-Resumability is emergent rather than engineered: a run that dies partway leaves rows
-unfilled, and the next run fills them.
+**Resumability was traded away in M3.5, deliberately.** The whole run is one transaction
+now, so a crash loses it rather than leaving rows for the next run to fill. That is the
+price of an undo that does not need writing — see *Cancelling* below — and on a 197-tour
+account it costs one repeated pull.
 
 ### What the archive actually contains
 
@@ -112,13 +164,17 @@ decimals, so no German number parsing is needed. Only the header names are local
 
 ### Derived at import
 
-**Timezone.** Nothing in the archive records a UTC offset — the CSV date is UTC and matches
+These are split across the wire. The browser owns what is a fact about a *service* —
+which sport a word means, which name to prefer. The server owns what needs data the
+browser must not ship, or that every writer must agree on.
+
+**Timezone.** *Server-side.* Nothing in the archive records a UTC offset — the CSV date is UTC and matches
 the GPX `Z` timestamp exactly. So the offset is derived from the track itself: the first
 trackpoint's coordinates give an IANA zone via `tz-lookup`, and the zone plus the activity's
 date gives the offset with DST handled. Independent of file format, and it works for Komoot
 too.
 
-**Sport.** Taken from the file — GPX `<type>`, TCX `Sport` — which is English and
+**Sport.** *Browser-side.* Taken from the file — GPX `<type>`, TCX `Sport` — which is English and
 locale-independent. There is no CSV fallback: an activity whose file carries no type gets no
 automatic sport tag and is tagged manually. Each source maps its own vocabulary to a `sport:`
 tag itself rather than handing a raw string to the pipeline, so Komoot's `touringbicycle` and
@@ -127,7 +183,7 @@ neither source's map recognises derives nothing at all. Accordingly, **re-deriva
 when the source supplies a type**; where it does not, existing tags are left untouched, so a
 manual sport tag survives every future import.
 
-**Title.** The file's own name, falling back to the CSV title. This preserves original names
+**Title.** *Browser-side.* The file's own name, falling back to the CSV title. This preserves original names
 from third-party uploads — *"Almenrunde"* rather than Strava's auto-generated *"Fahrt am
 Morgen"*.
 
@@ -136,28 +192,33 @@ Morgen"*.
 | | |
 |---|---|
 | **Duplicates across services** | Not merged. The two accounts cover different activities; a `source` column lets you split when it matters. |
-| **Upsert key** | `(source, external_id)`. Re-sync refreshes upstream metadata and never touches your tags. |
+| **Upsert key** | `(source, external_id)`. A known activity is **left alone entirely** — not fetched, not written — so an upstream rename never lands. The cheap re-import is the point, and the title you care about is usually the file's own anyway. |
 | **Deletions** | Not tracked. Local rows persist. |
-| **Trigger** | Manual. No scheduler, no background daemon. |
-| **Raw payloads** | Archived to `data/raw/<source>/<id>/` only by sources that cannot cheaply be re-read — Komoot. The Strava export is already a durable copy on disk, so re-deriving means re-running the import against it rather than storing a second copy. |
+| **Trigger** | Manual, from the Import button. No scheduler, no background daemon. |
+| **Raw payloads** | **Not archived.** `data/raw` is gone: the archive only ever protected against re-fetching, and a re-import never re-fetches a track it already has. `data/` holds `tracks.db` and nothing else. |
+| **Cancelling** | Rolls back everything, via one `BEGIN … ROLLBACK` on a second SQLite connection. The request owns the run, so closing the tab is a cancel. |
 
 ---
 
 ## Secrets & auth
 
-Strava needs no credentials at all — the archive is a file you already have. Only Komoot
-requires secrets, and they are never written anywhere.
+There are none.
 
-| Secret | Where | Why |
-|---|---|---|
-| `KOMOOT_EMAIL`, `KOMOOT_PASSWORD` | proton-env | Injected at run time; the session is held in memory and discarded. |
+Strava needs no credentials — the archive is a file you already have. Komoot needs an email
+and a password, and since M3.5 they are typed into a dialog that calls `api.komoot.de`
+**directly from the tab**. They are never sent to the Tracks server, never written to disk,
+and never held past the run: you are asked again next time, which is the honest cost of
+having nowhere to keep them.
 
-There is no OAuth flow, no token file and no token rotation to handle. Everything the tool
-*produces* lives under `data/`: the raw payload archive and `tracks.db`. One directory to
-back up, one to wipe.
+That deletes a whole category of thing to get right. No environment variables, no
+proton-env, no OAuth flow, no token file, no rotation, and no process holding a session
+token it might log. The one secret in the system lives in a form field in your browser for
+the length of one import.
 
-> `data/` is gitignored, which means `git clean -xdf` deletes all of it — including the only
-> copy of your tags.
+Everything the tool *produces* is now a single file: `data/tracks.db`.
+
+> `data/` is gitignored, which means `git clean -xdf` deletes it — including the only copy
+> of your tags.
 
 ---
 
@@ -434,6 +495,17 @@ its own term when clicked. The sidebar says what a filter could be; only the chi
 it is — and they stay visible when the sidebar is collapsed, which is exactly when you have
 stopped adjusting the filter and started reading the map under it.
 
+At its right edge is **Import**, a dropdown with one entry per source and the only control
+in the app that writes anything. The chips beside it scroll; it never shrinks, because an
+action you cannot reach is worse than a filter term you have to scroll to. The M5 analytics
+switch lands beside it.
+
+Picking a source opens a modal — a real `<dialog>`, so the platform supplies the focus trap
+and the layer above the map canvas — which moves through the form, the reading, the writing
+and a summary. Nothing closes on its own: a run with failures is something to read, and
+while a run is going the only way out is Cancel, because the request *is* the import.
+Cancelling while reading has sent nothing; cancelling while writing rolls back.
+
 A list row is a coloured bar plus title, distance, elevation, duration and date. The bar follows
 the active *colour by* rather than being hardwired to sport, so the list and the map never read as
 two different legends. Clicking one selects it — `?activity=123` — and the right panel swaps to a
@@ -536,11 +608,19 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 | `GET /api/facets?<filters>` | Summary totals, per-value counts, range bounds + histograms, and the bbox-excluded `extent` — all self-excluded |
 | `GET /api/activities/:id` | Detail plus the full-resolution track, encoded at precision 6 with altitude alongside |
 | `GET /api/tag-types` | The registry, which the browser needs to render and validate |
+| `POST /api/import/select` | Takes `{source, ids}`, returns the subset with no track yet. A pure query — no lock, no session |
+| `POST /api/import/:source` | Takes NDJSON frames, writes them in one transaction, streams NDJSON progress back |
 | `GET /api/stats?<filters>` | Aggregates for the analytics views — **M5** |
 | `GET /api/heatmap?<filters>` | Grid cell counts — **deferred** |
 | `POST` / `DELETE /api/activities/:id/tags` | Tag mutations for one activity — **M4** |
 | `POST /api/tags` | Bulk: a filter plus `add` / `remove`. The lever that makes 500 untagged activities tractable, and nearly free once filters are shared code — **M4** |
 | `POST` / `PUT` / `DELETE /api/tag-types/:name` | Registry mutations. Delete and enum-shrink cascade onto activities — **M4** |
+
+**The import routes are the only writes, and the only streams.** `select` is what makes a
+re-import free; the other is one request that owns the run from `BEGIN` to `COMMIT`. There
+is no job id and nothing to poll, because nothing outlives the connection: if it goes away,
+the transaction rolls back. `EventSource` was never a candidate — it is GET-only and could
+carry neither the credentials nor the payload — so the stream is NDJSON in both directions.
 
 **Rows, geometry and facets are three routes, not one payload.** They change at different rates and
 for different reasons: the geometry is the same bytes whether you are sorting the list or not, and
@@ -583,12 +663,16 @@ enough to justify one.
 ```
 tracks/
 ├─ packages/core     # tag grammar · THE filter serialization · the API contract
-├─ packages/server   # schema · ActivitySources · Hono REST API · CLI
-├─ packages/web      # React · MapLibre · ECharts
+├─ packages/server   # schema · timezone · simplifier · Hono REST API · ingest
+├─ packages/web      # React · MapLibre · ECharts · ActivitySources
 ├─ migrations/       # drizzle-kit
 ├─ fixtures/         # recorded Strava & Komoot responses
-└─ data/             # gitignored: tracks.db, Komoot raw payloads
+└─ data/             # gitignored: tracks.db
 ```
+
+The sources sit in `packages/web` because only the browser runs them — the same rule that
+put the schema and the timezone derivation in `packages/server`. Core gained the import
+frame schema, which both sides genuinely do run.
 
 **Core is what both sides run identically, and nothing else.** It held the schema, the timezone
 derivation, the simplifier and the `ActivitySource` interface for as long as the server was its
@@ -606,13 +690,13 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Migrations** | Always generated with an explicit name: `pnpm db:generate --name add-elapsed`. Without `--name`, drizzle-kit invents one like `0000_sharp_lily_hollister`, which tells a future reader nothing. |
 | **Not Deno** | Better DX and a genuinely useful permissions model, but drizzle-kit + `node:sqlite` is an open bug needing a community patch — a patched migration toolchain is the wrong place to spend novelty. |
 | **Validation** | Zod, in core, for the filter and every response shape — parsed on the way in *and* on the way out. |
-| **Web build** | Vite. In development the Hono app runs inside it via `@hono/vite-dev-server`, so one command HMRs both sides; `tracks serve` mounts the built `dist` beside the API. |
+| **Web build** | Vite, and **only** Vite. `pnpm dev` runs the Hono app inside it via `@hono/vite-dev-server`, so one command HMRs both sides. There is no production server: `tracks serve`, the static mount and the `build` script went with the CLI, because a local single-user tool that is always run from its own checkout had two ways to start and needed one. |
 | **Web state** | No router — the app is one page, and core already parses the query string. A `useFilterState` hook over `useSyncExternalStore` is the whole of it. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover and a viewport-derived filter are both things a declarative wrapper would be in the way of. |
 | **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file. |
 | **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
-| **Testing** | Vitest in two projects: `node` (core, server, msw-replayed Komoot, file fixtures for Strava) stays offline and under a second; `web` (jsdom) covers the components and mounts the whole app against a mocked API. `--project node` keeps the fast lane. Map styles are checked against `@maplibre/maplibre-gl-style-spec` — validated *and* evaluated against the features each layer will actually meet, because the expression bugs that matter are legal ones that meet the wrong data. |
-| **CLI** | `tracks import` and `tracks serve [--port 8080] [--open]`. Nothing else — tagging belongs in the UI. A missing web build exits naming the build command rather than serving 404s. |
+| **Testing** | Vitest in two projects. `node` covers core, the query layer and ingestion — including that an aborted import leaves the database byte-identical — and stays offline and under a second. `web` (jsdom) covers the components, mounts the whole app against a mocked API, and now owns the sources too, with the msw-replayed Komoot fixtures and a zip built at test time from plain-text fixtures. Browser code is tested where a DOM is. jsdom lacks three things the sources need — `dialog.showModal`, a `Blob` undici will read, and an `AbortSignal` it will accept — so `test-setup.ts` adapts them and says why. `--project node` keeps the fast lane. Map styles are checked against `@maplibre/maplibre-gl-style-spec` — validated *and* evaluated against the features each layer will actually meet, because the expression bugs that matter are legal ones that meet the wrong data. |
+| **CLI** | **Retired in M3.5.** `tracks import` was the only way to add activities until the Import button existed, and `tracks serve` the only way to look at them until `pnpm dev` was the single entry point. Both are gone, along with commander. Anything a person does, they now do in the app. |
 
 ---
 
@@ -628,7 +712,8 @@ inspected through a SQLite browser.
 | **M1** | Strava archive → SQLite | Schema, migrations, the `ActivitySource` interface, `tracks import <path>`, GPX + TCX parsers, timezone derivation. |
 | **M2** | Komoot | Second source behind the same interface, with recorded fixtures replayed through msw. Needed no interface change, which validated the M1 abstraction. |
 | **M2.5** | Typed tags | The `tag_types` registry, the `<type>:<value>` grammar and validator in core, per-source auto-tagging, and a migration that rewrites the existing arrays. No UI — done before M3 so the map and sidebar are built against the final tag model rather than twice. |
-| **M3** | Map, list and filters | `tracks serve`: the REST API, the MapLibre map with hillshade and contours, the synced activity list, a read-only activity detail, and the full filter sidebar with viewport spatial filtering. Lands in three commits — the core split, the backend, the browser. |
+| **M3** | Map, list and filters | The REST API, the MapLibre map with hillshade and contours, the synced activity list, a read-only activity detail, and the full filter sidebar with viewport spatial filtering. Lands in three commits — the core split, the backend, the browser. |
+| **M3.5** | Import from the UI | The Import dropdown, and with it the end of the CLI. Both sources move into the browser, so Komoot credentials never reach the server and a Strava export is never uploaded; the server becomes a source-agnostic writer whose whole run is one rollback-able transaction. Three commits — the sources, the ingest route, the UI. |
 | **M4** | Tagging | Tag UI and tag-driven filtering, including whatever makes 500 untagged activities tractable. Free-text search arrives here too, since the flow that needs it is finding untagged activities by name. |
 | **M5** | Analytics | The four ECharts views, scoped to the active filter. |
 | **M6** | Heatmap and coverage | "Everywhere I've been", percentage of terrain covered, new-versus-repeated per activity. |
@@ -642,6 +727,17 @@ will otherwise propose all of these again.
 
 | Rejected | Why |
 |---|---|
+| Uploading the Strava zip | The importer opens `activities.csv` and the files it names; photos and comments are most of the archive and none of the tracks. Reading it in the browser sends tens of megabytes instead of hundreds — and nothing at all on a re-import. |
+| Keeping Komoot server-side | Its API sends `Access-Control-Allow-Origin: *` and allows `Authorization` on preflight, so the tab can call it. Leaving it on the server would have meant a password crossing a boundary for no reason, and two wire formats where one does. |
+| An import job with an id | Nothing outlives the request, so there is nothing to address. A job id needs a route to discover it after a reload, and a rule for what a job with no watcher means. |
+| SSE for progress | `EventSource` is GET-only, so it could carry neither the credentials nor the payload. The stream had to be a POST response, and once it is, NDJSON needs no framing to explain. |
+| A streamed request body | `duplex: 'half'` is Chromium-only. Reading everything first and posting one Blob works in every browser and matches the all-or-nothing transaction anyway. |
+| Multipart frames | Needs a streaming multipart parser to avoid buffering the whole body, for a field nobody has asked for. NDJSON lines are the same idea with no parser. |
+| Publishing every known id | `GET .../known` would have the server hand out its whole id set for the client to diff. Inverting it — the client offers, the server picks — puts the selection in one place and does not grow with the database. |
+| Rolling back a bad *file* | One unreadable GPX would discard ninety good imports. Rollback is for cancel and crash; a bad frame costs itself and is named in the summary. |
+| An undo log | Recording each insert and each row's pre-image to replay backwards, to keep resumability. Bespoke undo machinery that must be exactly right about updates, tag merges and re-added enum values — against `ROLLBACK`, which already is. |
+| A hand-rolled modal | `<dialog showModal>` gives the focus trap, the inert background and the top layer over the map canvas for free. Its Escape is a preventable event, which is all that stood in the way. |
+| Keeping `tracks serve` | With the sources in the browser and `pnpm dev` running both halves, a second entry point existed only to serve a `dist` that nothing else needed. |
 | DuckDB | Columnar storage earns nothing at this scale, and it is single-writer — hostile to interactive tagging. |
 | Strava API (Standard tier) | Requires a paid Strava subscription since June 2026. The free bulk archive gives the same data for a personal tool. |
 | FIT parser (`@garmin/fitsdk`) | A real archive contains zero FIT files — only GPX and TCX. Add one if a future export needs it. |
@@ -692,6 +788,18 @@ will otherwise propose all of these again.
 ---
 
 ## Still undecided
+
+**Running the backend somewhere else** — M3.5 was shaped so the server never holds more
+than one activity and never writes a temp file, which is most of what an edge runtime would
+need. It is still blocked by three things this milestone deliberately kept: `better-sqlite3`
+is a native addon, the whole-run transaction assumes one long-lived process, and the
+one-import-at-a-time lock is a module-level variable. Moving the sources into the browser
+was the large half of that work; the database is the other, and it is its own decision.
+
+**Komoot's CORS headers** — the design now depends on an undocumented API's incidental
+response headers. If `Access-Control-Allow-Origin: *` ever goes away, Komoot import stops
+working in the browser and the answer is a thin server-side relay — the credentials would
+then transit the server again, though nothing would need to store them.
 
 **Heatmap implementation** *(M6)* — Two live candidates. An on-the-fly SQL grid —
 `GROUP BY round(lat,4), round(lon,4)` — needs no dependency, no precompute, and respects the
