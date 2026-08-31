@@ -87,7 +87,6 @@ export const importProgressSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('progress'),
     written: z.number().int(),
-    total: z.number().int(),
     /** The activity being written, for the line under the bar. */
     title: z.string().nullable(),
   }),

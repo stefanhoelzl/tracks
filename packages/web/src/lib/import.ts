@@ -177,7 +177,7 @@ export async function runImport(
   state.title = null
   emit()
 
-  const response = await fetch('/api/import', {
+  const response = await fetch(`/api/import/${encodeURIComponent(source.name)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-ndjson' },
     body: new Blob(lines),
@@ -193,6 +193,8 @@ export async function runImport(
     const progress = importProgressSchema.parse(JSON.parse(line))
 
     if (progress.type === 'progress') {
+      // The total is the client's: it counted the frames before it sent them, and the
+      // server is reading a stream whose length it does not know.
       state.done = progress.written
       state.written = progress.written
       state.title = progress.title

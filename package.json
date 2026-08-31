@@ -6,9 +6,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "tracks": "node --experimental-strip-types packages/server/src/cli.ts",
     "dev": "pnpm --filter @tracks/web dev",
-    "build": "pnpm --filter @tracks/web build",
     "test": "vitest run",
     "check": "biome check . && pnpm typecheck",
     "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web",

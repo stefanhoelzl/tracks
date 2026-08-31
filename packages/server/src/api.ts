@@ -11,6 +11,7 @@ import {
 import { type Context, Hono } from 'hono'
 import { z } from 'zod'
 import type { Db } from './db.ts'
+import { importRoutes } from './import-route.ts'
 import { activityDetail, facets, listActivities, listTracks } from './queries.ts'
 import { loadRegistry } from './registry.ts'
 
@@ -26,6 +27,10 @@ import { loadRegistry } from './registry.ts'
  * again on the way in — the cost is nothing on a few hundred rows, and it means a
  * shape that drifts fails at the boundary that broke it rather than in a component
  * three frames later.
+ *
+ * The import routes are the exception to the read-only shape, and the only place the
+ * database is written. They need the file's path as well as the open handle, because an
+ * import runs its transaction on a second connection — see `openWriter`.
  */
 
 function badRequest(error: z.ZodError): ApiError {
@@ -38,8 +43,9 @@ function badRequest(error: z.ZodError): ApiError {
   }
 }
 
-export function createApi(db: Db) {
+export function createApi(db: Db, dbPath: string) {
   const app = new Hono()
+  const imports = importRoutes(db, dbPath)
 
   /**
    * Every filtered route parses the same query string with the same function, which
@@ -91,6 +97,12 @@ export function createApi(db: Db) {
   app.get('/api/tag-types', (c) =>
     c.json(tagTypesResponseSchema.parse({ tagTypes: [...loadRegistry(db).values()] })),
   )
+
+  // The browser reads Strava and Komoot; these two write what it read. `select` says
+  // what is missing so nothing is fetched twice, and the run streams its progress back
+  // over a request that owns the import for as long as it is connected.
+  app.post('/api/import/select', imports.select)
+  app.post('/api/import/:source', imports.run)
 
   return app
 }

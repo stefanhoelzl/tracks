@@ -13,7 +13,7 @@ import type { Hono } from 'hono'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApi } from './api.ts'
 import { type Db, openDb } from './db.ts'
-import { boundingBox } from './import.ts'
+import { boundingBox } from './ingest.ts'
 import { activities, trackpoints } from './schema.ts'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../migrations')
@@ -99,12 +99,13 @@ async function titles(app: Hono, query: string): Promise<string[]> {
 describe('the REST surface', () => {
   let dir: string
   let db: Db
+  let path: string
   let close: () => void
   let app: Hono
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'tracks-api-'))
-    ;({ db, close } = openDb(join(dir, 'test.db'), MIGRATIONS))
+    ;({ db, path, close } = openDb(join(dir, 'test.db'), MIGRATIONS))
 
     for (const seed of SEED) {
       const [lat, lon] = seed.at
@@ -149,7 +150,7 @@ describe('the REST surface', () => {
         .run()
     }
 
-    app = createApi(db)
+    app = createApi(db, path)
   })
 
   afterEach(() => {

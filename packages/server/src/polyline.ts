@@ -1,5 +1,3 @@
-import type { TrackPoint } from './source.ts'
-
 /** Metres per degree of latitude. Close enough anywhere for a 10 m tolerance. */
 const M_PER_DEG_LAT = 111_320
 
@@ -10,7 +8,10 @@ const M_PER_DEG_LAT = 111_320
  * on the longitude axis, so tracks would thin unevenly depending on where they were
  * recorded. Projecting first makes the tolerance mean the same thing everywhere.
  */
-export function simplify(points: TrackPoint[], toleranceM = 10): TrackPoint[] {
+export function simplify<P extends { lat: number; lon: number }>(
+  points: P[],
+  toleranceM = 10,
+): P[] {
   if (points.length <= 2) return points
 
   const originLat = points[0]!.lat

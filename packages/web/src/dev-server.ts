@@ -10,9 +10,9 @@ import { openDb } from '../../server/src/db.ts'
  * that makes development lie about production.
  */
 const dataDir = process.env.TRACKS_DATA_DIR ?? resolve(import.meta.dirname, '../../../data')
-const { db } = openDb(
+const { db, path } = openDb(
   resolve(dataDir, 'tracks.db'),
   resolve(import.meta.dirname, '../../../migrations'),
 )
 
-export default createApi(db)
+export default createApi(db, path)

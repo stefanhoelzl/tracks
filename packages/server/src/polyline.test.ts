@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { simplify } from './polyline.ts'
-import type { TrackPoint } from './source.ts'
+
+/** All the simplifier reads. It is generic now, so the test says only this much. */
+interface Point {
+  lat: number
+  lon: number
+  altitudeM: number | null
+  recordedAt: number | null
+}
 
 describe('simplify', () => {
-  const point = (lat: number, lon: number): TrackPoint => ({
+  const point = (lat: number, lon: number): Point => ({
     lat,
     lon,
     altitudeM: null,
