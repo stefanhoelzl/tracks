@@ -131,7 +131,7 @@ function DateFilter({ filter, onChange }: { filter: Filter; onChange: (next: Fil
         <ChevronDown size={13} color="var(--muted)" />
       </button>
 
-      <Popover open={open} onClose={() => setOpen(false)} placement="right" width={230}>
+      <Popover open={open} onClose={() => setOpen(false)}>
         {presets.map((preset) => {
           const active = preset.from === filter.from && preset.to === filter.to
           return (

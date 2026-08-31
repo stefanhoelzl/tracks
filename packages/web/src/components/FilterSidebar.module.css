@@ -171,15 +171,18 @@
   gap: 7px;
 }
 
+/* Now that the popover sits under the field rather than beside the sidebar, the two
+   dates have a column's width to share. They wrap to their own lines rather than
+   clipping the day off a date input that has run out of room. */
 .customRow {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 7px;
 }
 
 .date {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 106px;
   padding: 8px 10px;
   border-radius: 7px;
   background: var(--sunk);

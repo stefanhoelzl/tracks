@@ -5,20 +5,20 @@ import styles from './Popover.module.css'
 /**
  * A panel anchored to whatever opened it, dismissed by a click outside or Escape.
  *
- * Positioned by the caller through `placement`, since the two users of it want
- * opposite things: the sidebar's date popover opens to the right of a narrow column,
- * the list's controls drop straight down.
+ * Everything drops straight down, under the control that opened it. The date popover
+ * used to open sideways, clear of a 300px column — which put it over the map, beside
+ * the field rather than under it, and made it read as a second panel instead of as
+ * that field's own list. Fitting it into the column is the smaller cost.
  */
 export function Popover({
   open,
   onClose,
-  placement = 'below',
   width,
   children,
 }: {
   open: boolean
   onClose: () => void
-  placement?: 'below' | 'right'
+  /** Omitted to span the control it is anchored to, which is what a field wants. */
   width?: number
   children: React.ReactNode
 }) {
@@ -47,7 +47,7 @@ export function Popover({
   if (!open) return null
 
   return (
-    <div ref={ref} className={[styles.popover, styles[placement]].join(' ')} style={{ width }}>
+    <div ref={ref} className={styles.popover} style={{ width }}>
       <Panel elevated className={styles.panel}>
         {children}
       </Panel>
