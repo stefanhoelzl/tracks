@@ -120,6 +120,16 @@ export function MapView({
   const live = useRef({ grouped, onViewportChange, onSelect, onHover })
   live.current = { grouped, onViewportChange, onSelect, onHover }
 
+  /**
+   * The basemap this map is first dressed with, deliberately frozen at mount.
+   *
+   * A ref rather than the prop, because the effect below must not be reactive in it:
+   * re-running it would tear down and rebuild the entire map on a basemap toggle,
+   * where what is wanted is to re-style the map that already exists. That is the swap
+   * effect's job, further down.
+   */
+  const initialBasemap = useRef(basemap)
+
   useEffect(() => {
     if (!container.current) return
     let cancelled = false
@@ -137,7 +147,7 @@ export function MapView({
     // The style is fetched (the elevation TileJSON is a real request), so the map
     // exists before it is dressed — which also gets a grey canvas up immediately
     // rather than waiting on the network for first paint.
-    basemapStyle(basemap)
+    basemapStyle(initialBasemap.current)
       .then((style) => {
         if (cancelled) return
         instance.setStyle(style)

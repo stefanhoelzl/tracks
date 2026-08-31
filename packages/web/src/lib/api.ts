@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   type ActivitiesResponse,
-  type ActivityDetail,
   type ActivityDetailResponse,
   activitiesResponseSchema,
   activityDetailSchema,
