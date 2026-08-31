@@ -136,19 +136,43 @@ export const facetsResponseSchema = z.object({
 export type FacetsResponse = z.infer<typeof facetsResponseSchema>
 
 /** Full resolution, as point objects. At this scale a decoder costs more than bytes. */
-export const trackPointSchema = z.object({
-  lat: z.number(),
-  lon: z.number(),
-  altitudeM: z.number().nullable(),
-  recordedAt: z.number().int().nullable(),
+/**
+ * One activity's full-resolution track.
+ *
+ * Encoded at precision 6, which is lossless here — trackpoints carry six decimal places,
+ * so the round trip is exact rather than merely close. As 34k point objects the same
+ * track was 2.65MB; encoded with altitude alongside it is 0.30MB.
+ *
+ * Altitude is a parallel array, aligned by index with the decoded coordinates. Nothing
+ * renders it yet; the elevation profile in M5 is what it is here for. Timestamps are not
+ * sent — no consumer has ever read them, and they are still in the database for whatever
+ * eventually wants them.
+ */
+export const activityTrackSchema = z.object({
+  /** Encoded polyline, `[lat, lon]` pairs, precision 6. */
+  polyline: z.string(),
+  /** Height above sea level per point, not cumulative gain. */
+  altitudeM: z.array(z.number().nullable()),
 })
 
 export const activityDetailSchema = z.object({
   activity: activityRowSchema,
-  track: z.array(trackPointSchema),
+  track: activityTrackSchema,
 })
 
-export type ActivityDetail = z.infer<typeof activityDetailSchema>
+/** What the route sends. */
+export type ActivityDetailResponse = z.infer<typeof activityDetailSchema>
+
+/** What the browser builds from it — coordinates already in GeoJSON order. */
+export interface ActivityTrack {
+  coordinates: Array<[number, number]>
+  altitudeM: Array<number | null>
+}
+
+export interface ActivityDetail {
+  activity: ActivityRow
+  track: ActivityTrack
+}
 
 export const tagTypesResponseSchema = z.object({
   tagTypes: z.array(tagTypeSchema),

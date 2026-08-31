@@ -479,7 +479,7 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 | `GET /api/activities?<filters>` | List rows, ordered by `sort_key`/`sort_order` |
 | `GET /api/tracks?<filters>` | The simplified polylines, still encoded; each carries its `id`, `tags` and `year` |
 | `GET /api/facets?<filters>` | Summary totals, per-value counts and range bounds + histograms — all self-excluded |
-| `GET /api/activities/:id` | Detail plus full trackpoints |
+| `GET /api/activities/:id` | Detail plus the full-resolution track, encoded at precision 6 with altitude alongside |
 | `GET /api/tag-types` | The registry, which the browser needs to render and validate |
 | `GET /api/stats?<filters>` | Aggregates for the analytics views — **M5** |
 | `GET /api/heatmap?<filters>` | Grid cell counts — **deferred** |
@@ -491,8 +491,9 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 for different reasons: the geometry is the same bytes whether you are sorting the list or not, and
 the facets are ten small aggregates where the rows are one big select. Three cache keys let each
 settle on its own. The client holds every matching row — 197 activities is 214 KB of polyline
-total — so nothing paginates, and the detail route returns its trackpoints as plain point objects
-rather than a packed encoding, because 2.5 MB over loopback costs less than a decoder does.
+total — so nothing paginates. Geometry travels encoded on both routes: point objects cost 2.65 MB
+for a single 34k-point activity, and the decoder that avoids it is one loop the browser was already
+making to paint what it received.
 
 The contract itself is **Zod schemas in `packages/core`**, parsed at both ends. The filter parses
 from `URLSearchParams` through the same schemas, so a malformed URL is a 400 naming the field
@@ -592,6 +593,7 @@ will otherwise propose all of these again.
 | CSV as sport fallback | Its sport vocabulary is localized to the account language. Two untyped rides are tagged by hand instead. |
 | Deno 2 | drizzle-kit has an open bug with `node:sqlite`; the workaround is a third-party patch on core tooling. |
 | H3 cell precompute | Deferred with the heatmap. The trackpoint table supports it and every alternative. |
+| Point objects on the detail route | 34k `{lat, lon, altitudeM, recordedAt}` objects is 2.65MB for one activity — JSON overhead, not resolution. The same points encoded at precision 6 are lossless and 0.07MB; with altitude alongside, 0.30MB. Timestamps went with it: nothing had ever read them, and they are still in the database. |
 | Decoding polylines server-side | Kept the browser codec-free, but meant ~50k JSON coordinate arrays per response: 1.14 MB, and more time in `JSON.stringify` and Zod than in the query. The browser already rebuilt every feature to paint it, so the decode joined a pass that existed. 28.3 ms to 2.6 ms. |
 | `trackpoints_spatial` index | 35MB to prune one dimension of two. A cached bbox column with an exact SQL refine is the same answer for 6KB, and faster zoomed in. Adopted in 0002 — an earlier draft rejected the idea when the refine was imagined client-side, in turf. |
 | `sport_raw` | Already in the on-disk raw JSON. Duplicating the archive into the DB for a query nobody runs. |

@@ -176,7 +176,7 @@ describe('the app', () => {
         url.split('?')[0] === '/api/activities/7'
           ? {
               activity: ACTIVITIES.activities[0],
-              track: [{ lat: 49.2, lon: 20, altitudeM: 1500, recordedAt: null }],
+              track: { polyline: polyline.encode([[49.2, 20]], 6), altitudeM: [1500] },
             }
           : route(url)
       return new Response(JSON.stringify(body), {

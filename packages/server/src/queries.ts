@@ -1,5 +1,6 @@
+import polyline from '@mapbox/polyline'
 import {
-  type ActivityDetail,
+  type ActivityDetailResponse,
   type ActivityRow,
   type FacetsResponse,
   type Filter,
@@ -112,28 +113,27 @@ export function listTracks(db: Db, filter: Filter): TracksResponse {
   }
 }
 
-export function activityDetail(db: Db, id: number): ActivityDetail | null {
+/** Lossless for six-decimal trackpoints, unlike the default 5. */
+const DETAIL_PRECISION = 6
+
+export function activityDetail(db: Db, id: number): ActivityDetailResponse | null {
   const raw = db.get<RawRow>(sql`
     SELECT ${ROW_COLUMNS} FROM activities a WHERE a.id = ${id}`)
   if (!raw) return null
 
-  const points = db.all<{
-    lat: number
-    lon: number
-    altitude_m: number | null
-    recorded_at: number | null
-  }>(sql`
-    SELECT lat, lon, altitude_m, recorded_at FROM trackpoints
+  const points = db.all<{ lat: number; lon: number; altitude_m: number | null }>(sql`
+    SELECT lat, lon, altitude_m FROM trackpoints
     WHERE activity_id = ${id} ORDER BY seq`)
 
   return {
     activity: toRow(raw),
-    track: points.map((p) => ({
-      lat: p.lat,
-      lon: p.lon,
-      altitudeM: p.altitude_m,
-      recordedAt: p.recorded_at,
-    })),
+    track: {
+      polyline: polyline.encode(
+        points.map((p) => [p.lat, p.lon] as [number, number]),
+        DETAIL_PRECISION,
+      ),
+      altitudeM: points.map((p) => p.altitude_m),
+    },
   }
 }
 

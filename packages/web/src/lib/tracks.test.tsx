@@ -1,7 +1,7 @@
 import polyline from '@mapbox/polyline'
-import type { TracksResponse } from '@tracks/core'
+import type { ActivityDetailResponse, TracksResponse } from '@tracks/core'
 import { describe, expect, it } from 'vitest'
-import { decodeTracks } from './tracks.ts'
+import { decodeActivityDetail, decodeTracks } from './tracks.ts'
 
 describe('decodeTracks', () => {
   const response: TracksResponse = {
@@ -34,5 +34,64 @@ describe('decodeTracks', () => {
 
   it('decodes an empty payload to an empty collection, not a missing one', () => {
     expect(decodeTracks({ tracks: [] })).toEqual({ type: 'FeatureCollection', features: [] })
+  })
+})
+
+describe('decodeActivityDetail', () => {
+  const activity = {
+    id: 7,
+    source: 'komoot',
+    title: 'Orla Perc',
+    startedAt: '2025-07-04T06:00:00.000Z',
+    utcOffset: 7200,
+    localDate: '2025-07-04',
+    distanceM: 15_000,
+    durationS: 18_000,
+    elapsedS: 20_000,
+    elevationGainM: 1900,
+    speedMs: 0.8333,
+    tags: ['sport:hike'],
+  }
+
+  it('round-trips six-decimal coordinates exactly, in GeoJSON order', () => {
+    const response: ActivityDetailResponse = {
+      activity,
+      track: {
+        polyline: polyline.encode(
+          [
+            [46.751234, 14.351234],
+            [46.762345, 14.362345],
+          ],
+          6,
+        ),
+        altitudeM: [1500, 1600],
+      },
+    }
+
+    // Precision 6 is lossless for this data, so equality rather than closeness.
+    expect(decodeActivityDetail(response).track.coordinates).toEqual([
+      [14.351234, 46.751234],
+      [14.362345, 46.762345],
+    ])
+  })
+
+  it('keeps altitude aligned with the coordinates, nulls included', () => {
+    const response: ActivityDetailResponse = {
+      activity,
+      track: {
+        polyline: polyline.encode(
+          [
+            [46.35, 13.75],
+            [46.36, 13.76],
+          ],
+          6,
+        ),
+        altitudeM: [1500, null],
+      },
+    }
+    const { coordinates, altitudeM } = decodeActivityDetail(response).track
+
+    expect(altitudeM).toEqual([1500, null])
+    expect(altitudeM).toHaveLength(coordinates.length)
   })
 })

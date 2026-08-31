@@ -89,7 +89,8 @@ export function DetailPanel({
             <div className={styles.group}>
               <Label>Track</Label>
               <div className={styles.points}>
-                {group(detail.track.length)} points at full resolution, drawn on the map.
+                {group(detail.track.coordinates.length)} points at full resolution, drawn on the
+                map.
               </div>
             </div>
           </>

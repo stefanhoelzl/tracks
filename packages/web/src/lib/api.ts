@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   type ActivitiesResponse,
   type ActivityDetail,
+  type ActivityDetailResponse,
   activitiesResponseSchema,
   activityDetailSchema,
   apiErrorSchema,
@@ -16,7 +17,7 @@ import {
   tracksResponseSchema,
 } from '@tracks/core'
 import type { z } from 'zod'
-import { decodeTracks } from './tracks.ts'
+import { decodeActivityDetail, decodeTracks } from './tracks.ts'
 
 /**
  * The client half of the contract.
@@ -107,8 +108,10 @@ export function useActivityDetail(id: number | null) {
   return useQuery({
     queryKey: ['activity', id],
     enabled: id !== null,
-    queryFn: ({ signal }) =>
-      get<ActivityDetail>(`/api/activities/${id}`, activityDetailSchema, signal),
+    queryFn: async ({ signal }) =>
+      decodeActivityDetail(
+        await get<ActivityDetailResponse>(`/api/activities/${id}`, activityDetailSchema, signal),
+      ),
   })
 }
 

@@ -203,7 +203,7 @@ export function MapView({
           properties: {},
           geometry: {
             type: 'LineString',
-            coordinates: detail.track.map((p) => [p.lon, p.lat]),
+            coordinates: detail.track.coordinates,
           },
         },
       ],
@@ -241,7 +241,7 @@ export function MapView({
                   id: selectedId,
                   geometry: {
                     type: 'LineString',
-                    coordinates: detail.track.map((p) => [p.lon, p.lat] as [number, number]),
+                    coordinates: detail.track.coordinates,
                   },
                   properties: { id: selectedId, tags: [], year: 0 },
                 },

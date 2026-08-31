@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import polyline from '@mapbox/polyline'
 import type {
   ActivitiesResponse,
-  ActivityDetail,
+  ActivityDetailResponse,
   FacetsResponse,
   TagTypesResponse,
   TracksResponse,
@@ -395,13 +395,20 @@ describe('the REST surface', () => {
       const response = await app.request(`/api/activities/${id}`)
       expect(response.status).toBe(200)
 
-      const body = (await response.json()) as ActivityDetail
+      const body = (await response.json()) as ActivityDetailResponse
       expect(body.activity.title).toBe('Balkan hike')
       expect(body.activity.localDate).toBe('2025-07-04')
       expect(body.activity.speedMs).toBeCloseTo(15_000 / 18_000, 6)
-      expect(body.track).toHaveLength(3)
-      expect(body.track[0]!.altitudeM).toBe(500)
-      expect(body.track[2]!.altitudeM).toBe(502)
+
+      // Precision 6 round-trips the fixture exactly, so this asserts equality rather
+      // than closeness — a lossy encoding would show up here.
+      expect(polyline.decode(body.track.polyline, 6)).toEqual([
+        [46.35, 13.75],
+        [46.36, 13.76],
+        [46.37, 13.75],
+      ])
+      // Altitude is a parallel array, aligned with the points by index.
+      expect(body.track.altitudeM).toEqual([500, 501, 502])
     })
 
     it('is a 404 for an activity that is not there, and a 400 for one that cannot be', async () => {
