@@ -287,6 +287,11 @@ export function ActivityList({
                   Clear filters
                 </button>
               </>
+            ) : facets?.extent ? (
+              // Nothing is narrowing, yet something exists somewhere: the map is simply
+              // pointed at an empty patch. Saying "import some activities" here would be
+              // a lie about a database that is fine.
+              <span>Nothing in this area. Zoom out to see everything.</span>
             ) : (
               <span>Import some activities to get started.</span>
             )}

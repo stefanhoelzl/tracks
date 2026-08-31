@@ -1,6 +1,6 @@
 import type { FacetsResponse, Filter, RangeKey, TagType } from '@tracks/core'
 import { RANGE_KEYS } from '@tracks/core'
-import { CalendarDays, Check, ChevronDown, Square, X } from 'lucide-react'
+import { CalendarDays, Check, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import {
@@ -216,19 +216,6 @@ export function FilterSidebar({
 
   return (
     <div className={styles.sidebar}>
-      {filter.bbox ? (
-        <div className={styles.area}>
-          <div className={styles.areaHead}>
-            <Square size={15} color="var(--accent)" strokeWidth={2} />
-            <span className={styles.areaTitle}>Visible area</span>
-          </div>
-          <div className={styles.areaCoords}>
-            {filter.bbox[1].toFixed(2)}–{filter.bbox[3].toFixed(2)} N · {filter.bbox[0].toFixed(2)}–
-            {filter.bbox[2].toFixed(2)} E
-          </div>
-        </div>
-      ) : null}
-
       <div className={styles.group}>
         <Label>Tags</Label>
         <div className={styles.tagGroups}>

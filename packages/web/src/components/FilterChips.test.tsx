@@ -102,10 +102,9 @@ describe('the filter chips', () => {
     expect(search()).toBe('')
   })
 
-  it('removes the area', async () => {
-    const { search } = setup({ ...emptyFilter(), bbox: [13, 46, 14, 47] })
-    await userEvent.click(screen.getByRole('button', { name: 'Remove Area this area' }))
-    expect(search()).toBe('')
+  it('shows no chip for the area, which is the viewport rather than a choice', () => {
+    setup({ ...emptyFilter(), bbox: [13, 46, 14, 47] })
+    expect(screen.queryByRole('button', { name: /Remove Area/ })).toBeNull()
   })
 
   it('offers one way out of everything at once', async () => {

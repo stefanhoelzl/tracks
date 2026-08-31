@@ -86,8 +86,10 @@ export function useUrlState(): UrlState {
 
   const reset = useCallback(() => {
     // Selection survives clearing the filters: you were looking at that activity for
-    // a reason, and it is still there.
-    write(formatSearch(emptyFilter(), parseView(window.location.search)), 'push')
+    // a reason, and it is still there. So does the viewport — it is where you are
+    // looking, not something you chose, and clearing filters should not move the map.
+    const { bbox } = parseFilter(window.location.search)
+    write(formatSearch({ ...emptyFilter(), bbox }, parseView(window.location.search)), 'push')
   }, [])
 
   return { filter, view, error, setFilter, setView, reset }

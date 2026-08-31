@@ -162,9 +162,17 @@ describe('the activity list', () => {
   })
 
   it('says the database is empty rather than blaming a filter', () => {
-    setup({ activities: [], filter: emptyFilter() })
+    // No extent is what "there is nothing anywhere" looks like.
+    setup({ activities: [], filter: emptyFilter(), facets: { ...FACETS, extent: null } })
     expect(screen.queryByText(/Narrowed by/)).toBeNull()
     expect(screen.getByText(/Import some activities/)).toBeTruthy()
+  })
+
+  it('blames the viewport, not the database, when everything is simply elsewhere', () => {
+    setup({ activities: [], filter: emptyFilter() })
+    expect(screen.queryByText(/Narrowed by/)).toBeNull()
+    expect(screen.queryByText(/Import some activities/)).toBeNull()
+    expect(screen.getByText(/Nothing in this area/)).toBeTruthy()
   })
 
   it('shows the server message when a request fails', () => {

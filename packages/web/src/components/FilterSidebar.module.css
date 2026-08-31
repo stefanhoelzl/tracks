@@ -164,32 +164,3 @@
   font-size: var(--text-xs);
   color: var(--muted);
 }
-
-.area {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 12px 13px;
-  border-radius: var(--radius-ctrl);
-  background: var(--accent-soft);
-}
-
-.areaHead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.areaTitle {
-  font-size: var(--text-md);
-  font-weight: 700;
-  color: var(--accent-deep);
-  flex: 1;
-}
-
-.areaCoords {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--ink-2);
-  line-height: 1.6;
-}

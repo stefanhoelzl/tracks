@@ -58,13 +58,17 @@ export function setBbox(filter: Filter, bbox: Filter['bbox']): Filter {
   return { ...filter, bbox }
 }
 
-/** True when anything at all is narrowing the results — what the *clear* button needs. */
+/**
+ * True when anything at all is narrowing the results — what the *clear* button needs.
+ *
+ * The bbox is not among them. It is always set and cannot be cleared, so counting it
+ * would leave *clear* permanently lit and promising something it does not do.
+ */
 export function isNarrowed(filter: Filter): boolean {
   return (
     filter.tags.length > 0 ||
     filter.from !== null ||
     filter.to !== null ||
-    filter.bbox !== null ||
     Object.values(filter.ranges).some((r) => r.min !== null || r.max !== null)
   )
 }
@@ -77,7 +81,6 @@ export function narrowingFacets(filter: Filter, labels: Map<string, string>): st
     names.push(labels.get(type) ?? type)
   }
   if (filter.from !== null || filter.to !== null) names.push('Date range')
-  if (filter.bbox !== null) names.push('This area')
 
   const rangeLabels: Record<RangeKey, string> = {
     distance: 'Distance',
@@ -142,16 +145,6 @@ export function activeTerms(
       value: `${filter.from ?? '…'} → ${filter.to ?? '…'}`,
       negated: false,
       without: { ...filter, from: null, to: null },
-    })
-  }
-
-  if (filter.bbox !== null) {
-    terms.push({
-      key: 'bbox',
-      facet: 'Area',
-      value: 'this area',
-      negated: false,
-      without: { ...filter, bbox: null },
     })
   }
 

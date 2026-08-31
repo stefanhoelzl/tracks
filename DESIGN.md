@@ -363,6 +363,13 @@ is the rest of it?", which the viewport-filtered payload cannot, because the vie
 removed it. The move then writes the wider viewport back as the new bbox, like any other pan. The
 area is never cleared; it is only ever replaced by looking somewhere else.
 
+For the same reason the bbox is not a filter *term* anywhere in the UI — no chip in the top bar, no
+card in the sidebar, and no weight in *clear filters*, which now leaves the viewport exactly where
+it was. A term you cannot remove, drawn beside terms you can, is a button that lies. What survives
+is the one place the distinction earns its keep: an empty list says *nothing in this area* when
+something exists outside it, and *import some activities* only when `extent` is null and there
+genuinely is nothing anywhere.
+
 The bbox is the whole canvas, including what shows through the translucent panels. Insetting it to
 the unobstructed strip would hide a track that is plainly visible, which reads as a bug.
 
