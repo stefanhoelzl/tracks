@@ -30,47 +30,19 @@
   background: var(--line);
 }
 
-/* Stacked above the zoom control, so every map-level control shares one column. */
-.toggles {
+/* A row spanning the free width between the panels, so the control sits centred on
+   the map itself rather than centred on the window. */
+.grouping {
   position: absolute;
-  bottom: calc(var(--gap) + 78px);
+  bottom: var(--gap);
   z-index: 10;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
+  justify-content: center;
+  pointer-events: none;
 }
 
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  border-radius: var(--radius-pill);
-  background: var(--glass-hi);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  box-shadow: var(--shadow-sm);
-  font-size: var(--text-base);
-  font-weight: 700;
-  color: var(--ink-2);
-  white-space: nowrap;
-  transition:
-    background 140ms var(--ease),
-    color 140ms var(--ease);
-}
-
-.toggle:hover {
-  color: var(--ink);
-}
-
-.toggleOn {
-  background: var(--accent);
-  color: var(--surface);
-}
-
-.toggleOn:hover {
-  color: var(--surface);
+.grouping > * {
+  pointer-events: auto;
 }
 
 .attribution {

@@ -341,12 +341,21 @@ broken layout.
 
 ### Spatial filtering is the viewport
 
-**You don't draw a box; you look at a place.** A *filter to this area* toggle in the map chrome
-turns the camera's own bounds into the `bbox` term, refetched on a debounced `moveend`. The
-toggle is also the viewport lock — it has to be, since a filter that follows the camera while the
-camera follows the filter is a loop — so one control replaces two, and the drag handling, the
-overlay rectangle, the armed mode and the fight with MapLibre's own shift-drag all cease to exist.
-It is the more discoverable gesture as well: a labelled switch against a modifier nobody guesses.
+**You don't draw a box; you look at a place.** The camera's own bounds *are* the `bbox` term,
+refetched on a debounced `moveend`. There is no drag handling, no overlay rectangle, no armed mode
+and no fight with MapLibre's own shift-drag.
+
+There is no toggle either. It began as one, because a filter that follows the camera while the
+camera follows the filter is a loop, and the switch doubled as the lock that broke it. But the
+loop is broken just as well by letting the camera fit exactly once — before any viewport has been
+recorded — and never again: `filter.bbox === null` is the whole condition. That opening fit frames
+everything you have; from then on the map is the filter, and a control that only ever wanted to be
+on is not a choice worth offering.
+
+What it costs is auto-fit. Choosing a tag no longer flies the camera to what it selected, and
+selecting an activity no longer zooms to it, because both would move the camera and so rewrite the
+filter that caused them. *Fit to all activities* in the sidebar clears the bbox, which re-arms the
+one fit — the same code path as opening the app.
 
 The bbox is the whole canvas, including what shows through the translucent panels. Insetting it to
 the unobstructed strip would hide a track that is plainly visible, which reads as a bug.
@@ -616,7 +625,8 @@ will otherwise propose all of these again.
 | MapTiler · OSM raster | MapTiler costs a key and a quota for contour lines alone; raster OSM has no hillshading and a usage policy this would strain. |
 | Schema and timezone in `packages/core` | True while the server was core's only consumer. A browser makes *shared* and *server-side* different things, and core is the first one. |
 | A `description` column | Only Strava has one, so 124 of 197 rows would be null, and reaching them means the backfill problem below. Text search moves to M4 and searches titles. |
-| A drawn spatial box | The viewport already expresses "this area", and turning it into the filter deletes the drag handling, the overlay, the armed mode and the shift-drag conflict — and doubles as the viewport lock, which otherwise needs its own control. |
+| A drawn spatial box | The viewport already expresses "this area", and turning it into the filter deletes the drag handling, the overlay, the armed mode and the shift-drag conflict. |
+| A *filter to this area* toggle | Broke the camera/filter loop by locking auto-fit, but a single opening fit breaks it just as well. A switch whose only useful position is *on* is not a choice. |
 | Symbolic date presets | `date=last30` puts two representations of one range in the URL and makes *now* a server input. Presets resolve to dates on click instead. |
 | Pinning the seeded sport colours | Reintroduces the per-value colour table already rejected above, just in the browser instead of the registry. Everything hashes. |
 | One combined `/api/activities` payload | Rows, geometry and facets change at different rates; three cache keys let each settle without refetching the other two. |

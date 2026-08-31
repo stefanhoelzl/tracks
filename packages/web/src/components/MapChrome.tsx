@@ -1,25 +1,22 @@
-import { Frame, Minus, Plus, Ungroup } from 'lucide-react'
+import { Minus, Plus, Ungroup } from 'lucide-react'
 import styles from './MapChrome.module.css'
+import { IconButton } from './ui/IconButton.tsx'
 
 /**
  * The controls that belong to the map rather than to the data.
  *
- * *Filter to this area* is the whole of spatial selection: it turns the camera's own
- * bounds into the filter and freezes auto-fit while it is on, which is why it is one
- * switch and not a draw mode plus a lock.
+ * Spatial filtering is not among them any more: the visible area is always part of the
+ * filter, so there is no state to offer and nothing to switch. What is left is the
+ * camera itself, and the one choice about how tracks are drawn.
  */
 export function MapChrome({
-  areaFilter,
   grouped,
-  onToggleArea,
   onToggleGrouping,
   onZoom,
   insetRight,
   insetLeft,
 }: {
-  areaFilter: boolean
   grouped: boolean
-  onToggleArea: () => void
   onToggleGrouping: () => void
   onZoom: (delta: number) => void
   insetRight: number
@@ -37,28 +34,17 @@ export function MapChrome({
         </button>
       </div>
 
-      <div className={styles.toggles} style={{ right: insetRight + 12 }}>
-        <button
-          type="button"
-          className={[styles.toggle, areaFilter ? styles.toggleOn : ''].join(' ')}
-          onClick={onToggleArea}
-          aria-pressed={areaFilter}
-        >
-          <Frame size={15} strokeWidth={2} />
-          {areaFilter ? 'Filtering to this area' : 'Filter to this area'}
-        </button>
-
-        {/* Grouping trades the tracks for a tally at low zoom. Turning it off says
-            "show me the actual lines", which is the whole point of a track map. */}
-        <button
-          type="button"
-          className={[styles.toggle, grouped ? '' : styles.toggleOn].join(' ')}
+      {/* Centred in whatever the panels leave, along the bottom edge. Grouping trades
+          the tracks for a tally at low zoom, so turning it off says "show me the actual
+          lines" — which is the whole point of a track map, and why *off* is the lit state. */}
+      <div className={styles.grouping} style={{ left: insetLeft, right: insetRight }}>
+        <IconButton
+          icon={Ungroup}
+          label={grouped ? 'Grouping nearby starts' : 'Showing every track'}
           onClick={onToggleGrouping}
-          aria-pressed={!grouped}
-        >
-          <Ungroup size={15} strokeWidth={2} />
-          {grouped ? 'Grouping nearby starts' : 'Showing every track'}
-        </button>
+          active={!grouped}
+          size={16}
+        />
       </div>
 
       <div className={styles.attribution} style={{ left: insetLeft + 16 }}>

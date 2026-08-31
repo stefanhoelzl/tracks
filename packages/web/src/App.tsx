@@ -41,7 +41,6 @@ export function App() {
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [listOpen, setListOpen] = useState(true)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
-  const [areaFilter, setAreaFilter] = useState(false)
 
   const mapHandle = useRef<MapHandle>(null)
 
@@ -99,13 +98,6 @@ export function App() {
     [filter, setFilter],
   )
 
-  const toggleArea = useCallback(() => {
-    setAreaFilter((was) => {
-      if (was) setFilter(setBbox(filter, null))
-      return !was
-    })
-  }, [filter, setFilter])
-
   const zoom = useCallback((delta: number) => mapHandle.current?.zoomBy(delta), [])
 
   const listError = message(activities.error) ?? message(tracks.error) ?? urlError
@@ -122,7 +114,6 @@ export function App() {
         filter={filter}
         hoveredId={hoveredId}
         selectedId={view.activity}
-        areaFilter={areaFilter}
         panelInsets={insets}
         onHover={setHoveredId}
         onSelect={(id) => setView({ ...view, activity: id })}
@@ -155,13 +146,9 @@ export function App() {
               tagTypes={tagTypes.data?.tagTypes ?? []}
               facets={facets.data}
               filter={filter}
-              areaFilter={areaFilter}
               scale={scale}
               onChange={setFilter}
-              onClearArea={() => {
-                setAreaFilter(false)
-                setFilter(setBbox(filter, null))
-              }}
+              onClearArea={() => setFilter(setBbox(filter, null))}
             />
           </div>
         </Panel>
@@ -227,9 +214,7 @@ export function App() {
       )}
 
       <MapChrome
-        areaFilter={areaFilter}
         grouped={view.grouped}
-        onToggleArea={toggleArea}
         onToggleGrouping={() => setView({ ...view, grouped: !view.grouped })}
         onZoom={zoom}
         insetLeft={insets.left}

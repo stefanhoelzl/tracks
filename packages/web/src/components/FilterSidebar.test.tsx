@@ -58,7 +58,6 @@ function setup(filter: Filter = emptyFilter()) {
       tagTypes={TAG_TYPES}
       facets={FACETS}
       filter={filter}
-      areaFilter={false}
       scale={SCALE}
       onChange={onChange}
       onClearArea={vi.fn()}
@@ -143,7 +142,6 @@ describe('the filter sidebar', () => {
           ranges: { ...FACETS.ranges, distance: { min: null, max: null, buckets: [] } },
         }}
         filter={emptyFilter()}
-        areaFilter={false}
         scale={SCALE}
         onChange={vi.fn()}
         onClearArea={vi.fn()}

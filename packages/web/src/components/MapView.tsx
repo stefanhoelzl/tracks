@@ -59,7 +59,6 @@ export function MapView({
   filter,
   hoveredId,
   selectedId,
-  areaFilter,
   panelInsets,
   onHover,
   onSelect,
@@ -74,7 +73,6 @@ export function MapView({
   filter: Filter
   hoveredId: number | null
   selectedId: number | null
-  areaFilter: boolean
   /** Left and right panel widths, so a fit centres in the visible map, not under glass. */
   panelInsets: { left: number; right: number }
   onHover: (id: number | null) => void
@@ -93,8 +91,8 @@ export function MapView({
 
   // Read inside listeners that are attached once; a stale closure here would mean
   // panning writes a bbox after the toggle was turned off.
-  const live = useRef({ areaFilter, grouped, onViewportChange, onSelect, onHover })
-  live.current = { areaFilter, grouped, onViewportChange, onSelect, onHover }
+  const live = useRef({ grouped, onViewportChange, onSelect, onHover })
+  live.current = { grouped, onViewportChange, onSelect, onHover }
 
   useEffect(() => {
     if (!container.current) return
@@ -146,7 +144,6 @@ export function MapView({
 
     let moveTimer: ReturnType<typeof setTimeout> | undefined
     instance.on('moveend', () => {
-      if (!live.current.areaFilter) return
       clearTimeout(moveTimer)
       moveTimer = setTimeout(() => {
         const [[west, south], [east, north]] = instance.getBounds().toArray()
@@ -217,9 +214,10 @@ export function MapView({
   useEffect(() => {
     if (!ready || !map.current || !tracks) return
 
-    // Drawing the area filter told the camera where to look; refitting to what it
-    // then selected would be the map arguing with you.
-    if (areaFilter) return
+    // The camera writes the filter, so refitting to what the filter then selected would
+    // be the map arguing with itself. One fit is allowed — the one before any viewport
+    // has been recorded — which is how the opening view frames everything you have.
+    if (filter.bbox !== null) return
 
     const bounds = boundsOf(tracks)
     // Nothing matches: hold the camera rather than lurching at empty bounds.
@@ -262,21 +260,29 @@ export function MapView({
     }, SETTLE_MS)
 
     return () => clearTimeout(timer)
-  }, [ready, tracks, selectedId, detail, areaFilter, panelInsets.left, panelInsets.right])
+  }, [ready, tracks, selectedId, detail, filter.bbox, panelInsets.left, panelInsets.right])
 
-  // Turning the toggle on adopts the current view immediately, rather than waiting
-  // for the next pan to make anything happen. It fires on the transition alone:
-  // `onViewportChange` writes `filter.bbox`, so depending on it would make this
-  // effect re-trigger on its own output.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fires on the transition only
+  // A bookmarked URL arrives with a bbox and a camera that has never seen it, and the
+  // auto-fit above is disabled precisely because a bbox is set — so without this the view
+  // would show one area while filtering to another. Once only: every later bbox comes
+  // from the camera, which is already there.
+  const restored = useRef(false)
   useEffect(() => {
-    if (!ready || !map.current || !areaFilter) return
-    const [[west, south], [east, north]] = map.current.getBounds().toArray()
-    onViewportChange([west!, south!, east!, north!])
-  }, [ready, areaFilter])
+    if (!ready || !map.current || restored.current) return
+    restored.current = true
+    if (filter.bbox === null) return
+    const [west, south, east, north] = filter.bbox
+    map.current.fitBounds(
+      [
+        [west, south],
+        [east, north],
+      ],
+      { duration: 0 },
+    )
+  }, [ready, filter.bbox])
 
-  // A filter change while the area toggle is off can leave a stale bbox in the URL;
-  // the sidebar clears it, and the camera should be free again the moment it does.
+  // Clearing the area re-arms the one fit, so "fit to all activities" is the same code
+  // path as opening the app.
   useEffect(() => {
     if (filter.bbox === null) fitted.current = ''
   }, [filter.bbox])

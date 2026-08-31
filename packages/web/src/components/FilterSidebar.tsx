@@ -203,7 +203,6 @@ export function FilterSidebar({
   tagTypes,
   facets,
   filter,
-  areaFilter,
   scale,
   onChange,
   onClearArea,
@@ -211,7 +210,6 @@ export function FilterSidebar({
   tagTypes: TagType[]
   facets: FacetsResponse | undefined
   filter: Filter
-  areaFilter: boolean
   scale: ColourScale
   onChange: (next: Filter, mode?: 'push' | 'replace') => void
   onClearArea: () => void
@@ -220,12 +218,12 @@ export function FilterSidebar({
 
   return (
     <div className={styles.sidebar}>
-      {areaFilter && filter.bbox ? (
+      {filter.bbox ? (
         <div className={styles.area}>
           <div className={styles.areaHead}>
             <Square size={15} color="var(--accent)" strokeWidth={2} />
-            <span className={styles.areaTitle}>Area selected</span>
-            <button type="button" onClick={onClearArea} aria-label="Clear area filter">
+            <span className={styles.areaTitle}>Visible area</span>
+            <button type="button" onClick={onClearArea} aria-label="Fit to all activities">
               <X size={14} color="var(--accent)" />
             </button>
           </div>
