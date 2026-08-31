@@ -189,6 +189,9 @@ describe('the app', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Orla Perc' })).toBeTruthy())
     expect(screen.getByText(/1 points at full resolution/)).toBeTruthy()
+    // One sampled point is not a profile, and the panel says so rather than drawing
+    // a chart of nothing or quietly dropping the group.
+    expect(screen.getByText('No elevation recorded')).toBeTruthy()
 
     await userEvent.click(screen.getByRole('button', { name: /All activities/ }))
     expect(window.location.search).toBe('')

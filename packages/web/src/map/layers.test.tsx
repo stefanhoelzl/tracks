@@ -14,6 +14,7 @@ import type {
 import { describe, expect, it } from 'vitest'
 import {
   addTrackLayers,
+  CURSOR_SOURCE,
   FOCUS_CASING_LAYER,
   FOCUS_LAYER,
   OPACITY,
@@ -260,6 +261,7 @@ describe('the track layers', () => {
       // What MapLibre's own clustering adds; nothing in this module produces it.
       { name: 'a cluster', properties: { point_count: 12, point_count_abbreviated: '12' } },
     ],
+    [CURSOR_SOURCE]: [{ name: 'the profile cursor', properties: {} }],
     [SELECTED_SOURCE]: [
       { name: 'the selected track', properties: { colourHi: '#00c27c' } },
       // The coalesce has to hold: a missing colour must not take the layer down.

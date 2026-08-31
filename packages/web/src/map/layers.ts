@@ -15,6 +15,7 @@ import { clusterProperties } from './clusters.ts'
 export const TRACKS_SOURCE = 'tracks'
 export const STARTS_SOURCE = 'starts'
 export const SELECTED_SOURCE = 'selected'
+export const CURSOR_SOURCE = 'cursor'
 
 export const TRACKS_LAYER = 'tracks-base'
 export const FOCUS_CASING_LAYER = 'tracks-focus-casing'
@@ -22,6 +23,7 @@ export const FOCUS_LAYER = 'tracks-focus'
 export const STARTS_LAYER = 'starts-circles'
 export const SELECTED_CASING_LAYER = 'selected-track-casing'
 export const SELECTED_LAYER = 'selected-track'
+export const CURSOR_LAYER = 'cursor-dot'
 
 /**
  * Below this the map is about where you have been, not which way you went, so the
@@ -193,6 +195,7 @@ function highlightCasingPaint() {
 export function addTrackLayers(map: MapLibreMap): void {
   map.addSource(TRACKS_SOURCE, { type: 'geojson', data: EMPTY })
   map.addSource(SELECTED_SOURCE, { type: 'geojson', data: EMPTY })
+  map.addSource(CURSOR_SOURCE, { type: 'geojson', data: EMPTY })
   map.addSource(STARTS_SOURCE, {
     type: 'geojson',
     data: EMPTY,
@@ -256,6 +259,22 @@ export function addTrackLayers(map: MapLibreMap): void {
     source: SELECTED_SOURCE,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: highlightPaint(),
+  })
+
+  // Where the elevation profile's cursor is, on the track it belongs to. White with
+  // the same dark outline everything else is cased in — the one combination that
+  // holds against the pale basemap, the satellite imagery and the track underneath,
+  // which between them cover every value a single flat colour could have been.
+  map.addLayer({
+    id: CURSOR_LAYER,
+    type: 'circle',
+    source: CURSOR_SOURCE,
+    paint: {
+      'circle-color': '#ffffff',
+      'circle-radius': 5,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': SELECTED_OUTLINE,
+    },
   })
 
   // Only the lone starts. A cluster is a mixture, and a circle layer can paint one

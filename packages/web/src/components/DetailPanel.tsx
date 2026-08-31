@@ -1,8 +1,10 @@
 import type { ActivityDetail, TagType } from '@tracks/core'
 import { ChevronLeft } from 'lucide-react'
+import { useMemo } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, group, km, localTime, longDate, metres } from '../lib/format.ts'
 import styles from './DetailPanel.module.css'
+import { ElevationProfile, profileOf } from './ElevationProfile.tsx'
 import { Chip } from './ui/Chip.tsx'
 import { Label } from './ui/Label.tsx'
 import { StatTile } from './ui/StatTile.tsx'
@@ -19,6 +21,8 @@ export function DetailPanel({
   scale,
   loading,
   error,
+  cursor,
+  onCursor,
   onBack,
 }: {
   detail: ActivityDetail | undefined
@@ -26,9 +30,19 @@ export function DetailPanel({
   scale: ColourScale
   loading: boolean
   error: string | null
+  /** The point the elevation cursor is on, shared with the map. */
+  cursor: number | null
+  onCursor: (index: number | null) => void
   onBack: () => void
 }) {
   const labels = new Map(tagTypes.map((t) => [t.name, t.label]))
+
+  // Measured once per activity rather than per render: it walks 34k points, and every
+  // hover would otherwise walk them again to draw the same line.
+  const profile = useMemo(
+    () => (detail ? profileOf(detail.track, detail.activity.distanceM) : null),
+    [detail],
+  )
 
   return (
     <>
@@ -69,6 +83,22 @@ export function DetailPanel({
             </div>
 
             <div className={styles.group}>
+              <div className={styles.groupHead}>
+                <Label>Elevation</Label>
+                {profile ? <span className={styles.unit}>m</span> : null}
+              </div>
+              {profile ? (
+                <ElevationProfile profile={profile} cursor={cursor} onCursor={onCursor} />
+              ) : (
+                <div className={styles.points}>No elevation recorded</div>
+              )}
+              <div className={styles.points}>
+                {group(detail.track.coordinates.length)} points at full resolution, drawn on the
+                map.
+              </div>
+            </div>
+
+            <div className={styles.group}>
               <Label>Tags</Label>
               <div className={styles.chips}>
                 {detail.activity.tags.map((tag) => {
@@ -83,14 +113,6 @@ export function DetailPanel({
                     />
                   )
                 })}
-              </div>
-            </div>
-
-            <div className={styles.group}>
-              <Label>Track</Label>
-              <div className={styles.points}>
-                {group(detail.track.coordinates.length)} points at full resolution, drawn on the
-                map.
               </div>
             </div>
           </>

@@ -1,0 +1,12 @@
+/*
+ * The axis ends, set the way a range slider sets its bounds — same row, same mono, so
+ * the two charts in this app read as one family.
+ */
+.bounds {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding-left: 34px;
+}

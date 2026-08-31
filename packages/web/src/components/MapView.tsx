@@ -5,13 +5,16 @@ import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { activityColour, type ColourScale, emphasise } from '../lib/colour.ts'
+import { nearestIndex } from '../lib/geo.ts'
 import { type Basemap, basemapStyle } from '../map/basemap.ts'
 import { ClusterMarkers } from '../map/clusters.ts'
 import {
   addTrackLayers,
+  CURSOR_SOURCE,
   FOCUS_LAYER,
   paint,
   paintTracks,
+  SELECTED_CASING_LAYER,
   SELECTED_SOURCE,
   STARTS_SOURCE,
   startPoints,
@@ -62,8 +65,10 @@ export function MapView({
   extent,
   hoveredId,
   selectedId,
+  cursor,
   panelInsets,
   onHover,
+  onCursor,
   onSelect,
   onViewportChange,
 }: {
@@ -80,9 +85,12 @@ export function MapView({
   extent: [number, number, number, number] | null
   hoveredId: number | null
   selectedId: number | null
+  /** Which point of the selected track the elevation cursor is on. */
+  cursor: number | null
   /** Left and right panel widths, so a fit centres in the visible map, not under glass. */
   panelInsets: { left: number; right: number }
   onHover: (id: number | null) => void
+  onCursor: (index: number | null) => void
   onSelect: (id: number | null) => void
   onViewportChange: (bbox: [number, number, number, number]) => void
 }) {
@@ -117,8 +125,8 @@ export function MapView({
 
   // Read inside listeners that are attached once; a stale closure here would mean
   // panning writes a bbox after the toggle was turned off.
-  const live = useRef({ grouped, onViewportChange, onSelect, onHover })
-  live.current = { grouped, onViewportChange, onSelect, onHover }
+  const live = useRef({ grouped, detail, onViewportChange, onSelect, onHover, onCursor })
+  live.current = { grouped, detail, onViewportChange, onSelect, onHover, onCursor }
 
   /**
    * The basemap this map is first dressed with, deliberately frozen at mount.
@@ -173,6 +181,23 @@ export function MapView({
       const id = event.features?.[0]?.properties?.id
       if (typeof id === 'number') live.current.onSelect(id)
     })
+
+    /**
+     * The map half of the elevation cursor.
+     *
+     * Bound to the casing rather than to the line, because the casing is the wider of
+     * the two and the pointer is being asked to follow a track a few pixels across.
+     * The answer is an index into the same coordinate array the profile plots, so
+     * both ends of the link are talking about the same point rather than about two
+     * roundings of one position.
+     */
+    instance.on('mousemove', SELECTED_CASING_LAYER, (event: MapLayerMouseEvent) => {
+      const coordinates = live.current.detail?.track.coordinates
+      if (!coordinates?.length) return
+      const index = nearestIndex(coordinates, event.lngLat.lng, event.lngLat.lat)
+      if (index >= 0) live.current.onCursor(index)
+    })
+    instance.on('mouseleave', SELECTED_CASING_LAYER, () => live.current.onCursor(null))
 
     instance.on('render', () => {
       if (live.current.grouped) clusters.current?.refresh()
@@ -299,6 +324,22 @@ export function MapView({
       ],
     })
   }, [ready, detail, colourBy, scale])
+
+  // The dot the profile is pointing at. Cleared by an absent cursor and by a detail
+  // that has gone — an index into a track that is no longer loaded is not a place.
+  useEffect(() => {
+    if (!ready || !map.current) return
+    const source = map.current.getSource<GeoJSONSource>(CURSOR_SOURCE)
+    if (!source) return
+
+    const point = cursor === null ? undefined : detail?.track.coordinates[cursor]
+    source.setData({
+      type: 'FeatureCollection',
+      features: point
+        ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: point } }]
+        : [],
+    })
+  }, [ready, cursor, detail])
 
   // --- Camera ---------------------------------------------------------------
 

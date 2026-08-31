@@ -512,6 +512,24 @@ two different legends. Clicking one selects it — `?activity=123` — and the r
 read-only detail while the full-resolution track draws over the simplified one. Selection is
 single; the checkboxes and shift-click ranges belong to the M4 flow that needs them.
 
+The detail carries an **elevation profile** of the track, against distance along it rather than
+against time — timestamps are not on the wire, and the wall at km 62 is how the thing is talked
+about anyway. Its distances are scaled to land exactly on the service-reported distance, which is
+a few tenths of a percent from the summed polyline: two right numbers reading `87.1` and `87.4`
+one row apart look like a bug, and spreading the difference keeps every readout agreeing with the
+one figure already on screen.
+
+The axis starts at the track's own minimum, never at sea level, but never spans less than 200 m —
+without a floor a rolling valley loop fills the box exactly as a col does, and the shape is the
+only thing the chart is for. Missing altitude is drawn as missing: a dropout leaves a gap, and a
+track with no altitude at all says so in words rather than drawing a flat line that would read as
+a plain. It is neutral ink, deliberately not the activity's hashed colour — that colour answers
+*which category*, and one ride's terrain is not answering that.
+
+Hovering it puts a dot on the track; hovering the track moves the profile's cursor to the nearest
+point. One index, resolved from whichever end moved, so the two can never disagree about which
+point is meant.
+
 Nothing dims, and hovering and selecting look the same. Both were arrived at by removing things
 that seemed obviously right. Dimming the rest answered "which one is it?" by deleting the context
 that made the answer worth having. Painting the selection a fixed near-black threw away the sport
@@ -652,7 +670,10 @@ in 2024" is one filter away from a full breakdown. No compare-to-previous-period
 - **Volume trends** — distance, elevation, moving time and count by week, month or year, split by the values of any tag type.
 - **Calendar heatmap** — a year grid coloured by distance or duration, for spotting consistency and gaps.
 - **Distributions and records** — histograms of distance, elevation, duration and speed, plus longest, highest, fastest and longest streak.
-- **Elevation profile** — per activity, with the cursor linked to a marker on the map.
+The fourth view, the per-activity **elevation profile**, is not here: it belongs to one activity
+rather than to a filter, so it lives in the detail panel and shipped with M3. It is what brought
+ECharts in a milestone early, and the primitive it left behind — `ui/Chart.tsx`, an option in and
+a chart out — is what the three views above are built on.
 
 **ECharts**, reversing an earlier preference for Observable Plot. Two of the four cases hit
 ECharts built-ins directly — it has a purpose-built calendar coordinate system, and
@@ -725,10 +746,10 @@ inspected through a SQLite browser.
 | **M1** | Strava archive → SQLite | Schema, migrations, the `ActivitySource` interface, `tracks import <path>`, GPX + TCX parsers, timezone derivation. |
 | **M2** | Komoot | Second source behind the same interface, with recorded fixtures replayed through msw. Needed no interface change, which validated the M1 abstraction. |
 | **M2.5** | Typed tags | The `tag_types` registry, the `<type>:<value>` grammar and validator in core, per-source auto-tagging, and a migration that rewrites the existing arrays. No UI — done before M3 so the map and sidebar are built against the final tag model rather than twice. |
-| **M3** | Map, list and filters | The REST API, the MapLibre map with hillshade and contours, the synced activity list, a read-only activity detail, and the full filter sidebar with viewport spatial filtering. Lands in three commits — the core split, the backend, the browser. |
+| **M3** | Map, list and filters | The REST API, the MapLibre map with hillshade and contours, the synced activity list, a read-only activity detail with its elevation profile, and the full filter sidebar with viewport spatial filtering. Lands in three commits — the core split, the backend, the browser. |
 | **M3.5** | Import from the UI | The Import dropdown, and with it the end of the CLI. Both sources move into the browser, so Komoot credentials never reach the server and a Strava export is never uploaded; the server becomes a source-agnostic writer whose whole run is one rollback-able transaction. Three commits — the sources, the ingest route, the UI. |
 | **M4** | Tagging | Tag UI and tag-driven filtering, including whatever makes 500 untagged activities tractable. Free-text search arrives here too, since the flow that needs it is finding untagged activities by name. |
-| **M5** | Analytics | The four ECharts views, scoped to the active filter. |
+| **M5** | Analytics | The three filter-scoped ECharts views. The fourth, the elevation profile, belongs to one activity and shipped with M3 — which is what brought ECharts in early. |
 | **M6** | Heatmap and coverage | "Everywhere I've been", percentage of terrain covered, new-versus-repeated per activity. |
 
 ---
@@ -777,10 +798,13 @@ will otherwise propose all of these again.
 | Cross-service dedup | The two accounts cover different activities. Merge logic would be risk without benefit. |
 | Tag export / backup | Accepted risk, deliberately. Tags are the only non-regenerable data in the system. |
 | Observable Plot | More elegant, but the calendar heatmap and map-linked cursor would both be hand-rolled. |
+| A hand-rolled SVG profile | Would have kept ECharts out until M5 for one line chart, at the price of two charting idioms in one app and a second thing to maintain. Adopting ECharts a milestone early costs a dependency the design had already accepted. |
 | `echarts-for-react` | Maintained, and React 19 is fine — this was close. It wraps init, `setOption`, dispose and a resize observer, which is ~40 lines the platform now mostly provides, and the one interesting behaviour here is `dispatchAction`, reached *through* the wrapper either way. `MapView` had already set the precedent for driving an imperative library from a hook. |
 | The div histogram | Flexbox bars were exactly right until the range had to be selected on them. A wash with an edge anywhere but a bucket boundary is not something a row of divs can draw. |
 | A slider bar under the histogram | Two controls for one decision, stacked, where the shape you are reading and the thing you are cutting were different objects. The inputs moved onto the bars and nothing else changed — the unbounded-end contract, the non-crossing handles and the keyboard all came along. |
 | Snapping bounds to bucket edges | Would make the bars exactly lit or dim by construction, and make the achievable filter values depend on how many buckets a chart happens to draw. Bucket count is a rendering choice; a filter bound is not. |
+| Brushing a range on the profile | Segment metrics are anticipated and deliberately absent: which metrics, where they render, and whether the map highlights the brushed stretch are unanswered. The cursor is the interaction this milestone owed. |
+| A computed elevation gain beside the profile | A second number, a few percent from the tile directly above it, both correct. The axis labels already give the minimum and the maximum, and *self-computed metrics* was rejected once already. |
 | MapTiler · OSM raster | MapTiler costs a key and a quota for contour lines alone; raster OSM has no hillshading and a usage policy this would strain. |
 | Schema and timezone in `packages/core` | True while the server was core's only consumer. A browser makes *shared* and *server-side* different things, and core is the first one. |
 | A `description` column | Only Strava has one, so 124 of 197 rows would be null, and reaching them means the backfill problem below. Text search moves to M4 and searches titles. |

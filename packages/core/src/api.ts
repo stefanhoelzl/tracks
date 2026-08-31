@@ -152,10 +152,11 @@ export type FacetsResponse = z.infer<typeof facetsResponseSchema>
  * so the round trip is exact rather than merely close. As 34k point objects the same
  * track was 2.65MB; encoded with altitude alongside it is 0.30MB.
  *
- * Altitude is a parallel array, aligned by index with the decoded coordinates. Nothing
- * renders it yet; the elevation profile in M5 is what it is here for. Timestamps are not
- * sent — no consumer has ever read them, and they are still in the database for whatever
- * eventually wants them.
+ * Altitude is a parallel array, aligned by index with the decoded coordinates, and the
+ * detail panel's elevation profile is what reads it. Timestamps are not sent — no
+ * consumer has ever read them, and they are still in the database for whatever
+ * eventually wants them. The profile plots against distance instead, summed from the
+ * coordinates it already has.
  */
 export const activityTrackSchema = z.object({
   /** Encoded polyline, `[lat, lon]` pairs, precision 6. */

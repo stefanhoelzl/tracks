@@ -44,6 +44,10 @@ export function App() {
   const [listOpen, setListOpen] = useState(true)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
   const [importing, setImporting] = useState<ImportSource | null>(null)
+  // Which point of the selected track the elevation cursor is on. It is one number
+  // whichever end moved — the profile sets it on hover, the map sets it on hover, and
+  // both read it back — so the two can never disagree about which point is meant.
+  const [cursor, setCursor] = useState<number | null>(null)
 
   const queryClient = useQueryClient()
 
@@ -106,6 +110,18 @@ export function App() {
   const zoom = useCallback((delta: number) => mapHandle.current?.zoomBy(delta), [])
 
   /**
+   * Selecting is also the one thing that invalidates the cursor: it indexes into the
+   * track that was open, and the next one is a different array of a different length.
+   */
+  const select = useCallback(
+    (id: number | null) => {
+      setCursor(null)
+      setView({ ...view, activity: id })
+    },
+    [view, setView],
+  )
+
+  /**
    * An import landed, so everything on screen is stale: the rows, the geometry, the
    * counts and histogram bounds, and possibly the registry itself if a source put an
    * enum value back. All four caches go.
@@ -144,9 +160,11 @@ export function App() {
         extent={extent}
         hoveredId={hoveredId}
         selectedId={view.activity}
+        cursor={cursor}
         panelInsets={insets}
         onHover={setHoveredId}
-        onSelect={(id) => setView({ ...view, activity: id })}
+        onCursor={setCursor}
+        onSelect={(id) => select(id)}
         onViewportChange={onViewportChange}
       />
 
@@ -212,7 +230,9 @@ export function App() {
               scale={scale}
               loading={detail.isLoading}
               error={message(detail.error)}
-              onBack={() => setView({ ...view, activity: null })}
+              cursor={cursor}
+              onCursor={setCursor}
+              onBack={() => select(null)}
             />
           ) : (
             <ActivityList
@@ -227,7 +247,7 @@ export function App() {
               loading={activities.isLoading}
               error={listError}
               onHover={setHoveredId}
-              onSelect={(id) => setView({ ...view, activity: id })}
+              onSelect={(id) => select(id)}
               onColourBy={(next) => setView({ ...view, colourBy: next })}
               onSort={(sortKey: SortKey, sortOrder) => setFilter({ ...filter, sortKey, sortOrder })}
               onClear={reset}
