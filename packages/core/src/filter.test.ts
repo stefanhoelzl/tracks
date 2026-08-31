@@ -95,25 +95,53 @@ describe('view state', () => {
       colourBy: 'trip',
       activity: 123,
       grouped: true,
+      basemap: 'map',
     })
-    expect(parseView('')).toEqual({ colourBy: null, activity: null, grouped: true })
+    expect(parseView('')).toEqual({
+      colourBy: null,
+      activity: null,
+      grouped: true,
+      basemap: 'map',
+    })
   })
 
   it('treats grouping as on unless the URL turns it off', () => {
     // Only the departure from the default is worth a parameter.
     expect(parseView('grouped=0').grouped).toBe(false)
     expect(parseView('grouped=1').grouped).toBe(true)
-    expect(formatView({ colourBy: null, activity: null, grouped: true }).toString()).toBe('')
-    expect(formatView({ colourBy: null, activity: null, grouped: false }).toString()).toBe(
-      'grouped=0',
-    )
+    expect(
+      formatView({ colourBy: null, activity: null, grouped: true, basemap: 'map' }).toString(),
+    ).toBe('')
+    expect(
+      formatView({ colourBy: null, activity: null, grouped: false, basemap: 'map' }).toString(),
+    ).toBe('grouped=0')
+  })
+
+  it('treats the vector map as the default, so only satellite is written down', () => {
+    expect(parseView('').basemap).toBe('map')
+    expect(parseView('basemap=satellite').basemap).toBe('satellite')
+    // Anything else is the default rather than an error: a URL is not a contract.
+    expect(parseView('basemap=nonsense').basemap).toBe('map')
+    expect(
+      formatView({
+        colourBy: null,
+        activity: null,
+        grouped: true,
+        basemap: 'satellite',
+      }).toString(),
+    ).toBe('basemap=satellite')
   })
 
   it('joins the filter in one URL', () => {
     const filter = parseFilter('tag=sport:bike')
-    expect(formatSearch(filter, { colourBy: 'sport', activity: 42, grouped: true })).toBe(
-      'tag=sport%3Abike&colour_by=sport&activity=42',
-    )
+    expect(
+      formatSearch(filter, {
+        colourBy: 'sport',
+        activity: 42,
+        grouped: true,
+        basemap: 'map',
+      }),
+    ).toBe('tag=sport%3Abike&colour_by=sport&activity=42')
   })
 
   it('rejects an activity id that is not one', () => {

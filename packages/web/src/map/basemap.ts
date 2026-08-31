@@ -1,4 +1,4 @@
-import { colorful } from '@versatiles/style'
+import { colorful, satellite } from '@versatiles/style'
 import mlcontour from 'maplibre-contour'
 import type { StyleSpecification } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
@@ -32,6 +32,9 @@ const TILES = 'https://tiles.versatiles.org'
 
 /** Terrarium-encoded, 512 px, z0–12. The same source feeds hillshade and contours. */
 const ELEVATION = `${TILES}/tiles/elevation/{z}/{x}/{y}`
+
+/** The same server's raster imagery, WebP. */
+const SATELLITE = `${TILES}/tiles/satellite/{z}/{x}/{y}`
 
 /**
  * VersaTiles' own hillshade, tuned down.
@@ -83,19 +86,47 @@ function contourTiles(): string {
   return contourUrl
 }
 
-export async function basemapStyle(): Promise<StyleSpecification> {
+export type Basemap = 'map' | 'satellite'
+
+/**
+ * Imagery, with the same relief and contours over it.
+ *
+ * No `recolor`: there is nothing to hold back, since photography of a mountain is
+ * already the terrain rather than a drawing of it. The contours matter more here than
+ * on the vector map — imagery shows what the ground is covered in and nothing at all
+ * about how steep it is.
+ */
+async function satelliteStyle(): Promise<StyleSpecification> {
+  return (await satellite({
+    baseUrl: TILES,
+    tiles: [SATELLITE],
+    hillshade: HILLSHADE,
+    language: 'en',
+  })) as StyleSpecification
+}
+
+export async function basemapStyle(kind: Basemap = 'map'): Promise<StyleSpecification> {
+  if (kind === 'satellite') return withContours(await satelliteStyle())
+  return withContours(await vectorStyle())
+}
+
+async function vectorStyle(): Promise<StyleSpecification> {
   const style = await colorful({
     baseUrl: TILES,
     hillshade: HILLSHADE,
-    // Colour, held back. `colorful` at full strength puts saturated green woodland
-    // and blue water under tracks whose whole job is to be the saturated thing —
-    // so it is desaturated a third and washed towards the paper the app is drawn
-    // on, which leaves water reading as water and forest as forest while no part of
-    // it competes with a line on top.
-    recolor: { saturate: -0.32, gamma: 1.05, blend: 0.16, blendColor: '#eef1ee' },
+    // Barely held back. An earlier pass desaturated this by a third to keep the
+    // tracks dominant, and took the terrain down with it — woodland, scrub and rock
+    // are most of what a map of the Alps has to say. A slight wash towards the paper
+    // the app is drawn on is enough to seat it under the lines.
+    recolor: { saturate: -0.05, gamma: 1.02, blend: 0.06, blendColor: '#eef1ee' },
     language: 'en',
   })
 
+  return style as StyleSpecification
+}
+
+/** Contours are generated from the DEM, so they belong to whatever is underneath. */
+function withContours(style: StyleSpecification): StyleSpecification {
   style.sources[CONTOUR_SOURCE] = {
     type: 'vector',
     tiles: [contourTiles()],

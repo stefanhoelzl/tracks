@@ -1,4 +1,4 @@
-import { Maximize, Minus, Plus, Ungroup } from 'lucide-react'
+import { Map as MapIcon, Maximize, Minus, Plus, Satellite, Ungroup } from 'lucide-react'
 import styles from './MapChrome.module.css'
 
 /**
@@ -10,17 +10,21 @@ import styles from './MapChrome.module.css'
  */
 export function MapChrome({
   grouped,
+  basemap,
   canFitAll,
   onToggleGrouping,
+  onToggleBasemap,
   onFitAll,
   onZoom,
   insetRight,
   insetLeft,
 }: {
   grouped: boolean
+  basemap: 'map' | 'satellite'
   /** False when nothing outside the viewport matches, so there is nowhere to fly to. */
   canFitAll: boolean
   onToggleGrouping: () => void
+  onToggleBasemap: () => void
   onFitAll: () => void
   onZoom: (delta: number) => void
   insetRight: number
@@ -55,6 +59,23 @@ export function MapChrome({
           title="Zoom out to all activities"
         >
           <Maximize size={17} strokeWidth={2} />
+        </button>
+
+        {/* Names what you would get, not what you have: an icon showing the state you
+            are already in has nothing to tell you. */}
+        <button
+          type="button"
+          className={styles.group}
+          onClick={onToggleBasemap}
+          aria-label={basemap === 'map' ? 'Show satellite imagery' : 'Show the map'}
+          title={basemap === 'map' ? 'Show satellite imagery' : 'Show the map'}
+          aria-pressed={basemap === 'satellite'}
+        >
+          {basemap === 'map' ? (
+            <Satellite size={17} strokeWidth={2} />
+          ) : (
+            <MapIcon size={17} strokeWidth={2} />
+          )}
         </button>
 
         <button

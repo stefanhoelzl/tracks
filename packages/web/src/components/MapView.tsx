@@ -5,7 +5,7 @@ import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { activityColour, type ColourScale, emphasise } from '../lib/colour.ts'
-import { basemapStyle } from '../map/basemap.ts'
+import { type Basemap, basemapStyle } from '../map/basemap.ts'
 import { ClusterMarkers } from '../map/clusters.ts'
 import {
   addTrackLayers,
@@ -57,6 +57,7 @@ export function MapView({
   colourBy,
   scale,
   grouped,
+  basemap,
   filter,
   extent,
   hoveredId,
@@ -72,6 +73,8 @@ export function MapView({
   colourBy: string | null
   scale: ColourScale
   grouped: boolean
+  /** Which basemap is under the tracks. */
+  basemap: Basemap
   filter: Filter
   /** Everything matching the filter without its bbox — what *view all* frames. */
   extent: [number, number, number, number] | null
@@ -134,7 +137,7 @@ export function MapView({
     // The style is fetched (the elevation TileJSON is a real request), so the map
     // exists before it is dressed — which also gets a grey canvas up immediately
     // rather than waiting on the network for first paint.
-    basemapStyle()
+    basemapStyle(basemap)
       .then((style) => {
         if (cancelled) return
         instance.setStyle(style)
@@ -199,6 +202,50 @@ export function MapView({
     if (!ready || !map.current) return
     paintTracks(map.current, { focusId: hoveredId ?? selectedId, grouped })
   }, [ready, hoveredId, selectedId, grouped])
+
+  /**
+   * Swapping the basemap.
+   *
+   * `setStyle` replaces the whole style, which takes the track layers *and their
+   * sources* with it. So this rebuilds them exactly as the first load does, and drops
+   * `ready` while it happens — every effect that fills a source depends on `ready`, so
+   * flipping it is what re-runs them against the new style rather than into nothing.
+   *
+   * Skipped on the first run: the initial load already built this basemap.
+   */
+  const styled = useRef<Basemap | null>(null)
+  useEffect(() => {
+    if (!ready || !map.current) return
+    if (styled.current === null) {
+      styled.current = basemap
+      return
+    }
+    if (styled.current === basemap) return
+    styled.current = basemap
+
+    let cancelled = false
+    const instance = map.current
+    setReady(false)
+    clusters.current?.clear()
+    clusters.current = null
+
+    basemapStyle(basemap)
+      .then((style) => {
+        if (cancelled) return
+        instance.setStyle(style)
+        instance.once('styledata', () => {
+          if (cancelled) return
+          addTrackLayers(instance)
+          clusters.current = new ClusterMarkers(instance)
+          setReady(true)
+        })
+      })
+      .catch((error) => console.error('basemap failed to load', error))
+
+    return () => {
+      cancelled = true
+    }
+  }, [ready, basemap])
 
   // Ungrouped, the donuts have nothing to say — the tracks themselves are drawn.
   useEffect(() => {

@@ -296,13 +296,18 @@ table lookups.
 
 [VersaTiles](https://versatiles.org/) serves OpenStreetMap-derived vector tiles with no API
 key, no usage fees and no user tracking, on the CC-0 Shortbread schema. The style is
-`@versatiles/style`'s `colorful`, pulled back by a `recolor` pass — desaturated a third and washed
-towards the paper the app is drawn on. It began as `graybeard`, on the principle that the tracks
-should own the only colour on screen; that turned out to read as a wireframe rather than as a map
-of anywhere. Muted colour keeps water reading as water and woodland as woodland while still losing
-to a saturated line drawn on top, which is the property the grey was really protecting. It lives
-in one `basemap.ts` module, which is what keeps swapping providers or dropping to a locally-served
-container a one-line change.
+`@versatiles/style`'s `colorful`, barely held back — a slight wash towards the paper the app is
+drawn on, and nothing else. It began as `graybeard`, on the principle that the tracks should own
+the only colour on screen; that read as a wireframe rather than as a map of anywhere. The first
+correction desaturated `colorful` by a third and took the terrain down with it, which is most of
+what a map of the Alps has to say. Seating the colour under the lines turns out to need very
+little, and the tracks win on saturation anyway.
+
+Satellite imagery is the same server's raster tileset, switched from the map chrome and remembered
+in the URL as view state, with the same hillshade and contours over it. Contours earn their place
+there twice over: imagery says what the ground is covered in and nothing about how steep it is.
+Both live in one `basemap.ts` module, which is what keeps swapping providers or dropping to a
+locally-served container a one-line change.
 
 Global elevation shipped in April 2026 as a `raster-dem` tileset — terrarium encoding, 512 px,
 z0–12 — and it closes both gaps that kept VersaTiles from being an outdoor basemap. Hillshading

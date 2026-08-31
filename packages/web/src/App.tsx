@@ -120,6 +120,7 @@ export function App() {
         colourBy={colourBy}
         scale={scale}
         grouped={view.grouped}
+        basemap={view.basemap}
         filter={filter}
         extent={extent}
         hoveredId={hoveredId}
@@ -224,8 +225,12 @@ export function App() {
 
       <MapChrome
         grouped={view.grouped}
+        basemap={view.basemap}
         canFitAll={extent !== null}
         onToggleGrouping={() => setView({ ...view, grouped: !view.grouped })}
+        onToggleBasemap={() =>
+          setView({ ...view, basemap: view.basemap === 'map' ? 'satellite' : 'map' })
+        }
         onFitAll={() => extent && mapHandle.current?.fitBounds(extent)}
         onZoom={zoom}
         insetLeft={insets.left}

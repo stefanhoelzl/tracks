@@ -184,6 +184,11 @@ const viewShape = z.object({
    * changes what a shared link shows you.
    */
   grouped: z.boolean(),
+  /**
+   * Which basemap is under the tracks. View state for the same reason as the rest:
+   * it changes what a shared link shows without changing which activities match.
+   */
+  basemap: z.enum(['map', 'satellite']),
 })
 
 export type View = z.infer<typeof viewShape>
@@ -197,6 +202,8 @@ export const viewSchema = z.preprocess((input) => {
     activity: activity === null || activity.trim() === '' ? null : Number(activity),
     // Grouping is the default, so only its absence is worth writing down.
     grouped: params.get('grouped') !== '0',
+    // As is the vector map, so only satellite is.
+    basemap: params.get('basemap') === 'satellite' ? 'satellite' : 'map',
   }
 }, viewShape)
 
@@ -209,6 +216,7 @@ export function formatView(view: View): URLSearchParams {
   if (view.colourBy !== null) params.set('colour_by', view.colourBy)
   if (view.activity !== null) params.set('activity', String(view.activity))
   if (!view.grouped) params.set('grouped', '0')
+  if (view.basemap === 'satellite') params.set('basemap', 'satellite')
   return params
 }
 

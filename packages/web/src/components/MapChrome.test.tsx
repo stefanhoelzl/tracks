@@ -3,22 +3,25 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { MapChrome } from './MapChrome.tsx'
 
-function setup(grouped: boolean, canFitAll = true) {
+function setup(grouped: boolean, canFitAll = true, basemap: 'map' | 'satellite' = 'map') {
   const onToggleGrouping = vi.fn()
+  const onToggleBasemap = vi.fn()
   const onFitAll = vi.fn()
   const onZoom = vi.fn()
   render(
     <MapChrome
       grouped={grouped}
+      basemap={basemap}
       canFitAll={canFitAll}
       onToggleGrouping={onToggleGrouping}
+      onToggleBasemap={onToggleBasemap}
       onFitAll={onFitAll}
       onZoom={onZoom}
       insetLeft={320}
       insetRight={360}
     />,
   )
-  return { onToggleGrouping, onFitAll, onZoom }
+  return { onToggleGrouping, onToggleBasemap, onFitAll, onZoom }
 }
 
 describe('MapChrome', () => {
@@ -76,5 +79,26 @@ describe('zoom out to all activities', () => {
     expect(button.hasAttribute('disabled')).toBe(true)
     await userEvent.click(button)
     expect(onFitAll).not.toHaveBeenCalled()
+  })
+})
+
+describe('the basemap switch', () => {
+  it('offers what you would get, not what you already have', () => {
+    setup(true, true, 'map')
+    expect(screen.getByRole('button', { name: 'Show satellite imagery' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Show the map' })).toBeNull()
+  })
+
+  it('offers the way back once imagery is showing', () => {
+    setup(true, true, 'satellite')
+    const button = screen.getByRole('button', { name: 'Show the map' })
+    expect(button.textContent).toBe('')
+    expect(button.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('switches when clicked', async () => {
+    const { onToggleBasemap } = setup(true, true, 'map')
+    await userEvent.click(screen.getByRole('button', { name: 'Show satellite imagery' }))
+    expect(onToggleBasemap).toHaveBeenCalledOnce()
   })
 })
