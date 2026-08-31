@@ -13,7 +13,6 @@ import {
 } from '../lib/filter-ops.ts'
 import { RANGE_UNITS } from '../lib/format.ts'
 import styles from './FilterSidebar.module.css'
-import { Histogram } from './ui/Histogram.tsx'
 import { Label } from './ui/Label.tsx'
 import { Popover } from './ui/Popover.tsx'
 import { RangeSlider } from './ui/RangeSlider.tsx'
@@ -183,13 +182,13 @@ function RangeGroup({
         <Label>{units.label}</Label>
         <span className={styles.unit}>{units.unit}</span>
       </div>
-      <Histogram buckets={facet.buckets} />
       <RangeSlider
         label={units.label}
         axisMin={facet.min}
         axisMax={facet.max}
         min={bounds.min}
         max={bounds.max}
+        buckets={facet.buckets}
         format={units.format}
         // Replace, not push: a drag is one gesture and Back should step out of all
         // of it rather than through every frame.

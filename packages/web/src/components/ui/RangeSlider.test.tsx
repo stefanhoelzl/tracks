@@ -16,6 +16,7 @@ describe('RangeSlider', () => {
     axisMax: 100,
     min: null,
     max: null,
+    buckets: [1, 4, 2, 0, 3],
     format: (v: number) => String(Math.round(v)),
     label: 'Distance',
   }
@@ -60,9 +61,19 @@ describe('RangeSlider', () => {
     expect(onChange).toHaveBeenCalledWith({ min: 60, max: 60 })
   })
 
+  it('draws the distribution the handles cut', () => {
+    render(<RangeSlider {...props} onChange={vi.fn()} />)
+    expect(screen.getByTestId('chart')).toBeTruthy()
+  })
+
+  /**
+   * One bar at full height is not a distribution, and two handles that cannot move
+   * are the dead control this component already refused to draw. Both go together.
+   */
   it('shows a value instead of a dead control when the axis has no span', () => {
     render(<RangeSlider {...props} axisMin={42} axisMax={42} onChange={vi.fn()} />)
     expect(screen.queryByRole('slider')).toBeNull()
+    expect(screen.queryByTestId('chart')).toBeNull()
     expect(screen.getByText('42')).toBeTruthy()
   })
 })

@@ -6,11 +6,16 @@
  * a literal, which is what stops the same pill being drawn four slightly different
  * ways as the app grows.
  *
- * The one thing deliberately absent is the categorical palette that *colour by*
- * hashes into. No CSS rule can consume it — it is painted into GeoJSON properties and
- * passed as props — so it lives in `lib/colour.ts` with the hash that indexes it,
- * rather than making a round trip through `getComputedStyle` to reach the code that
- * is its only reader.
+ * Two things are deliberately absent, for one reason: no CSS rule can consume them.
+ * The categorical palette that *colour by* hashes into is painted into GeoJSON
+ * properties and passed as props, so it lives in `lib/colour.ts` beside the hash that
+ * indexes it. The handful of colours ECharts paints with are written by the SVG
+ * renderer straight into presentation attributes, where `var(--ink-2)` is a string and
+ * not a colour, so they are mirrored in `lib/chart-theme.ts`.
+ *
+ * Neither makes a round trip through `getComputedStyle` to reach the code that is its
+ * only reader. `chart-theme.ts` mirrors from here, which means a value changed on one
+ * side is changed on both.
  */
 
 :root {

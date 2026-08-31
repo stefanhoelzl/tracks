@@ -1,12 +1,19 @@
 import { useId } from 'react'
+import { Histogram } from './Histogram.tsx'
 import styles from './RangeSlider.module.css'
 
 /**
- * A dual-handle range over a fixed axis.
+ * A dual-handle range, chosen on its own distribution.
  *
- * Two stacked `<input type="range">` rather than a hand-rolled drag: keyboard
+ * The bars and the handles are one control, not a chart with a bar underneath it: the
+ * shape you are reading is the thing you are cutting, so the cut is made on it. What
+ * dims outside the selection is a wash drawn in chart space, which means the edge sits
+ * exactly where the handle does rather than at the nearest bucket boundary.
+ *
+ * The handles themselves are still two stacked `<input type="range">`. Keyboard
  * support, screen-reader semantics and pointer capture all arrive for free, and the
- * only cost is the pointer-events dance that lets the upper one reach the lower.
+ * only cost is the pointer-events dance that lets the upper one reach the lower —
+ * which is a better trade than re-deriving all three on top of a chart library.
  *
  * The contract the rest of the app depends on: **a handle parked at the end of its
  * track means unbounded, not "at the current maximum"**. Axes are computed from the
@@ -18,6 +25,7 @@ export function RangeSlider({
   axisMax,
   min,
   max,
+  buckets,
   onChange,
   format,
   label,
@@ -27,6 +35,8 @@ export function RangeSlider({
   /** Null means unbounded on that side. */
   min: number | null
   max: number | null
+  /** Equal-width counts across the axis, drawn behind the handles. */
+  buckets: readonly number[]
   onChange: (next: { min: number | null; max: number | null }) => void
   format: (value: number) => string
   label: string
@@ -34,8 +44,9 @@ export function RangeSlider({
   const id = useId()
   const span = axisMax - axisMin
 
-  // A degenerate axis — one activity in scope, or all of them identical — has
-  // nothing to slide along, so it shows the value instead of a dead control.
+  // A degenerate axis — one activity in scope, or all of them identical — has nothing
+  // to slide along and nothing to distribute, so it shows the value instead of a dead
+  // control and a single bar standing in for a shape.
   if (span <= 0) {
     return (
       <div className={styles.single}>
@@ -55,41 +66,47 @@ export function RangeSlider({
 
   return (
     <div className={styles.root}>
-      <div className={styles.track}>
-        <div className={styles.rail} />
-        <div
-          className={styles.fill}
-          style={{ left: `${pct(low)}%`, right: `${100 - pct(high)}%` }}
-        />
+      <div className={styles.plot}>
+        <div className={styles.bars} aria-hidden="true">
+          <Histogram buckets={buckets} axisMin={axisMin} axisMax={axisMax} low={low} high={high} />
+        </div>
 
-        <input
-          type="range"
-          className={styles.input}
-          aria-label={`${label} minimum`}
-          id={`${id}-min`}
-          min={axisMin}
-          max={axisMax}
-          step={step}
-          value={low}
-          onChange={(e) => {
-            const next = Math.min(Number(e.target.value), high)
-            onChange({ min: bound(next, axisMin), max })
-          }}
-        />
-        <input
-          type="range"
-          className={styles.input}
-          aria-label={`${label} maximum`}
-          id={`${id}-max`}
-          min={axisMin}
-          max={axisMax}
-          step={step}
-          value={high}
-          onChange={(e) => {
-            const next = Math.max(Number(e.target.value), low)
-            onChange({ min, max: bound(next, axisMax) })
-          }}
-        />
+        <div className={styles.track}>
+          <div className={styles.rail} />
+          <div
+            className={styles.fill}
+            style={{ left: `${pct(low)}%`, right: `${100 - pct(high)}%` }}
+          />
+
+          <input
+            type="range"
+            className={styles.input}
+            aria-label={`${label} minimum`}
+            id={`${id}-min`}
+            min={axisMin}
+            max={axisMax}
+            step={step}
+            value={low}
+            onChange={(e) => {
+              const next = Math.min(Number(e.target.value), high)
+              onChange({ min: bound(next, axisMin), max })
+            }}
+          />
+          <input
+            type="range"
+            className={styles.input}
+            aria-label={`${label} maximum`}
+            id={`${id}-max`}
+            min={axisMin}
+            max={axisMax}
+            step={step}
+            value={high}
+            onChange={(e) => {
+              const next = Math.max(Number(e.target.value), low)
+              onChange({ min, max: bound(next, axisMax) })
+            }}
+          />
+        </div>
       </div>
 
       <div className={styles.bounds}>

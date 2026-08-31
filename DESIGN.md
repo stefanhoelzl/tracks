@@ -536,13 +536,21 @@ tool and does not pretend otherwise.
 | Group | Facets |
 |---|---|
 | Core | Date range · tags of any registered type (include / exclude / *not set*) · the map viewport |
-| Ranges | Distance, elevation, duration, average speed — dual-handle sliders over histogram backgrounds, so the distribution is visible while you drag |
+| Ranges | Distance, elevation, duration, average speed — dual-handle sliders **on** the histogram, so the shape you are reading is the thing you are cutting |
 | Presets | Last 30 days · this year · **not set**, per type |
 
 Average speed is `distance_m / duration_s`, computed in SQL rather than stored. An activity
 missing either input has no speed, so it is absent from that histogram and matches no speed
 range — the same way an untagged activity matches no `sport:` term. Every range facet treats
 nulls that way, which is what keeps narrowing a filter monotonic.
+
+A range facet is one control, not a chart with a bar beneath it. The handles ride the foot of
+their own distribution and everything outside the selection is washed pale — drawn in chart
+space, so the pale edge sits exactly where the handle does rather than at the nearest bucket
+boundary. The handles themselves are still two stacked `<input type="range">`: keyboard support,
+screen-reader semantics and pointer capture arrive with them, and none of the three is worth
+re-deriving on top of a chart library. A facet with no span shows its single value and no chart,
+for the same reason it has never shown a slider — one bar at full height is not a distribution.
 
 A preset resolves to concrete dates the moment you click it: *last 30 days* writes
 `from=2026-07-26&to=2026-08-25`, not `date=last30`. One representation of a range in the URL,
@@ -651,6 +659,11 @@ ECharts built-ins directly — it has a purpose-built calendar coordinate system
 `dispatchAction` makes the two-way chart↔map cursor sync trivial. Plot's main advantage, its
 statistical transforms, is neutralised because aggregation happens in SQL anyway.
 
+It renders to **SVG**, not canvas. jsdom has no canvas and the sidebar mounts four charts in a
+single component test, so canvas would have meant a mock in the setup file for charts that are
+38 px tall. Charts are also built where a chart is cheapest to be wrong: every option is a pure
+function tested as a value, and the component around it only mounts what that function returned.
+
 Only service-reported metrics are stored. Anything else — consistent cross-service numbers, or
 metrics for part of a track — is computed from trackpoints on demand, since the dynamic path
 has to exist for segments regardless. A cache table can follow later, if a chart proves slow
@@ -693,7 +706,7 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Web build** | Vite, and **only** Vite. `pnpm dev` runs the Hono app inside it via `@hono/vite-dev-server`, so one command HMRs both sides. There is no production server: `tracks serve`, the static mount and the `build` script went with the CLI, because a local single-user tool that is always run from its own checkout had two ways to start and needed one. |
 | **Web state** | No router — the app is one page, and core already parses the query string. A `useFilterState` hook over `useSyncExternalStore` is the whole of it. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover and a viewport-derived filter are both things a declarative wrapper would be in the way of. |
-| **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file. |
+| **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file — except the two sets no CSS rule can read, the *colour by* palette and the chart colours, which are mirrored in `lib/colour.ts` and `lib/chart-theme.ts` beside their only consumers. |
 | **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
 | **Testing** | Vitest in two projects. `node` covers core, the query layer and ingestion — including that an aborted import leaves the database byte-identical — and stays offline and under a second. `web` (jsdom) covers the components, mounts the whole app against a mocked API, and now owns the sources too, with the msw-replayed Komoot fixtures and a zip built at test time from plain-text fixtures. Browser code is tested where a DOM is. jsdom lacks three things the sources need — `dialog.showModal`, a `Blob` undici will read, and an `AbortSignal` it will accept — so `test-setup.ts` adapts them and says why. `--project node` keeps the fast lane. Map styles are checked against `@maplibre/maplibre-gl-style-spec` — validated *and* evaluated against the features each layer will actually meet, because the expression bugs that matter are legal ones that meet the wrong data. |
 | **CLI** | **Retired in M3.5.** `tracks import` was the only way to add activities until the Import button existed, and `tracks serve` the only way to look at them until `pnpm dev` was the single entry point. Both are gone, along with commander. Anything a person does, they now do in the app. |
@@ -764,6 +777,10 @@ will otherwise propose all of these again.
 | Cross-service dedup | The two accounts cover different activities. Merge logic would be risk without benefit. |
 | Tag export / backup | Accepted risk, deliberately. Tags are the only non-regenerable data in the system. |
 | Observable Plot | More elegant, but the calendar heatmap and map-linked cursor would both be hand-rolled. |
+| `echarts-for-react` | Maintained, and React 19 is fine — this was close. It wraps init, `setOption`, dispose and a resize observer, which is ~40 lines the platform now mostly provides, and the one interesting behaviour here is `dispatchAction`, reached *through* the wrapper either way. `MapView` had already set the precedent for driving an imperative library from a hook. |
+| The div histogram | Flexbox bars were exactly right until the range had to be selected on them. A wash with an edge anywhere but a bucket boundary is not something a row of divs can draw. |
+| A slider bar under the histogram | Two controls for one decision, stacked, where the shape you are reading and the thing you are cutting were different objects. The inputs moved onto the bars and nothing else changed — the unbounded-end contract, the non-crossing handles and the keyboard all came along. |
+| Snapping bounds to bucket edges | Would make the bars exactly lit or dim by construction, and make the achievable filter values depend on how many buckets a chart happens to draw. Bucket count is a rendering choice; a filter bound is not. |
 | MapTiler · OSM raster | MapTiler costs a key and a quota for contour lines alone; raster OSM has no hillshading and a usage policy this would strain. |
 | Schema and timezone in `packages/core` | True while the server was core's only consumer. A browser makes *shared* and *server-side* different things, and core is the first one. |
 | A `description` column | Only Strava has one, so 124 of 197 rows would be null, and reaching them means the backfill problem below. Text search moves to M4 and searches titles. |

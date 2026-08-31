@@ -4,10 +4,27 @@
   gap: 4px;
 }
 
+/*
+ * Bars and handles occupy one box. The track is pushed down to the foot of the bars so
+ * the thumbs ride their bottom edge — close enough to read as one control, low enough
+ * that a thumb never covers the shape it is cutting.
+ */
+.plot {
+  position: relative;
+}
+
+.bars {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  pointer-events: none;
+}
+
 .track {
   position: relative;
   height: 18px;
-  margin-top: 6px;
+  margin-top: 30px;
 }
 
 .rail,

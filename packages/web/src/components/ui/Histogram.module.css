@@ -1,13 +1,7 @@
+/*
+ * Transparent to the pointer, always. The handles over these bars are the control;
+ * a chart that took a click here would be a second one nobody asked for.
+ */
 .histogram {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.bar {
-  flex: 1;
-  background: var(--accent);
-  opacity: 0.8;
-  border-radius: 2px;
-  transition: height 160ms var(--ease);
+  pointer-events: none;
 }

@@ -4,7 +4,7 @@ import { afterEach, beforeEach } from 'vitest'
 afterEach(cleanup)
 
 /**
- * jsdom implements `<dialog>` the element but not its methods.
+jsdom implements `<dialog>` the element but not its methods.
  *
  * `Modal` is built on `showModal()` deliberately — the focus trap, the inert
  * background and the top layer over the map are all things the platform does better
@@ -88,3 +88,18 @@ beforeEach(() => {
   adapted[PATCHED] = true
   globalThis.fetch = adapted
 })
+
+/**
+ * jsdom has no ResizeObserver, and every chart in the app observes its box before it
+ * builds anything. A stub that never reports is exactly right here: nothing in jsdom
+ * has a size, so no chart is ever built, and the component tests assert on the DOM
+ * around a chart rather than inside one. What the option said is tested where the
+ * option is made.
+ */
+class NoopResizeObserver implements ResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+globalThis.ResizeObserver ??= NoopResizeObserver
