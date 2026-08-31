@@ -211,7 +211,10 @@ export function MapView({
    * `ready` while it happens — every effect that fills a source depends on `ready`, so
    * flipping it is what re-runs them against the new style rather than into nothing.
    *
-   * Skipped on the first run: the initial load already built this basemap.
+   * Staleness is checked against `styled`, deliberately, and not with a cancelled flag
+   * set from a cleanup. `setReady(false)` below re-runs this effect, which would run
+   * that cleanup and cancel the very load it had just started — the map would clear its
+   * clusters, drop `ready`, and wait forever for a style that had been told to stop.
    */
   const styled = useRef<Basemap | null>(null)
   useEffect(() => {
@@ -223,7 +226,6 @@ export function MapView({
     if (styled.current === basemap) return
     styled.current = basemap
 
-    let cancelled = false
     const instance = map.current
     setReady(false)
     clusters.current?.clear()
@@ -231,20 +233,18 @@ export function MapView({
 
     basemapStyle(basemap)
       .then((style) => {
-        if (cancelled) return
+        // Still the basemap that was asked for? A second click while this was in
+        // flight has already moved `styled` on, and that run owns the map now.
+        if (styled.current !== basemap) return
         instance.setStyle(style)
         instance.once('styledata', () => {
-          if (cancelled) return
+          if (styled.current !== basemap) return
           addTrackLayers(instance)
           clusters.current = new ClusterMarkers(instance)
           setReady(true)
         })
       })
       .catch((error) => console.error('basemap failed to load', error))
-
-    return () => {
-      cancelled = true
-    }
   }, [ready, basemap])
 
   // Ungrouped, the donuts have nothing to say — the tracks themselves are drawn.
