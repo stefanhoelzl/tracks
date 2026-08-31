@@ -164,3 +164,69 @@ export function activityColour(
 ): string {
   return colourForSlot(activitySlot(tags, year, colourBy, scale))
 }
+
+/**
+ * How much of the palette's saturation the emphasised variant keeps, and the band its
+ * lightness is pulled into.
+ *
+ * The band matters more than the shift. The palette runs dark — several entries sit
+ * near 23% lightness — so *darkening* the selection is what produced the near-black
+ * that lost the colour entirely. Pulling every hue into one narrow, vivid band instead
+ * means a selected track looks equally lit whichever colour it happens to be.
+ */
+const EMPHASIS_SATURATION = 1.45
+const EMPHASIS_LIGHTNESS = { shift: 0.15, min: 0.36, max: 0.5 }
+
+function toHsl(hex: string): [number, number, number] {
+  const n = Number.parseInt(hex.slice(1), 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  const d = max - min
+  if (d === 0) return [0, 0, l]
+
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  const h =
+    max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return [h / 6, s, l]
+}
+
+function toHex(h: number, s: number, l: number): string {
+  const channel = (t: number) => {
+    const x = ((t % 1) + 1) % 1
+    const c =
+      x < 1 / 6
+        ? p2 + (q - p2) * 6 * x
+        : x < 1 / 2
+          ? q
+          : x < 2 / 3
+            ? p2 + (q - p2) * (2 / 3 - x) * 6
+            : p2
+    return Math.round(c * 255)
+  }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+  const p2 = 2 * l - q
+  const hex = (v: number) => v.toString(16).padStart(2, '0')
+  return `#${hex(channel(h + 1 / 3))}${hex(channel(h))}${hex(channel(h - 1 / 3))}`
+}
+
+/**
+ * The same colour, turned up.
+ *
+ * A selected track has to be findable among a dozen others painted exactly like it,
+ * and it must still read as *that* colour — so the hue is untouched and only its
+ * intensity moves. What tells you which one is selected is the casing and the weight;
+ * this is what stops the answer from being "one of those greens, somewhere".
+ *
+ * A grey stays grey: multiplying a saturation near zero leaves it near zero, which is
+ * what *not set* should keep doing.
+ */
+export function emphasise(hex: string): string {
+  const [h, s, l] = toHsl(hex)
+  const { shift, min, max } = EMPHASIS_LIGHTNESS
+  return toHex(h, Math.min(1, s * EMPHASIS_SATURATION), Math.min(max, Math.max(min, l + shift)))
+}

@@ -3,7 +3,7 @@ import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap }
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { activityColour, type ColourScale } from '../lib/colour.ts'
+import { activityColour, type ColourScale, emphasise } from '../lib/colour.ts'
 import { basemapStyle } from '../map/basemap.ts'
 import { ClusterMarkers } from '../map/clusters.ts'
 import {
@@ -217,14 +217,16 @@ export function MapView({
       features: [
         {
           type: 'Feature',
-          // Its own colour, computed the same way the simplified line under it was:
-          // selecting a track must not change what the track is telling you.
+          // Its own colour, turned up: same hue, so selecting a track never changes
+          // what the track is telling you, but findable among a dozen painted like it.
           properties: {
-            colour: activityColour(
-              detail.activity.tags,
-              Number(detail.activity.localDate.slice(0, 4)),
-              colourBy,
-              scale,
+            colour: emphasise(
+              activityColour(
+                detail.activity.tags,
+                Number(detail.activity.localDate.slice(0, 4)),
+                colourBy,
+                scale,
+              ),
             ),
           },
           geometry: {

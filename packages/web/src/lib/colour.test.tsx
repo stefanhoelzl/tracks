@@ -3,6 +3,7 @@ import {
   activityColour,
   buildScale,
   colourForSlot,
+  emphasise,
   HASHED,
   NEUTRAL_SLOT,
   neutralColour,
@@ -128,5 +129,54 @@ describe('colouring an activity', () => {
     for (let slot = 0; slot <= NEUTRAL_SLOT; slot++) {
       expect(colourForSlot(slot)).toMatch(/^#[0-9a-f]{6}$/)
     }
+  })
+})
+
+describe('emphasise', () => {
+  const hueOf = (hex: string) => {
+    const n = Number.parseInt(hex.slice(1), 16)
+    const [r, g, b] = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+    const max = Math.max(r, g, b)
+    const d = max - Math.min(r, g, b)
+    if (d === 0) return null
+    const h =
+      max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+    return (h / 6) * 360
+  }
+
+  const saturationOf = (hex: string) => {
+    const n = Number.parseInt(hex.slice(1), 16)
+    const [r, g, b] = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    const l = (max + min) / 2
+    return max === min ? 0 : l > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min)
+  }
+
+  it('keeps the hue of every palette colour, which is what makes it the same colour', () => {
+    for (let slot = 0; slot < PALETTE_SIZE; slot++) {
+      const base = colourForSlot(slot)
+      expect(hueOf(emphasise(base))).toBeCloseTo(hueOf(base)!, 0)
+    }
+  })
+
+  it('actually changes every palette colour, including the lightest', () => {
+    // #7a4fbf starts above the lightness band, so only saturation can move it — the
+    // case that made a lightness-only rule leave one colour untouched.
+    for (let slot = 0; slot < PALETTE_SIZE; slot++) {
+      expect(emphasise(colourForSlot(slot))).not.toBe(colourForSlot(slot))
+    }
+  })
+
+  it('leaves a grey grey, so *not set* never turns into a colour', () => {
+    // The neutral is a faintly green-tinted grey, not a pure one, so the test is that
+    // it stays desaturated — multiplying a saturation near zero keeps it near zero.
+    const emphasised = emphasise(neutralColour())
+    expect(saturationOf(emphasised)).toBeLessThan(0.12)
+    expect(emphasised).not.toBe(neutralColour())
+  })
+
+  it('is stable: emphasising is a function of the colour, not of when it ran', () => {
+    expect(emphasise('#0a6b48')).toBe(emphasise('#0a6b48'))
   })
 })
