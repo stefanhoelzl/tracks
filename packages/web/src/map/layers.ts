@@ -29,8 +29,14 @@ export const SELECTED_LAYER = 'selected-track'
  */
 const CLUSTER_MAX_ZOOM = 8
 
-/** Only reached by a selected feature built without a colour, which nothing does. */
-const SELECTED_FALLBACK = '#0f1513'
+/**
+ * The ink the selection is outlined in, and the colour it falls back to.
+ *
+ * Dark, because the basemap is `graybeard` — a pale greyscale. The casing began white
+ * and did nothing at all against it: a white halo on a near-white map is not a halo,
+ * which left the whole of "this one is selected" resting on line width.
+ */
+const SELECTED_OUTLINE = '#0f1513'
 
 /**
  * What every track is drawn at, focused or not.
@@ -156,18 +162,19 @@ export function addTrackLayers(map: MapLibreMap): void {
     },
   })
 
-  // A halo, not a colour. Painting the selection black said "this is a different kind
-  // of thing" when what it means is "this is the one you picked" — and it threw away
-  // the sport or trip the colour was carrying. A casing separates it from whatever it
-  // crosses while its own colour stays the colour it always was.
+  // An outline, not a colour. Painting the selection itself black said "this is a
+  // different kind of thing" when it means "this is the one you picked", and threw away
+  // the sport or trip the colour was carrying. Drawn *under* the line instead, the same
+  // ink separates the selection from every track it crosses and from the pale basemap,
+  // while the colour on top stays the colour it always was.
   map.addLayer({
     id: SELECTED_CASING_LAYER,
     type: 'line',
     source: SELECTED_SOURCE,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': '#ffffff',
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 7, 10, 10, 14, 13],
+      'line-color': SELECTED_OUTLINE,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 8, 10, 11, 14, 14],
       'line-opacity': 0.9,
     },
   })
@@ -180,8 +187,10 @@ export function addTrackLayers(map: MapLibreMap): void {
     paint: {
       // Coalesced: `line-color` is not optional, and a feature arriving without one
       // would take the whole layer down rather than draw in the wrong colour.
-      'line-color': ['coalesce', ['get', 'colour'], SELECTED_FALLBACK],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 3.6, 10, 5.4, 14, 7.5],
+      'line-color': ['coalesce', ['get', 'colour'], SELECTED_OUTLINE],
+      // A clear step above both the resting line and a focused one, so the selection
+      // is found by weight before the eye gets as far as comparing hues.
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 4.4, 10, 6.5, 14, 9],
     },
   })
 
@@ -232,3 +241,6 @@ export function paintTracks(
 
 /** Exported for the style-spec test, which validates what `addTrackLayers` builds. */
 export const OPACITY = { RESTING_OPACITY, fadeInTo, fadeOutFrom }
+
+/** Exported so the style test can assert the outline is dark, not merely present. */
+export const SELECTION = { SELECTED_OUTLINE }

@@ -21,6 +21,7 @@ import {
   SELECTED_CASING_LAYER,
   SELECTED_LAYER,
   SELECTED_SOURCE,
+  SELECTION,
   STARTS_SOURCE,
   startPoints,
   TRACKS_LAYER,
@@ -179,13 +180,28 @@ describe('the track layers', () => {
       ['get', 'colour'],
       '#0f1513',
     ])
-    expect(paintOf(SELECTED_CASING_LAYER)['line-color']).toBe('#ffffff')
+    // Dark, not white: the basemap is a pale greyscale, so a white casing is no casing.
+    expect(paintOf(SELECTED_CASING_LAYER)['line-color']).toBe(SELECTION.SELECTED_OUTLINE)
 
     // The casing only works if it is under and wider than the line it separates.
     expect(layers.findIndex((l) => l.id === SELECTED_CASING_LAYER)).toBeLessThan(
       layers.findIndex((l) => l.id === SELECTED_LAYER),
     )
     expect(widthAt14(SELECTED_CASING_LAYER)).toBeGreaterThan(widthAt14(SELECTED_LAYER))
+  })
+
+  it('steps up in weight from resting to focused to selected', () => {
+    const { layers } = collect()
+    const widthAt14 = (id: string) => {
+      const layer = layers.find((l) => l.id === id) as { paint: Record<string, unknown> }
+      return (layer.paint['line-width'] as Array<unknown>).at(-1) as number
+    }
+
+    // Weight is what finds the selection before hue does, so the ladder must hold at
+    // every rung — a selected track no heavier than a hovered one reads as neither.
+    expect(widthAt14(TRACKS_LAYER)).toBeLessThan(widthAt14(FOCUS_LAYER))
+    expect(widthAt14(FOCUS_LAYER)).toBeLessThan(widthAt14(SELECTED_LAYER))
+    expect(widthAt14(SELECTED_LAYER)).toBeLessThan(widthAt14(SELECTED_CASING_LAYER))
   })
 
   it('draws a focused track heavier than a resting one', () => {

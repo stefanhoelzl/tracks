@@ -426,10 +426,12 @@ Nothing dims and nothing changes colour. Both were tried and both were wrong: di
 answered "which one is it?" by deleting the context that made the answer worth having, and painting
 the selection a fixed near-black threw away the sport or trip its colour was carrying — saying
 "different kind of thing" where it meant "the one you picked". Emphasis is weight instead: a
-heavier line for a focused track, and for a selected one a white casing beneath its own colour
+heavier line for a focused track, and for a selected one a dark casing beneath its own colour
 turned up — hue untouched, saturation raised and lightness pulled into one narrow vivid band, so
 it separates from whatever it crosses and from the dozen tracks painted exactly like it, without
-ever becoming a different colour. The band is what makes it uniform: the palette runs dark enough
+ever becoming a different colour. The casing is dark because the basemap is `graybeard`, a pale
+greyscale — it began white, which against that is not a casing at all, and left the whole of
+"this one is selected" resting on line width. The band is what makes it uniform: the palette runs dark enough
 that a plain darkening produced the near-black this replaced.
 
 Zero results show an empty state naming the facets doing the narrowing, with the map holding its
