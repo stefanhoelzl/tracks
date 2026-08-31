@@ -50,6 +50,7 @@ const ACTIVITIES: ActivityRow[] = [
 
 const FACETS: FacetsResponse = {
   summary: { count: 2, distanceM: 143_600, elevationGainM: 2871, durationS: 49_500 },
+  extent: [11.0, 48.0, 12.0, 48.5] as [number, number, number, number],
   tags: [
     {
       type: 'sport',

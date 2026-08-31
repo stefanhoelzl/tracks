@@ -47,6 +47,7 @@ function boundsOf(tracks: TrackCollection): LngLatBoundsLike | null {
 /** What the map chrome needs from the map, and nothing more. */
 export interface MapHandle {
   zoomBy: (delta: number) => void
+  fitBounds: (bbox: [number, number, number, number]) => void
 }
 
 export function MapView({
@@ -87,6 +88,25 @@ export function MapView({
   useImperativeHandle(ref, () => ({
     zoomBy: (delta: number) =>
       map.current?.zoomTo(map.current.getZoom() + delta, { duration: 250 }),
+    // Padded past the panels, so a track at the edge does not land under glass. The
+    // move writes the viewport back as the new bbox, like any other.
+    fitBounds: ([west, south, east, north]: [number, number, number, number]) =>
+      map.current?.fitBounds(
+        [
+          [west, south],
+          [east, north],
+        ],
+        {
+          padding: {
+            top: 88 + 24,
+            bottom: 40,
+            left: panelInsets.left + 32,
+            right: panelInsets.right + 32,
+          },
+          duration: 700,
+          maxZoom: 14,
+        },
+      ),
   }))
 
   // Read inside listeners that are attached once; a stale closure here would mean
@@ -281,8 +301,8 @@ export function MapView({
     )
   }, [ready, filter.bbox])
 
-  // Clearing the area re-arms the one fit, so "fit to all activities" is the same code
-  // path as opening the app.
+  // Only reachable before the first viewport is recorded; nothing in the UI clears a
+  // bbox once set, because widening the view is a camera move, not a filter to undo.
   useEffect(() => {
     if (filter.bbox === null) fitted.current = ''
   }, [filter.bbox])

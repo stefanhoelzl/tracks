@@ -178,6 +178,23 @@ export function facets(db: Db, filter: Filter, registry: TagRegistry): FacetsRes
            coalesce(sum(a.duration_s), 0) AS t
     FROM activities a WHERE ${whereFor(scope)}`)!
 
+  // Bounds over the cached per-activity boxes, with the viewport term dropped — 197 rows
+  // of four numbers, so it rides along with the other aggregates for nothing.
+  const box = db.get<{
+    w: number | null
+    s: number | null
+    e: number | null
+    n: number | null
+  }>(sql`
+    SELECT min(a.min_lon) AS w, min(a.min_lat) AS s,
+           max(a.max_lon) AS e, max(a.max_lat) AS n
+    FROM activities a WHERE ${whereFor(scope, { bbox: true })}`)!
+
+  const extent: [number, number, number, number] | null =
+    box.w === null || box.s === null || box.e === null || box.n === null
+      ? null
+      : [box.w, box.s, box.e, box.n]
+
   const tags = [...registry.values()]
     .sort((a, b) => a.sort - b.sort)
     .map((type) => {
@@ -214,6 +231,7 @@ export function facets(db: Db, filter: Filter, registry: TagRegistry): FacetsRes
       elevationGainM: summary.e,
       durationS: summary.t,
     },
+    extent,
     tags,
     ranges: Object.fromEntries(
       RANGE_KEYS.map((key) => [key, rangeFacet(db, scope, key)]),

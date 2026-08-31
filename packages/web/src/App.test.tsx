@@ -57,6 +57,7 @@ const TRACKS = {
 
 const FACETS = {
   summary: { count: 1, distanceM: 24_300, elevationGainM: 1900, durationS: 28_800 },
+  extent: [11.0, 48.0, 12.0, 48.5] as [number, number, number, number],
   tags: [
     {
       type: 'sport',

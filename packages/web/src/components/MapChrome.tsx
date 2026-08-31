@@ -1,4 +1,4 @@
-import { Minus, Plus, Ungroup } from 'lucide-react'
+import { Maximize, Minus, Plus, Ungroup } from 'lucide-react'
 import styles from './MapChrome.module.css'
 
 /**
@@ -10,13 +10,18 @@ import styles from './MapChrome.module.css'
  */
 export function MapChrome({
   grouped,
+  canFitAll,
   onToggleGrouping,
+  onFitAll,
   onZoom,
   insetRight,
   insetLeft,
 }: {
   grouped: boolean
+  /** False when nothing outside the viewport matches, so there is nowhere to fly to. */
+  canFitAll: boolean
   onToggleGrouping: () => void
+  onFitAll: () => void
   onZoom: (delta: number) => void
   insetRight: number
   insetLeft: number
@@ -39,6 +44,19 @@ export function MapChrome({
           the tracks for a tally at low zoom, so turning it off says "show me the actual
           lines" — which is the whole point of a track map, and why *off* is the lit state. */}
       <div className={styles.grouping} style={{ left: insetLeft, right: insetRight }}>
+        {/* The viewport is always the filter, so widening it is how you get back to
+            everything — a camera move, not a filter you clear. */}
+        <button
+          type="button"
+          className={styles.group}
+          onClick={onFitAll}
+          disabled={!canFitAll}
+          aria-label="Zoom out to all activities"
+          title="Zoom out to all activities"
+        >
+          <Maximize size={17} strokeWidth={2} />
+        </button>
+
         <button
           type="button"
           className={[styles.group, grouped ? '' : styles.groupOn].join(' ')}

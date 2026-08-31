@@ -26,6 +26,7 @@ const TAG_TYPES: TagType[] = [
 
 const FACETS: FacetsResponse = {
   summary: { count: 3, distanceM: 75_000, elevationGainM: 3100, durationS: 28_800 },
+  extent: [11.0, 48.0, 12.0, 48.5] as [number, number, number, number],
   tags: [
     {
       type: 'sport',
@@ -60,7 +61,6 @@ function setup(filter: Filter = emptyFilter()) {
       filter={filter}
       scale={SCALE}
       onChange={onChange}
-      onClearArea={vi.fn()}
     />,
   )
   return { onChange, search: () => formatFilter(onChange.mock.calls[0]![0]).toString() }
@@ -144,7 +144,6 @@ describe('the filter sidebar', () => {
         filter={emptyFilter()}
         scale={SCALE}
         onChange={vi.fn()}
-        onClearArea={vi.fn()}
       />,
     )
     expect(screen.getByText('Nothing in range')).toBeTruthy()

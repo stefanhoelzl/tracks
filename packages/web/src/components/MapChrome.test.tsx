@@ -3,19 +3,22 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { MapChrome } from './MapChrome.tsx'
 
-function setup(grouped: boolean) {
+function setup(grouped: boolean, canFitAll = true) {
   const onToggleGrouping = vi.fn()
+  const onFitAll = vi.fn()
   const onZoom = vi.fn()
   render(
     <MapChrome
       grouped={grouped}
+      canFitAll={canFitAll}
       onToggleGrouping={onToggleGrouping}
+      onFitAll={onFitAll}
       onZoom={onZoom}
       insetLeft={320}
       insetRight={360}
     />,
   )
-  return { onToggleGrouping, onZoom }
+  return { onToggleGrouping, onFitAll, onZoom }
 }
 
 describe('MapChrome', () => {
@@ -47,5 +50,31 @@ describe('MapChrome', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Grouping nearby starts' }))
     expect(onToggleGrouping).toHaveBeenCalledOnce()
+  })
+})
+
+describe('zoom out to all activities', () => {
+  it('is an icon with a name and a tooltip, and no visible text', () => {
+    setup(true)
+
+    const button = screen.getByRole('button', { name: 'Zoom out to all activities' })
+    expect(button.textContent).toBe('')
+    expect(button.getAttribute('title')).toBe('Zoom out to all activities')
+  })
+
+  it('flies the camera when there is somewhere to fly to', async () => {
+    const { onFitAll } = setup(true)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Zoom out to all activities' }))
+    expect(onFitAll).toHaveBeenCalledOnce()
+  })
+
+  it('is disabled when nothing matches, rather than flying nowhere', async () => {
+    const { onFitAll } = setup(true, false)
+
+    const button = screen.getByRole('button', { name: 'Zoom out to all activities' })
+    expect(button.hasAttribute('disabled')).toBe(true)
+    await userEvent.click(button)
+    expect(onFitAll).not.toHaveBeenCalled()
   })
 })

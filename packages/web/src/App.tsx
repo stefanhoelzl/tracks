@@ -100,6 +100,9 @@ export function App() {
 
   const zoom = useCallback((delta: number) => mapHandle.current?.zoomBy(delta), [])
 
+  /** Where everything matching the non-spatial filters is, so the camera can go there. */
+  const extent = facets.data?.extent ?? null
+
   const listError = message(activities.error) ?? message(tracks.error) ?? urlError
 
   return (
@@ -148,7 +151,6 @@ export function App() {
               filter={filter}
               scale={scale}
               onChange={setFilter}
-              onClearArea={() => setFilter(setBbox(filter, null))}
             />
           </div>
         </Panel>
@@ -215,7 +217,9 @@ export function App() {
 
       <MapChrome
         grouped={view.grouped}
+        canFitAll={extent !== null}
         onToggleGrouping={() => setView({ ...view, grouped: !view.grouped })}
+        onFitAll={() => extent && mapHandle.current?.fitBounds(extent)}
         onZoom={zoom}
         insetLeft={insets.left}
         insetRight={insets.right}

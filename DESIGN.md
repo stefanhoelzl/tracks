@@ -354,8 +354,14 @@ on is not a choice worth offering.
 
 What it costs is auto-fit. Choosing a tag no longer flies the camera to what it selected, and
 selecting an activity no longer zooms to it, because both would move the camera and so rewrite the
-filter that caused them. *Fit to all activities* in the sidebar clears the bbox, which re-arms the
-one fit — the same code path as opening the app.
+filter that caused them.
+
+Getting back out is therefore a camera control, not a filter to clear: *zoom out to all activities*
+in the map chrome flies to `facets.extent`, the extent of everything matching the filter with its
+bbox term dropped. Self-excluded exactly as a facet is, and for the same reason — it answers "where
+is the rest of it?", which the viewport-filtered payload cannot, because the viewport is what
+removed it. The move then writes the wider viewport back as the new bbox, like any other pan. The
+area is never cleared; it is only ever replaced by looking somewhere else.
 
 The bbox is the whole canvas, including what shows through the translucent panels. Insetting it to
 the unobstructed strip would hide a track that is plainly visible, which reads as a bug.
@@ -487,7 +493,7 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 |---|---|
 | `GET /api/activities?<filters>` | List rows, ordered by `sort_key`/`sort_order` |
 | `GET /api/tracks?<filters>` | The simplified polylines, still encoded; each carries its `id`, `tags` and `year` |
-| `GET /api/facets?<filters>` | Summary totals, per-value counts and range bounds + histograms — all self-excluded |
+| `GET /api/facets?<filters>` | Summary totals, per-value counts, range bounds + histograms, and the bbox-excluded `extent` — all self-excluded |
 | `GET /api/activities/:id` | Detail plus the full-resolution track, encoded at precision 6 with altitude alongside |
 | `GET /api/tag-types` | The registry, which the browser needs to render and validate |
 | `GET /api/stats?<filters>` | Aggregates for the analytics views — **M5** |

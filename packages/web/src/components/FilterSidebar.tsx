@@ -205,14 +205,12 @@ export function FilterSidebar({
   filter,
   scale,
   onChange,
-  onClearArea,
 }: {
   tagTypes: TagType[]
   facets: FacetsResponse | undefined
   filter: Filter
   scale: ColourScale
   onChange: (next: Filter, mode?: 'push' | 'replace') => void
-  onClearArea: () => void
 }) {
   const byType = new Map((facets?.tags ?? []).map((f) => [f.type, f]))
 
@@ -223,9 +221,6 @@ export function FilterSidebar({
           <div className={styles.areaHead}>
             <Square size={15} color="var(--accent)" strokeWidth={2} />
             <span className={styles.areaTitle}>Visible area</span>
-            <button type="button" onClick={onClearArea} aria-label="Fit to all activities">
-              <X size={14} color="var(--accent)" />
-            </button>
           </div>
           <div className={styles.areaCoords}>
             {filter.bbox[1].toFixed(2)}–{filter.bbox[3].toFixed(2)} N · {filter.bbox[0].toFixed(2)}–

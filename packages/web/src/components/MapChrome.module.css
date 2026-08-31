@@ -38,6 +38,7 @@
   z-index: 10;
   display: flex;
   justify-content: center;
+  gap: 8px;
   pointer-events: none;
 }
 
@@ -61,9 +62,14 @@
     color 140ms var(--ease);
 }
 
-.group:hover {
+.group:hover:not(:disabled) {
   background: var(--sunk);
   color: var(--ink);
+}
+
+.group:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* Lit when grouping is off, because "show me the actual lines" is the deliberate state. */

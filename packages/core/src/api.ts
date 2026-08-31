@@ -123,6 +123,15 @@ export const facetsResponseSchema = z.object({
     elevationGainM: z.number(),
     durationS: z.number().int(),
   }),
+  /**
+   * The extent of everything matching the filter *without* its bbox term —
+   * `[west, south, east, north]`, or null when nothing in scope has a track.
+   *
+   * Self-excluded like a facet, and for the same reason: it answers "where is the rest
+   * of it?", which the viewport-filtered payload cannot, since that is precisely what
+   * the viewport removed. It is what *zoom out to everything* flies to.
+   */
+  extent: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullable(),
   /** In registry sort order, so the sidebar renders it as it arrives. */
   tags: z.array(tagFacetSchema),
   ranges: z.object(
