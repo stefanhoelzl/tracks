@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import type { SortKey } from '@tracks/core'
+import type { NewType, SortKey, TagWrite } from '@tracks/core'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
@@ -16,8 +16,10 @@ import {
   ApiFailure,
   useActivities,
   useActivityDetail,
+  useActivityTags,
   useFacets,
   useTagTypes,
+  useTagWrite,
   useTracks,
 } from './lib/api.ts'
 import { buildScale, type ColourGroup, TYPE_GROUP } from './lib/colour.ts'
@@ -58,6 +60,33 @@ export function App() {
   const tracks = useTracks(filter)
   const facets = useFacets(filter)
   const detail = useActivityDetail(view.activity)
+
+  const tagWrite = useTagWrite(filter)
+  const activityTags = useActivityTags(view.activity)
+
+  /**
+   * What the last bulk write did, until the next action.
+   *
+   * The rows it touched usually stop matching the moment it lands — tagging everything
+   * under *not set* empties the list by definition — so this line is what is left to
+   * say it happened. That the pile went down is the other half, and the better half.
+   */
+  const [writeResult, setWriteResult] = useState<string | null>(null)
+
+  const onWrite = useCallback(
+    async (write: TagWrite) => {
+      const { changed } = await tagWrite.mutateAsync(write)
+      const tag = write.add[0] ?? write.remove[0] ?? ''
+      const verb = write.add.length > 0 ? 'tagged' : 'untagged'
+      setWriteResult(`${changed} ${changed === 1 ? 'activity' : 'activities'} ${verb} · ${tag}`)
+    },
+    [tagWrite],
+  )
+
+  const onActivityTags = useCallback(
+    (tags: string[], newType?: NewType) => activityTags.mutateAsync({ tags, newType }),
+    [activityTags],
+  )
 
   /**
    * Colour by the registry's first type unless the URL says otherwise.
@@ -196,7 +225,16 @@ export function App() {
               facets={facets.data}
               filter={filter}
               scale={scale}
-              onChange={setFilter}
+              activities={activities.data?.activities}
+              writing={tagWrite.isPending}
+              result={writeResult}
+              onChange={(next, mode) => {
+                // A filter change is the next action, so the previous write's line has
+                // said what it had to say.
+                setWriteResult(null)
+                setFilter(next, mode)
+              }}
+              onWrite={onWrite}
             />
           </div>
         </Panel>
@@ -227,7 +265,9 @@ export function App() {
               tagTypes={tagTypes.data?.tagTypes ?? []}
               scale={scale}
               loading={detail.isLoading}
+              writing={activityTags.isPending}
               error={message(detail.error)}
+              onTags={onActivityTags}
               cursor={cursor}
               onCursor={setCursor}
               onBack={() => select(null)}

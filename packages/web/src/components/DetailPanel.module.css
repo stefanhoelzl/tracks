@@ -78,6 +78,9 @@
   display: flex;
   gap: 7px;
   flex-wrap: wrap;
+  /* Empty when an activity carries nothing, which is exactly when the field below is
+     what you want — so the gap collapses rather than leaving a hole above it. */
+  margin-bottom: 2px;
 }
 
 .points,

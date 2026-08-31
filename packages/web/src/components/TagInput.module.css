@@ -1,0 +1,140 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-radius: var(--radius-ctrl);
+  background: var(--sunk);
+  border: 2px solid transparent;
+}
+
+.row:focus-within {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.plus {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.input:disabled {
+  color: var(--muted);
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 9px;
+  border-radius: 7px;
+  text-align: left;
+}
+
+.suggestion:hover,
+.active {
+  background: var(--sunk);
+}
+
+/* The type is the quieter half: what you are choosing between is the value, and the
+   prefix is there so `trip:Alps` and `place:Alps` never look like the same tag. */
+.suggestionType {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.suggestionValue {
+  font-size: var(--text-base);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A type is created here, in the middle of tagging, because it cannot be created
+   anywhere else: an empty type is collected before you could use it. */
+.newType {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  border-radius: var(--radius-ctrl);
+  border: 1.5px dashed var(--line-2);
+}
+
+.newTypeHead {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.newTypeHead code {
+  font-family: var(--font-mono);
+  color: var(--ink);
+}
+
+.newTypeLabel {
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: var(--sunk);
+  border: none;
+  outline: none;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.newTypeSingle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-sm);
+}
+
+.newTypeCreate {
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.newTypeCreate:hover:not(:disabled) {
+  background: var(--accent-deep);
+}
+
+.newTypeCreate:disabled {
+  opacity: 0.45;
+}
+
+.error {
+  font-size: var(--text-sm);
+  color: #a2261d;
+}

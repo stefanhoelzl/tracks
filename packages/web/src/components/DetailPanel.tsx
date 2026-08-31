@@ -1,38 +1,44 @@
-import type { ActivityDetail, TagType } from '@tracks/core'
+import type { ActivityDetail, NewType, RegisteredType } from '@tracks/core'
 import { ChevronLeft } from 'lucide-react'
 import { useMemo } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, group, km, localTime, longDate, metres } from '../lib/format.ts'
 import styles from './DetailPanel.module.css'
 import { ElevationProfile, profileOf } from './ElevationProfile.tsx'
+import { TagInput } from './TagInput.tsx'
 import { Chip } from './ui/Chip.tsx'
 import { Label } from './ui/Label.tsx'
 import { StatTile } from './ui/StatTile.tsx'
 
 /**
- * One activity, read-only.
+ * One activity, and the one place a single activity's tags are edited.
  *
- * Its tags are chips rather than controls: editing them is M4's whole subject, and a
- * chip that looks editable but is not would be worse than one that plainly is not.
+ * The chips are the control: each removes itself, and the field under them adds. Both
+ * send the whole array — the panel is holding it anyway — so adding and removing are
+ * one request rather than two routes that have to agree.
  */
 export function DetailPanel({
   detail,
   tagTypes,
   scale,
   loading,
+  writing,
   error,
   cursor,
   onCursor,
+  onTags,
   onBack,
 }: {
   detail: ActivityDetail | undefined
-  tagTypes: TagType[]
+  tagTypes: RegisteredType[]
   scale: ColourScale
   loading: boolean
+  writing: boolean
   error: string | null
   /** The point the elevation cursor is on, shared with the map. */
   cursor: number | null
   onCursor: (index: number | null) => void
+  onTags: (tags: string[], newType?: NewType) => Promise<unknown>
   onBack: () => void
 }) {
   const labels = new Map(tagTypes.map((t) => [t.name, t.label]))
@@ -110,10 +116,20 @@ export function DetailPanel({
                       type={labels.get(type)?.toLowerCase() ?? type}
                       value={tag.slice(at + 1)}
                       colour={scale.colourForTag(tag)}
+                      onRemove={() =>
+                        void onTags(detail.activity.tags.filter((held) => held !== tag))
+                      }
                     />
                   )
                 })}
               </div>
+              <TagInput
+                tagTypes={tagTypes}
+                scale={scale}
+                placeholder="type:value"
+                pending={writing}
+                onSubmit={(tag, newType) => onTags([...detail.activity.tags, tag], newType)}
+              />
             </div>
           </>
         ) : null}

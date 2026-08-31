@@ -1,10 +1,12 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { FacetsResponse, Filter, RegisteredType } from '@tracks/core'
+import type { ActivityRow, FacetsResponse, Filter, RegisteredType } from '@tracks/core'
 import { emptyFilter, formatFilter } from '@tracks/core'
 import { describe, expect, it, vi } from 'vitest'
 import { buildScale } from '../lib/colour.ts'
 import { FilterSidebar } from './FilterSidebar.tsx'
+
+type Props = Parameters<typeof FilterSidebar>[0]
 
 /**
  * What these assert is not "the sidebar renders" but "clicking that writes this
@@ -55,18 +57,60 @@ const SCALE = buildScale([
   { type: 'trip', values: ['Alps'] },
 ])
 
-function setup(filter: Filter = emptyFilter()) {
+/** Two of the four rows the FACETS above count, so *in scope* is a real subset. */
+const ACTIVITIES: ActivityRow[] = [
+  {
+    id: 1,
+    source: 'strava',
+    title: 'Alps ride',
+    startedAt: '2024-06-01T06:00:00.000Z',
+    utcOffset: 7200,
+    localDate: '2024-06-01',
+    distanceM: 50_000,
+    durationS: 7200,
+    elapsedS: 8000,
+    elevationGainM: 1200,
+    speedMs: 6.94,
+    tags: ['sport:bike', 'trip:Alps'],
+  },
+  {
+    id: 2,
+    source: 'strava',
+    title: 'Night ride',
+    startedAt: '2024-12-31T23:30:00.000Z',
+    utcOffset: 3600,
+    localDate: '2025-01-01',
+    distanceM: 20_000,
+    durationS: 3600,
+    elapsedS: 3700,
+    elevationGainM: 300,
+    speedMs: 5.56,
+    tags: ['sport:bike'],
+  },
+]
+
+function setup(filter: Filter = emptyFilter(), over: Partial<Props> = {}) {
   const onChange = vi.fn()
+  const onWrite = vi.fn().mockResolvedValue({ changed: 2 })
   render(
     <FilterSidebar
       tagTypes={TAG_TYPES}
       facets={FACETS}
       filter={filter}
       scale={SCALE}
+      activities={ACTIVITIES}
+      writing={false}
+      result={null}
       onChange={onChange}
+      onWrite={onWrite}
+      {...over}
     />,
   )
-  return { onChange, search: () => formatFilter(onChange.mock.calls[0]![0]).toString() }
+  return {
+    onChange,
+    onWrite,
+    search: () => formatFilter(onChange.mock.calls[0]![0]).toString(),
+  }
 }
 
 describe('the filter sidebar', () => {
@@ -164,9 +208,88 @@ describe('the filter sidebar', () => {
         }}
         filter={emptyFilter()}
         scale={SCALE}
+        activities={ACTIVITIES}
+        writing={false}
+        result={null}
         onChange={vi.fn()}
+        onWrite={vi.fn()}
       />,
     )
     expect(screen.getByText('Nothing in range')).toBeTruthy()
+  })
+
+  it('tags everything the filter matches, from one field', async () => {
+    const { onWrite } = setup()
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'type:value' }), 'trip:Balkans{enter}')
+    expect(onWrite).toHaveBeenCalledWith({
+      add: ['trip:Balkans'],
+      remove: [],
+      newType: undefined,
+    })
+  })
+
+  it('suggests values in use, from the whole archive rather than the filter', async () => {
+    setup()
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'type:value' }), 'ru')
+    // `run` is in the registry's values even though nothing on screen carries it —
+    // which is the case the autocomplete exists for.
+    const suggestion = screen.getByRole('button', { name: /sport:\s*run/ })
+    expect(suggestion).toBeTruthy()
+  })
+
+  it('asks what a new type is before creating it with its first tag', async () => {
+    const { onWrite } = setup()
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'type:value' }), 'gear:steel{enter}')
+    expect(onWrite).not.toHaveBeenCalled()
+
+    // The label is guessed from the name, so accepting is one click; single-valued is
+    // the one question a value cannot answer for itself.
+    expect(screen.getByRole('textbox', { name: 'Label' })).toHaveProperty('value', 'Gear')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'One value per activity' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create and apply' }))
+
+    expect(onWrite).toHaveBeenCalledWith({
+      add: ['gear:steel'],
+      remove: [],
+      newType: { name: 'gear', label: 'Gear', singleValued: true },
+    })
+  })
+
+  it('refuses a tag that is not <type>:<value> without asking the server', async () => {
+    const { onWrite } = setup()
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'type:value' }), 'steel{enter}')
+    expect(screen.getByText(/not a <type>:<value> tag/)).toBeTruthy()
+    expect(onWrite).not.toHaveBeenCalled()
+  })
+
+  it('offers the trash only where removing would do something', async () => {
+    const { onWrite } = setup()
+
+    // `bike` is on both rows on screen; `hike` and `run` are counted — the facets are
+    // self-excluded — but nothing matching carries them, so removing writes nothing.
+    expect(
+      screen.getByRole('button', { name: 'Remove bike from matching activities' }),
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: 'Remove hike from matching activities' }),
+    ).toBeNull()
+    // *not set* names an absence: there is nothing to take away.
+    expect(
+      screen.queryByRole('button', { name: 'Remove not set from matching activities' }),
+    ).toBeNull()
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove bike from matching activities' }),
+    )
+    expect(onWrite).toHaveBeenCalledWith({ add: [], remove: ['sport:bike'] })
+  })
+
+  it('has nothing to tag when nothing matches', () => {
+    setup(emptyFilter(), { facets: { ...FACETS, summary: { ...FACETS.summary, count: 0 } } })
+    expect(screen.getByRole('textbox', { name: 'type:value' })).toHaveProperty('disabled', true)
   })
 })

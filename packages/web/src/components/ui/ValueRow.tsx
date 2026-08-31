@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react'
 import { Dot } from './Dot.tsx'
 import styles from './ValueRow.module.css'
 
@@ -19,6 +20,7 @@ export function ValueRow({
   muted = false,
   onToggle,
   onExclude,
+  onRemove,
 }: {
   label: string
   count: number
@@ -29,6 +31,14 @@ export function ValueRow({
   muted?: boolean
   onToggle: () => void
   onExclude: () => void
+  /**
+   * Removes this value from everything the filter matches.
+   *
+   * Absent when that would write nothing — a value nothing currently matching carries,
+   * or the *not set* row, which names an absence there is nothing to remove. A trash
+   * beside a count it would not touch reads as a broken button.
+   */
+  onRemove?: () => void
 }) {
   return (
     <div
@@ -59,6 +69,17 @@ export function ValueRow({
       >
         −
       </button>
+      {onRemove ? (
+        <button
+          type="button"
+          className={styles.remove}
+          onClick={onRemove}
+          aria-label={`Remove ${label} from matching activities`}
+          title="Remove from matching activities"
+        >
+          <Trash2 size={11} strokeWidth={2.2} />
+        </button>
+      ) : null}
     </div>
   )
 }

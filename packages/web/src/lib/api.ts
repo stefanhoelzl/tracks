@@ -1,18 +1,23 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   type ActivitiesResponse,
   type ActivityDetailResponse,
+  type ActivityTagsResponse,
   activitiesResponseSchema,
   activityDetailSchema,
+  activityTagsResponseSchema,
   apiErrorSchema,
   type FacetsResponse,
   type Filter,
   facetsResponseSchema,
   formatFilter,
   type TagTypesResponse,
+  type TagWrite,
+  type TagWriteResponse,
   type TrackCollection,
   type TracksResponse,
   tagTypesResponseSchema,
+  tagWriteResponseSchema,
   tracksResponseSchema,
 } from '@tracks/core'
 import type { z } from 'zod'
@@ -49,6 +54,31 @@ async function get<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal):
         )
       : response.statusText
     throw new ApiFailure(detail, response.status)
+  }
+
+  return schema.parse(await response.json())
+}
+
+async function send<T>(
+  method: 'POST' | 'PUT',
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
+  const response = await fetch(path, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const parsed = apiErrorSchema.safeParse(await response.json().catch(() => null))
+    throw new ApiFailure(
+      parsed.success
+        ? [parsed.data.error, ...(parsed.data.issues ?? []).map((i) => i.message)].join(' — ')
+        : response.statusText,
+      response.status,
+    )
   }
 
   return schema.parse(await response.json())
@@ -114,12 +144,60 @@ export function useActivityDetail(id: number | null) {
   })
 }
 
-/** The registry changes only when you change it, which M3 has no way to do. */
+/**
+ * The registry and the vocabulary, which change only when a tag is written — and then
+ * every write invalidates them, so nothing has to guess when they went stale.
+ */
 export function useTagTypes() {
   return useQuery({
     queryKey: ['tag-types'],
     staleTime: Number.POSITIVE_INFINITY,
     queryFn: ({ signal }) =>
       get<TagTypesResponse>('/api/tag-types', tagTypesResponseSchema, signal),
+  })
+}
+
+/**
+ * A write invalidates everything.
+ *
+ * All four reads are downstream of the tags: the rows carry them, the map colours by
+ * them, the facets count them, and the registry is derived from them. Working out
+ * which of the four a particular edit could not have touched would be four rules to
+ * get wrong for one refetch of a few hundred rows.
+ */
+function useInvalidateAll() {
+  const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries()
+}
+
+/** The bulk write. Its target is the filter, so the filter is in the URL, as on a read. */
+export function useTagWrite(filter: Filter) {
+  const invalidate = useInvalidateAll()
+
+  return useMutation({
+    mutationFn: (write: TagWrite) =>
+      send<TagWriteResponse>(
+        'POST',
+        `/api/tags?${formatFilter(filter)}`,
+        write,
+        tagWriteResponseSchema,
+      ),
+    onSuccess: invalidate,
+  })
+}
+
+/** One activity's tags, sent as the array they should now be. */
+export function useActivityTags(id: number | null) {
+  const invalidate = useInvalidateAll()
+
+  return useMutation({
+    mutationFn: (body: { tags: string[]; newType?: TagWrite['newType'] }) =>
+      send<ActivityTagsResponse>(
+        'PUT',
+        `/api/activities/${id}/tags`,
+        body,
+        activityTagsResponseSchema,
+      ),
+    onSuccess: invalidate,
   })
 }

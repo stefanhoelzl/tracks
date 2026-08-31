@@ -204,3 +204,19 @@
   font-size: var(--text-xs);
   color: var(--muted);
 }
+
+/* The only part of the sidebar that writes, and it sits under the search because the
+   two are one gesture: find what a tag is missing from, then apply it to what is left.
+   The rule below separates writing from the facets that chose what is written to. */
+.write {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-bottom: 15px;
+  border-bottom: 1.5px solid var(--line);
+}
+
+.result {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

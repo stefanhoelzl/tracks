@@ -31,6 +31,13 @@ const TAG_TYPES = {
         { value: 'run', count: 70 },
       ],
     },
+    {
+      name: 'trip',
+      label: 'Trip',
+      singleValued: true,
+      sort: 2,
+      values: [{ value: 'Balkan 2026', count: 41 }],
+    },
   ],
 }
 
@@ -89,6 +96,7 @@ function route(url: string): unknown {
   if (path === '/api/activities') return ACTIVITIES
   if (path === '/api/tracks') return TRACKS
   if (path === '/api/facets') return FACETS
+  if (path === '/api/tags') return { changed: 1 }
   throw new Error(`unrouted ${url}`)
 }
 
@@ -108,8 +116,8 @@ describe('the app', () => {
     window.history.replaceState(null, '', '/')
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: string) => {
-        requested.push(input)
+      vi.fn(async (input: string, init?: RequestInit) => {
+        requested.push(`${init?.method ?? 'GET'} ${input}`)
         return new Response(JSON.stringify(route(input)), {
           headers: { 'content-type': 'application/json' },
         })
@@ -136,7 +144,7 @@ describe('the app', () => {
     expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy()
     expect(screen.getByTestId('map').textContent).toBe('1 tracks')
 
-    const paths = requested.map((r) => r.split('?')[0])
+    const paths = requested.map((r) => r.split(' ')[1]!.split('?')[0])
     expect(new Set(paths)).toEqual(
       new Set(['/api/tag-types', '/api/activities', '/api/tracks', '/api/facets']),
     )
@@ -153,10 +161,46 @@ describe('the app', () => {
     await waitFor(() => {
       const filtered = requested.filter((r) => r.includes('tag=sport%3Ahike'))
       // Rows, geometry and facets each carry the same filter — three keys, one fact.
-      expect(new Set(filtered.map((r) => r.split('?')[0]))).toEqual(
+      expect(new Set(filtered.map((r) => r.split(' ')[1]!.split('?')[0]))).toEqual(
         new Set(['/api/activities', '/api/tracks', '/api/facets']),
       )
     })
+  })
+
+  it('tags what the filter matches, and refetches all four routes', async () => {
+    window.history.replaceState(null, '', '/?tag=sport%3Ahike')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+    requested = []
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'type:value' }),
+      'trip:Balkan 2026{enter}',
+    )
+
+    // The write names its target the way a read does — the same query string, so
+    // there is no second way of saying which activities are meant.
+    await waitFor(() => expect(requested).toContain('POST /api/tags?tag=sport%3Ahike'))
+    const body = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST')?.[1]
+    expect(JSON.parse(String(body?.body))).toEqual({
+      add: ['trip:Balkan 2026'],
+      remove: [],
+    })
+
+    // The rows carry tags, the map colours by them, the facets count them and the
+    // registry is derived from them: everything on screen is downstream of the write.
+    await waitFor(() => {
+      const paths = new Set(
+        requested.filter((r) => r.startsWith('GET ')).map((r) => r.split(' ')[1]!.split('?')[0]),
+      )
+      expect(paths).toEqual(
+        new Set(['/api/tag-types', '/api/activities', '/api/tracks', '/api/facets']),
+      )
+    })
+
+    // And the result line says what happened, since the rows it touched have usually
+    // stopped matching by the time it lands.
+    expect(screen.getByText('1 activity tagged · trip:Balkan 2026')).toBeTruthy()
   })
 
   it('restores the filter from the URL on load, without a click', async () => {
@@ -164,7 +208,7 @@ describe('the app', () => {
     await renderApp()
 
     await waitFor(() => expect(requested.length).toBeGreaterThan(0))
-    const activities = requested.find((r) => r.startsWith('/api/activities?'))!
+    const activities = requested.find((r) => r.startsWith('GET /api/activities?'))!
     expect(activities).toContain('tag=sport%3Ahike')
     expect(activities).toContain('distance_min=5000')
     // View state is the browser's business and never reaches the server.
@@ -175,7 +219,7 @@ describe('the app', () => {
     window.history.replaceState(null, '', '/?activity=7')
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input)
-      requested.push(url)
+      requested.push(`GET ${url}`)
       const body =
         url.split('?')[0] === '/api/activities/7'
           ? {

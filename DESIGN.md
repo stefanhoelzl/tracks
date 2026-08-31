@@ -8,7 +8,7 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | Local-only, single user |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
 | **Stack** | Node 24 · pnpm · SQLite · React · MapLibre |
-| **Status** | M1–M3.5 complete; M4 (tagging) next |
+| **Status** | M1–M4 complete; M5 (analytics) next |
 
 ---
 
@@ -513,8 +513,8 @@ its own term when clicked. The sidebar says what a filter could be; only the chi
 it is — and they stay visible when the sidebar is collapsed, which is exactly when you have
 stopped adjusting the filter and started reading the map under it.
 
-At its right edge is **Import**, a dropdown with one entry per source and the only control
-in the app that writes anything. The chips beside it scroll; it never shrinks, because an
+At its right edge is **Import**, a dropdown with one entry per source. The chips beside it
+scroll; it never shrinks, because an
 action you cannot reach is worse than a filter term you have to scroll to. The M5 analytics
 switch lands beside it.
 
@@ -526,9 +526,10 @@ Cancelling while reading has sent nothing; cancelling while writing rolls back.
 
 A list row is a coloured bar plus title, distance, elevation, duration and date. The bar follows
 the active *colour by* rather than being hardwired to sport, so the list and the map never read as
-two different legends. Clicking one selects it — `?activity=123` — and the right panel swaps to a
-read-only detail while the full-resolution track draws over the simplified one. Selection is
-single; the checkboxes and shift-click ranges belong to the M4 flow that needs them.
+two different legends. Clicking one selects it — `?activity=123` — and the right panel swaps to the
+detail while the full-resolution track draws over the simplified one. Selection is single, and
+stays that way: the checkboxes and shift-click ranges were being kept for the bulk-tagging flow,
+and that flow turned out not to want them.
 
 The detail carries an **elevation profile** of the track, against distance along it rather than
 against time — timestamps are not on the wire, and the wall at km 62 is how the thing is talked
@@ -579,6 +580,50 @@ Average speed is `distance_m / duration_s`, computed in SQL rather than stored. 
 missing either input has no speed, so it is absent from that histogram and matches no speed
 range — the same way an untagged activity matches no `sport:` term. Every range facet treats
 nulls that way, which is what keeps narrowing a filter monotonic.
+
+### Tagging is the sidebar
+
+The tag UI has no surface of its own. Two controls join the panel that already holds the
+values and their counts, directly under the search field — because searching and tagging are
+one gesture: narrow to the activities a tag is missing from, then apply it to what is left.
+
+**One field adds**, taking `<type>:<value>` exactly as the grammar defines it, with a dropdown
+over every value in use — filtered as you type, and drawn from the whole archive rather than
+the filter, since the moment you most need to be offered `trip:Balkan 2026` is when you have
+narrowed to the rides that lack it. It writes over the current filter and nothing else: there
+is no id list, no checkbox and no selection set, because narrowing the filter is already how
+this app says which activities you mean. Its label carries the count it would write to, and it
+is disabled at zero.
+
+A type is created here or nowhere. Typing an unknown type opens two fields below the
+input — a label, guessed from the name, and *one value per activity* — and the type is created
+in the same transaction as its first tag. It has to be: an empty type would be collected before
+you could use it. There is nothing to ask beyond those two, since a type declares no vocabulary,
+picks no colour, and is never deleted by hand.
+
+**A trash on each value row removes**, beside the `−` that excludes it, writing over the filter
+exactly as it stands. It appears only on values the activities on screen actually carry — the
+counts beside them are self-excluded, so a row can read `41` while the filter as it stands holds
+none of them, and a trash that would write zero rows reads as a broken button. Which rows those
+are is counted in the browser, from the rows it already holds.
+
+Nothing confirms, and nothing can be undone. What guards a bulk write is that the number it
+will touch is on the label of the control doing it. Tags remain the only non-regenerable data
+in the system, and this is the second deliberate bet on that after the missing export.
+
+**Afterwards, the list usually empties.** Tag everything under *trip: not set* and by definition
+none of it matches any more — which is the feedback, and the reason the untagged pass converges:
+the pile visibly goes down. A result line under the field says what happened, since the rows it
+happened to are gone.
+
+Single-valued types replace silently. `trip:Alps` over a set that already carries other trips
+reports one number, because replacement is what the type *means* rather than an event. That is
+also why renaming is not an operation: filter to the old value, apply the new one, and the old
+one is left with no activities and ceases to exist.
+
+**One activity is tagged in its detail panel**, where you are already looking when you notice the
+tag is wrong. Each chip removes itself, and the same field adds. Both send the whole array, which
+the panel is holding anyway — so adding and removing are one request.
 
 A range facet is one control, not a chart with a bar beneath it. The handles ride the foot of
 their own distribution and everything outside the selection is washed pale — drawn in chart
@@ -781,7 +826,7 @@ inspected through a SQLite browser.
 | **M2.5** | Typed tags | The `tag_types` registry, the `<type>:<value>` grammar and validator in core, per-source auto-tagging, and a migration that rewrites the existing arrays. No UI — done before M3 so the map and sidebar are built against the final tag model rather than twice. |
 | **M3** | Map, list and filters | The REST API, the MapLibre map with hillshade and contours, the synced activity list, a read-only activity detail with its elevation profile, and the full filter sidebar with viewport spatial filtering. Lands in three commits — the core split, the backend, the browser. |
 | **M3.5** | Import from the UI | The Import dropdown, and with it the end of the CLI. Both sources move into the browser, so Komoot credentials never reach the server and a Strava export is never uploaded; the server becomes a source-agnostic writer whose whole run is one rollback-able transaction. Three commits — the sources, the ingest route, the UI. |
-| **M4** | Tagging | Tag UI and tag-driven filtering, including whatever makes 500 untagged activities tractable. Free-text search arrives here too, since the flow that needs it is finding untagged activities by name. |
+| **M4** | Tagging | Writes, at last — and the milestone that took things away. The registry loses its vocabulary and its colours and stops being administered at all; tagging becomes two controls in the sidebar over the current filter, plus editable chips in the detail panel; title search lands beside them, because finding the untagged by name is where the flow starts. Four commits — the registry, search, the routes, the UI. |
 | **M5** | Analytics | The three filter-scoped ECharts views. The fourth, the elevation profile, belongs to one activity and shipped with M3 — which is what brought ECharts in early. |
 | **M6** | Heatmap and coverage | "Everywhere I've been", percentage of terrain covered, new-versus-repeated per activity. |
 
@@ -854,8 +899,9 @@ will otherwise propose all of these again.
 | A router library | One page, one query string, and core already parses it. `useSyncExternalStore` over `history` is the whole requirement. |
 | `hillshade-vectors` | Pre-baked shading composites like any vector layer, but its light angle and intensity are fixed. The `raster-dem` source is tunable and also feeds the contours. |
 | A contours toggle | A contour is a property of the basemap, not a filter. One display toggle would invent a map-options surface that nothing else needs. |
-| Rendering M4/M5 controls inert | A dead button invites a click and answers with a shrug. The layout absorbs the analytics switch and the bulk-tag button when they do something. |
-| Multi-select in M3 | Selection sets, a selection summary and a clear affordance, built a milestone before the bulk-tagging flow that consumes them. |
+| Rendering M4/M5 controls inert | A dead button invites a click and answers with a shrug. The layout absorbed the analytics switch when it does something — and the bulk-tag button it was also holding a place for never arrived, because tagging went into the sidebar instead. |
+| Multi-select, in M3 and then at all | Selection sets, a selection summary and a clear affordance, deferred to the milestone that would consume them — which then did not. A bulk write targets the filter, and the sidebar was already a precise way of choosing activities. |
+| Undo, and confirmation | For a write that names its own count on the control performing it. A one-slot journal of pre-images was drafted and dropped: it is machinery in the write path for a mistake the label is already showing you. |
 | A pure hash for colours | Collided `sport:bike` with `sport:hike` in the real data. The hash survives as the *preference*; collisions now probe to the next free slot. |
 | Per-value colours in the token file | Nothing in CSS can read them — they are painted into GeoJSON properties and passed as props. A round trip through `getComputedStyle` bought nothing and failed silently, since an empty string is a valid CSS value and an invisible track. |
 | *Colour by nothing* | A single-colour map answers no question the list does not answer better. The default is the registry's first type instead. |
@@ -883,14 +929,6 @@ then transit the server again, though nothing would need to store them.
 active filter for free. Precomputed H3 cells give equal-area hexagons and instant
 set-difference queries for "was this new terrain?", at the cost of an import step that is
 filter-blind. Nothing in the schema forecloses either.
-
-**Tag UX** *(M4)* — Deferred until the UI exists. The mechanism is settled — bulk-apply over
-the current filter, paired with the per-type *not set* preset — but not the workflow that
-makes 500 activities tractable, nor how a type is created without leaving the tagging flow.
-
-**Tag mutation contract** *(M4)* — Settled ahead of its milestone: `POST /api/tags` takes a
-filter, the per-activity routes take one id, and both run the same merge, where assigning a
-single-valued type replaces rather than appends.
 
 **Backfilling a new derived type** *(M2.5)* — `importSource` skips any activity that already
 has trackpoints, which is what makes re-import cheap. So a type added to the registry later
