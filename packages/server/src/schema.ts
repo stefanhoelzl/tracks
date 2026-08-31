@@ -1,12 +1,4 @@
-import {
-  index,
-  integer,
-  primaryKey,
-  real,
-  sqliteTable,
-  text,
-  unique,
-} from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 /**
  * Activity metadata. Service-reported metrics are stored verbatim; anything else
@@ -35,6 +27,19 @@ export const activities = sqliteTable(
     polyline: text('polyline'),
     /** JSON array of '<type>:<value>' tags, sorted. Queried with json_each(). */
     tags: text('tags').notNull().default('[]'),
+    /**
+     * The track's bounding box, cached from its trackpoints.
+     *
+     * The same trade as `polyline`: an aggregate over a track's thousand-odd points,
+     * stored once so the common query never reads them. It makes the viewport filter a
+     * scan of a few hundred activities that eliminates almost all of them, before the
+     * exact point check runs over what survives. Null only for a row imported before
+     * this column existed, or one with no track.
+     */
+    minLat: real('min_lat'),
+    maxLat: real('max_lat'),
+    minLon: real('min_lon'),
+    maxLon: real('max_lon'),
   },
   (t) => [unique('activities_source_external').on(t.source, t.externalId)],
 )
@@ -57,11 +62,10 @@ export const trackpoints = sqliteTable(
     /** Unix epoch seconds, UTC. */
     recordedAt: integer('recorded_at'),
   },
-  (t) => [
-    primaryKey({ columns: [t.activityId, t.seq] }),
-    // Covering index: the spatial bbox query is answered from the index alone.
-    index('trackpoints_spatial').on(t.lat, t.lon, t.activityId),
-  ],
+  // The table is WITHOUT ROWID, which drizzle cannot express — see migration 0002.
+  // The primary key is therefore the table's own key rather than a second copy of it,
+  // which is both how the track is read back and 15MB the database no longer spends.
+  (t) => [primaryKey({ columns: [t.activityId, t.seq] })],
 )
 
 /**

@@ -163,7 +163,7 @@ back up, one to wipe.
 
 ## Data model
 
-SQLite, not DuckDB — at this scale (~300k trackpoints) a columnar engine buys nothing and
+SQLite, not DuckDB — at this scale (~1M trackpoints) a columnar engine buys nothing and
 costs a second writer-hostile store. The schema started at six tables and every
 cut below was justified by something being derivable, archived, or speculative.
 
@@ -181,6 +181,10 @@ activities (
   elevation_gain_m REAL,                    -- service-reported
   polyline     TEXT,                        -- simplified, encoded
   tags         TEXT NOT NULL DEFAULT '[]',  -- JSON array of '<type>:<value>'
+  min_lat      REAL,                        -- the track's bounding box, cached
+  max_lat      REAL,
+  min_lon      REAL,
+  max_lon      REAL,
   UNIQUE (source, external_id)
 );
 
@@ -201,10 +205,17 @@ trackpoints (
   altitude_m   REAL,                        -- height above sea level
   recorded_at  INTEGER,                     -- Unix epoch seconds, UTC
   PRIMARY KEY (activity_id, seq)
-);
-
-CREATE INDEX trackpoints_spatial ON trackpoints (lat, lon, activity_id);
+) WITHOUT ROWID;
 ```
+
+`WITHOUT ROWID` because the primary key *is* how a track is read — `WHERE activity_id = ?
+ORDER BY seq` walks the table itself. On a rowid table that key would be a second copy of
+itself: a 15.7MB unique index sitting beside a hidden rowid nothing refers to.
+
+There is no index on `lat`/`lon`. One existed and cost 35MB — better than a third of the
+database — to range-scan a latitude band and then test longitude row by row, because a B-tree
+orders on one dimension and the second half of its key pruned nothing. The four bounding-box
+columns on `activities` replace it with 6KB, and answer the same question faster.
 
 ### Tags
 
@@ -340,14 +351,24 @@ It is the more discoverable gesture as well: a labelled switch against a modifie
 The bbox is the whole canvas, including what shows through the translucent panels. Insetting it to
 the unobstructed strip would hide a track that is plainly visible, which reads as a bug.
 
-Because trackpoints are rows, the query is direct — no bounding-box column, no client-side
-refinement pass, no approximation:
+Two stages, and the first is what makes the second affordable. Cached bounding boxes discard
+almost every activity by comparing four numbers; the exact point test then runs only over what
+survives:
 
 ```sql
 SELECT DISTINCT activity_id FROM trackpoints
-WHERE lat BETWEEN ?min_lat AND ?max_lat
+WHERE activity_id IN (
+    SELECT id FROM activities
+    WHERE min_lat <= ?max_lat AND max_lat >= ?min_lat
+      AND min_lon <= ?max_lon AND max_lon >= ?min_lon)
+  AND lat BETWEEN ?min_lat AND ?max_lat
   AND lon BETWEEN ?min_lon AND ?max_lon;
 ```
+
+The prefilter is an over-approximation and is never the answer: a point-to-point ride's box can
+blanket a city it only skirted. Sampled at 200 random viewports, bounding boxes alone got 26% of
+neighbourhood-sized boxes wrong, one of them by 44 activities. The second stage is what makes it
+exact — the first only makes it cheap.
 
 The only theoretical gap — a track crossing the viewport with no sampled point inside it — is
 irrelevant at one-second sampling.
@@ -571,7 +592,7 @@ will otherwise propose all of these again.
 | CSV as sport fallback | Its sport vocabulary is localized to the account language. Two untyped rides are tagged by hand instead. |
 | Deno 2 | drizzle-kit has an open bug with `node:sqlite`; the workaround is a third-party patch on core tooling. |
 | H3 cell precompute | Deferred with the heatmap. The trackpoint table supports it and every alternative. |
-| bbox column + turf refine | Trackpoint rows make the bounding-box query exact and index-covered. Superseded. |
+| `trackpoints_spatial` index | 35MB to prune one dimension of two. A cached bbox column with an exact SQL refine is the same answer for 6KB, and faster zoomed in. Adopted in 0002 — an earlier draft rejected the idea when the refine was imagined client-side, in turf. |
 | `sport_raw` | Already in the on-disk raw JSON. Duplicating the archive into the DB for a query nobody runs. |
 | `local_date` | Derivable from `started_at` + `utc_offset`. Denormalization that can drift, for an index nothing needs. |
 | `deleted_upstream` | Undetectable with an incremental sync anyway — a deleted activity is indistinguishable from an unlisted one. |

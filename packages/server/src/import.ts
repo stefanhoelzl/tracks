@@ -52,6 +52,31 @@ function acceptDerived(db: Db, registry: TagRegistry, derived: string[], result:
   return accepted
 }
 
+/**
+ * The track's bounding box, cached onto the activity so the viewport filter never reads
+ * its points. One pass rather than `Math.min(...lats)`, which spreads a 34k-point track
+ * across the argument limit.
+ *
+ * Exported because anything that writes trackpoints must write this too — a stale box
+ * silently drops the activity out of every viewport filter — so there is one definition
+ * of it rather than a copy per writer.
+ */
+export function boundingBox(points: ReadonlyArray<{ lat: number; lon: number }>) {
+  let minLat = Number.POSITIVE_INFINITY
+  let maxLat = Number.NEGATIVE_INFINITY
+  let minLon = Number.POSITIVE_INFINITY
+  let maxLon = Number.NEGATIVE_INFINITY
+
+  for (const point of points) {
+    if (point.lat < minLat) minLat = point.lat
+    if (point.lat > maxLat) maxLat = point.lat
+    if (point.lon < minLon) minLon = point.lon
+    if (point.lon > maxLon) maxLon = point.lon
+  }
+
+  return { minLat, maxLat, minLon, maxLon }
+}
+
 export async function importSource(db: Db, source: ActivitySource): Promise<ImportResult> {
   const registry = loadRegistry(db)
   const result: ImportResult = {
@@ -116,6 +141,7 @@ export async function importSource(db: Db, source: ActivitySource): Promise<Impo
         polyline: polyline.encode(
           simplify(track.points).map((p) => [p.lat, p.lon] as [number, number]),
         ),
+        ...boundingBox(track.points),
         // `source:` duplicates the column on purpose: the upsert key needs the
         // column, and the tag is what makes source one more facet like any other.
         tags: JSON.stringify(

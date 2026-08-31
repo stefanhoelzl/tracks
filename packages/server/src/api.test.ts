@@ -13,6 +13,7 @@ import type { Hono } from 'hono'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApi } from './api.ts'
 import { type Db, openDb } from './db.ts'
+import { boundingBox } from './import.ts'
 import { activities, trackpoints } from './schema.ts'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../migrations')
@@ -128,6 +129,7 @@ describe('the REST surface', () => {
           elapsedS: seed.elapsedS,
           elevationGainM: seed.elevationGainM,
           polyline: polyline.encode(points),
+          ...boundingBox(points.map(([pLat, pLon]) => ({ lat: pLat, lon: pLon }))),
           tags: JSON.stringify([...seed.tags].sort()),
         })
         .returning({ id: activities.id })

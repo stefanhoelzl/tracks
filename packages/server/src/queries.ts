@@ -65,9 +65,18 @@ function scopeFor(db: Db, filter: Filter): Scope {
   if (filter.bbox === null) return { filter, bboxIds: null }
 
   const [west, south, east, north] = filter.bbox
+  // Two stages, and the first is what makes the second cheap: the cached bounding boxes
+  // discard almost every activity by comparing four numbers, so the exact point test runs
+  // over the few that could possibly match. A box overlapping the viewport is not a track
+  // entering it — a ride whose box spans a city it only skirted is eliminated here — so
+  // the second stage is what the answer actually rests on.
   const rows = db.all<{ activity_id: number }>(sql`
     SELECT DISTINCT activity_id FROM trackpoints
-    WHERE lat BETWEEN ${south} AND ${north} AND lon BETWEEN ${west} AND ${east}`)
+    WHERE activity_id IN (
+      SELECT id FROM activities
+      WHERE min_lat <= ${north} AND max_lat >= ${south}
+        AND min_lon <= ${east} AND max_lon >= ${west})
+      AND lat BETWEEN ${south} AND ${north} AND lon BETWEEN ${west} AND ${east}`)
 
   return { filter, bboxIds: rows.map((row) => row.activity_id) }
 }
