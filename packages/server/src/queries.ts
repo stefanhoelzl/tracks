@@ -12,7 +12,7 @@ import {
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
 import type { Db } from './db.ts'
-import { LOCAL_DATE, orderFor, RANGE_EXPR, SPEED, whereFor } from './query.ts'
+import { LOCAL_DATE, orderFor, RANGE_EXPR, type Scope, SPEED, whereFor } from './query.ts'
 
 /** Enough bars to show a distribution, few enough to stay legible at 300 px wide. */
 const BUCKET_COUNT = 24
@@ -55,10 +55,27 @@ function toRow(raw: RawRow): ActivityRow {
   }
 }
 
+/**
+ * Resolve a filter's bounding box to the activities it selects, once.
+ *
+ * Every route calls this before building any SQL, so the trackpoint query runs once
+ * per request no matter how many WHERE clauses the route goes on to build.
+ */
+function scopeFor(db: Db, filter: Filter): Scope {
+  if (filter.bbox === null) return { filter, bboxIds: null }
+
+  const [west, south, east, north] = filter.bbox
+  const rows = db.all<{ activity_id: number }>(sql`
+    SELECT DISTINCT activity_id FROM trackpoints
+    WHERE lat BETWEEN ${south} AND ${north} AND lon BETWEEN ${west} AND ${east}`)
+
+  return { filter, bboxIds: rows.map((row) => row.activity_id) }
+}
+
 export function listActivities(db: Db, filter: Filter): ActivityRow[] {
   const rows = db.all<RawRow>(sql`
     SELECT ${ROW_COLUMNS} FROM activities a
-    WHERE ${whereFor(filter)}
+    WHERE ${whereFor(scopeFor(db, filter))}
     ORDER BY ${orderFor(filter)}`)
 
   return rows.map(toRow)
@@ -72,7 +89,7 @@ export function listActivities(db: Db, filter: Filter): ActivityRow[] {
 export function listTracks(db: Db, filter: Filter): TracksResponse {
   const rows = db.all<{ id: number; polyline: string | null; local_date: string }>(sql`
     SELECT a.id, a.polyline, ${LOCAL_DATE} AS local_date, a.tags FROM activities a
-    WHERE ${whereFor(filter)} AND a.polyline IS NOT NULL
+    WHERE ${whereFor(scopeFor(db, filter))} AND a.polyline IS NOT NULL
     ORDER BY ${orderFor(filter)}`)
 
   const tagged = rows as Array<(typeof rows)[number] & { tags: string }>
@@ -147,27 +164,28 @@ function bucket(values: number[]): RangeFacet {
   return { min, max, buckets }
 }
 
-function rangeFacet(db: Db, filter: Filter, key: RangeKey): RangeFacet {
+function rangeFacet(db: Db, scope: Scope, key: RangeKey): RangeFacet {
   const rows = db.all<{ v: number }>(sql`
     SELECT ${RANGE_EXPR[key]} AS v FROM activities a
-    WHERE ${whereFor(filter, { range: key })} AND ${RANGE_EXPR[key]} IS NOT NULL`)
+    WHERE ${whereFor(scope, { range: key })} AND ${RANGE_EXPR[key]} IS NOT NULL`)
 
   return bucket(rows.map((r) => r.v))
 }
 
 export function facets(db: Db, filter: Filter, registry: TagRegistry): FacetsResponse {
+  const scope = scopeFor(db, filter)
   const summary = db.get<{ n: number; d: number; e: number; t: number }>(sql`
     SELECT count(*) AS n,
            coalesce(sum(a.distance_m), 0) AS d,
            coalesce(sum(a.elevation_gain_m), 0) AS e,
            coalesce(sum(a.duration_s), 0) AS t
-    FROM activities a WHERE ${whereFor(filter)}`)!
+    FROM activities a WHERE ${whereFor(scope)}`)!
 
   const tags = [...registry.values()]
     .sort((a, b) => a.sort - b.sort)
     .map((type) => {
       const prefix = `${type.name}:`
-      const where = whereFor(filter, { tagType: type.name })
+      const where = whereFor(scope, { tagType: type.name })
 
       const counted = db.all<{ v: string; n: number }>(sql`
         SELECT substr(t.value, ${prefix.length + 1}) AS v, count(*) AS n
@@ -201,7 +219,7 @@ export function facets(db: Db, filter: Filter, registry: TagRegistry): FacetsRes
     },
     tags,
     ranges: Object.fromEntries(
-      RANGE_KEYS.map((key) => [key, rangeFacet(db, filter, key)]),
+      RANGE_KEYS.map((key) => [key, rangeFacet(db, scope, key)]),
     ) as FacetsResponse['ranges'],
   }
 }

@@ -349,8 +349,15 @@ WHERE lat BETWEEN ?min_lat AND ?max_lat
   AND lon BETWEEN ?min_lon AND ?max_lon;
 ```
 
-Effectively instant over ~1M rows on the covering index. The only theoretical gap — a track
-crossing the viewport with no sampled point inside it — is irrelevant at one-second sampling.
+The only theoretical gap — a track crossing the viewport with no sampled point inside it — is
+irrelevant at one-second sampling.
+
+It is resolved to an activity-id set **once per request**, and every WHERE clause the route
+builds reuses that set. This is not an optimization detail but the shape of the code: `facets`
+builds eleven clauses from one filter — a summary, two per tag type, and one per range — so
+resolving inside `whereFor` ran the same million-row query eleven times for a single request.
+Measured over the archive that was 493ms for a wide viewport; carrying the ids on a `Scope`
+makes it 55ms, and makes the mistake hard to reintroduce.
 
 ---
 

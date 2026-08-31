@@ -51,6 +51,22 @@ export interface Exclusion {
   bbox?: boolean
 }
 
+/**
+ * A filter together with the activities its bounding box selects.
+ *
+ * The bbox is the one predicate that cannot be answered from `activities` alone, and
+ * `facets` builds eleven WHERE clauses from a single filter — so resolving it inside
+ * `whereFor` ran the same trackpoint query eleven times for one request. Resolving it
+ * once and carrying the result makes that impossible to reintroduce by accident.
+ *
+ * `null` means no bbox filter. An empty array means a bbox that selects nothing, which
+ * is a different statement and must not collapse into the first.
+ */
+export interface Scope {
+  readonly filter: Filter
+  readonly bboxIds: readonly number[] | null
+}
+
 /** `substr` rather than `LIKE 'type:%'` — a type name may contain `_`, a LIKE wildcard. */
 function hasType(type: string): SQL {
   return sql`EXISTS (SELECT 1 FROM json_each(a.tags) WHERE substr(value, 1, ${type.length + 1}) = ${`${type}:`})`
@@ -97,7 +113,8 @@ function tagTypeCondition(terms: TagTerm[]): SQL | null {
  * Always returns something truthy so callers can interpolate it unconditionally —
  * an empty filter is `1 = 1`, not a hole in the statement.
  */
-export function whereFor(filter: Filter, exclude: Exclusion = {}): SQL {
+export function whereFor(scope: Scope, exclude: Exclusion = {}): SQL {
+  const { filter, bboxIds } = scope
   const parts: SQL[] = []
 
   const byType = new Map<string, TagTerm[]>()
@@ -117,15 +134,18 @@ export function whereFor(filter: Filter, exclude: Exclusion = {}): SQL {
     if (filter.to !== null) parts.push(sql`${LOCAL_DATE} <= ${filter.to}`)
   }
 
-  if (!exclude.bbox && filter.bbox !== null) {
-    const [west, south, east, north] = filter.bbox
-    // Exact, and answered from the covering index alone. The only theoretical gap —
-    // a track crossing the box with no sampled point inside — is irrelevant at
-    // one-second sampling.
-    parts.push(sql`a.id IN (
-      SELECT DISTINCT activity_id FROM trackpoints
-      WHERE lat BETWEEN ${south} AND ${north} AND lon BETWEEN ${west} AND ${east}
-    )`)
+  if (!exclude.bbox && bboxIds !== null) {
+    // Already resolved to activity ids, so every clause built from this scope reuses
+    // one trackpoint query. The set is bounded by the activity count, which is what
+    // keeps it inside SQLite's bound-parameter limit.
+    parts.push(
+      bboxIds.length === 0
+        ? sql`0 = 1`
+        : sql`a.id IN (${sql.join(
+            bboxIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+    )
   }
 
   for (const key of Object.keys(RANGE_EXPR) as RangeKey[]) {
