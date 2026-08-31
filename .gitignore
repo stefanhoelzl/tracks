@@ -11,3 +11,8 @@ dist/
 
 # Vite build output; `tracks serve` mounts it, `pnpm build` makes it.
 packages/web/dist/
+
+# The design mockups the UI was built against. Scratch work, kept on disk and out
+# of the history: the artboards and the published canvas bundle are megabytes of
+# generated HTML, and nothing in the build reads any of it.
+mock/
