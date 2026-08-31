@@ -1,6 +1,6 @@
 import type { TrackCollection } from '@tracks/core'
-import type { ExpressionSpecification, MapLibreMap } from 'maplibre-gl'
-import { activityColour, activitySlot, type ColourScale, HASHED } from '../lib/colour.ts'
+import type { ExpressionSpecification, FilterSpecification, MapLibreMap } from 'maplibre-gl'
+import { activityColour, activitySlot, type ColourScale, emphasise, HASHED } from '../lib/colour.ts'
 import { clusterProperties } from './clusters.ts'
 
 /**
@@ -17,6 +17,7 @@ export const STARTS_SOURCE = 'starts'
 export const SELECTED_SOURCE = 'selected'
 
 export const TRACKS_LAYER = 'tracks-base'
+export const FOCUS_CASING_LAYER = 'tracks-focus-casing'
 export const FOCUS_LAYER = 'tracks-focus'
 export const STARTS_LAYER = 'starts-circles'
 export const SELECTED_CASING_LAYER = 'selected-track-casing'
@@ -30,13 +31,52 @@ export const SELECTED_LAYER = 'selected-track'
 const CLUSTER_MAX_ZOOM = 8
 
 /**
- * The ink the selection is outlined in, and the colour it falls back to.
+ * The ink a highlight is outlined in, and the colour it falls back to.
  *
  * Dark, because the basemap is `graybeard` — a pale greyscale. The casing began white
  * and did nothing at all against it: a white halo on a near-white map is not a halo,
- * which left the whole of "this one is selected" resting on line width.
+ * which left the whole of "this one" resting on line width.
  */
 const SELECTED_OUTLINE = '#0f1513'
+
+/**
+ * One highlight, used for both hovering a row and selecting one.
+ *
+ * They are the same state — *this is the track you mean* — so they are drawn from the
+ * same numbers rather than from two definitions free to drift apart. Selection differs
+ * only in where its geometry comes from: the full-resolution track rather than the
+ * simplified line, which is a question about fidelity, not about emphasis.
+ */
+const HIGHLIGHT_WIDTH: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  6,
+  3.2,
+  10,
+  5,
+  14,
+  7,
+]
+const HIGHLIGHT_CASING_WIDTH: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  6,
+  6,
+  10,
+  8.5,
+  14,
+  11,
+]
+const HIGHLIGHT_CASING_OPACITY = 0.75
+
+/** Coalesced: a feature without a colour would take the layer down, not draw it wrong. */
+const HIGHLIGHT_COLOUR: ExpressionSpecification = [
+  'coalesce',
+  ['get', 'colourHi'],
+  SELECTED_OUTLINE,
+]
 
 /**
  * What every track is drawn at, focused or not.
@@ -64,9 +104,11 @@ function fadeOutFrom(opacity: number): ExpressionSpecification {
   return ['interpolate', ['linear'], ['zoom'], CLUSTER_MAX_ZOOM - 1, opacity, CLUSTER_MAX_ZOOM, 0]
 }
 
-type Coloured = TrackCollection['features'][number] & { properties: { colour: string } }
+type Coloured = TrackCollection['features'][number] & {
+  properties: { colour: string; colourHi: string }
+}
 
-/** The same payload with a `colour` property baked in, ready for `setData`. */
+/** The same payload with both colours baked in, ready for `setData`. */
 export function paint(
   tracks: TrackCollection,
   colourBy: string | null,
@@ -74,15 +116,24 @@ export function paint(
 ) {
   return {
     type: 'FeatureCollection' as const,
-    features: tracks.features.map(
-      (feature): Coloured => ({
+    features: tracks.features.map((feature): Coloured => {
+      const colour = activityColour(
+        feature.properties.tags,
+        feature.properties.year,
+        colourBy,
+        scale,
+      )
+      return {
         ...feature,
         properties: {
           ...feature.properties,
-          colour: activityColour(feature.properties.tags, feature.properties.year, colourBy, scale),
+          colour,
+          // Baked beside it rather than derived in a style expression: MapLibre cannot
+          // do the HSL arithmetic, and the highlight layer reads the same feature.
+          colourHi: emphasise(colour),
         },
-      }),
-    ),
+      }
+    }),
   }
 }
 
@@ -120,6 +171,24 @@ export function startPoints(
 
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
 
+/** The line itself: the track's own colour, turned up. */
+function highlightPaint() {
+  return {
+    'line-color': HIGHLIGHT_COLOUR,
+    'line-width': HIGHLIGHT_WIDTH,
+    'line-opacity': 1,
+  }
+}
+
+/** The outline under it, which is what separates a highlight from the pale basemap. */
+function highlightCasingPaint() {
+  return {
+    'line-color': SELECTED_OUTLINE,
+    'line-width': HIGHLIGHT_CASING_WIDTH,
+    'line-opacity': HIGHLIGHT_CASING_OPACITY,
+  }
+}
+
 export function addTrackLayers(map: MapLibreMap): void {
   map.addSource(TRACKS_SOURCE, { type: 'geojson', data: EMPTY })
   map.addSource(SELECTED_SOURCE, { type: 'geojson', data: EMPTY })
@@ -150,16 +219,21 @@ export function addTrackLayers(map: MapLibreMap): void {
   // Drawn separately so focusing costs one filter change rather than a feature-state
   // write per track — and so the highlight can be wider than the line it replaces.
   map.addLayer({
+    id: FOCUS_CASING_LAYER,
+    type: 'line',
+    source: TRACKS_SOURCE,
+    filter: ['==', ['get', 'id'], -1],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: highlightCasingPaint(),
+  })
+
+  map.addLayer({
     id: FOCUS_LAYER,
     type: 'line',
     source: TRACKS_SOURCE,
     filter: ['==', ['get', 'id'], -1],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': ['get', 'colour'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 3.2, 10, 5, 14, 7],
-      'line-opacity': 1,
-    },
+    paint: highlightPaint(),
   })
 
   // An outline, not a colour. Painting the selection itself black said "this is a
@@ -172,11 +246,7 @@ export function addTrackLayers(map: MapLibreMap): void {
     type: 'line',
     source: SELECTED_SOURCE,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': SELECTED_OUTLINE,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 8, 10, 11, 14, 14],
-      'line-opacity': 0.9,
-    },
+    paint: highlightCasingPaint(),
   })
 
   map.addLayer({
@@ -184,14 +254,7 @@ export function addTrackLayers(map: MapLibreMap): void {
     type: 'line',
     source: SELECTED_SOURCE,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      // Coalesced: `line-color` is not optional, and a feature arriving without one
-      // would take the whole layer down rather than draw in the wrong colour.
-      'line-color': ['coalesce', ['get', 'colour'], SELECTED_OUTLINE],
-      // A clear step above both the resting line and a focused one, so the selection
-      // is found by weight before the eye gets as far as comparing hues.
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 4.4, 10, 6.5, 14, 9],
-    },
+    paint: highlightPaint(),
   })
 
   // Only the lone starts. A cluster is a mixture, and a circle layer can paint one
@@ -230,7 +293,9 @@ export function paintTracks(
   // this do not know that happened — so check rather than throw into the console.
   if (!map.getLayer(TRACKS_LAYER)) return
 
-  map.setFilter(FOCUS_LAYER, ['==', ['get', 'id'], focusId ?? -1])
+  const focus: FilterSpecification = ['==', ['get', 'id'], focusId ?? -1]
+  map.setFilter(FOCUS_CASING_LAYER, focus)
+  map.setFilter(FOCUS_LAYER, focus)
   map.setPaintProperty(
     TRACKS_LAYER,
     'line-opacity',

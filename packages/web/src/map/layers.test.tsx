@@ -14,6 +14,7 @@ import type {
 import { describe, expect, it } from 'vitest'
 import {
   addTrackLayers,
+  FOCUS_CASING_LAYER,
   FOCUS_LAYER,
   OPACITY,
   paint,
@@ -164,53 +165,52 @@ describe('the track layers', () => {
     expect(painted({ focusId: null, grouped: false })['starts-circles.visibility']).toBe('none')
   })
 
-  it('keeps the selected track its own colour, and separates it with a casing', () => {
+  it('paints a hovered track and a selected one identically', () => {
     const { layers } = collect()
     const paintOf = (id: string) =>
       (layers.find((l) => l.id === id) as { paint: Record<string, unknown> }).paint
-    const widthAt14 = (id: string) => {
-      const stops = paintOf(id)['line-width'] as Array<unknown>
-      return stops.at(-1) as number
-    }
 
-    // Selection is weight, not hue: painting it a fixed colour would throw away the
-    // sport or trip the colour is carrying, and say "different thing" not "this one".
-    expect(paintOf(SELECTED_LAYER)['line-color']).toEqual([
+    // Hovering a row and selecting one are the same state — "this is the track you
+    // mean" — so they must not be distinguishable. Equality, rather than two sets of
+    // numbers that merely happen to match today.
+    expect(paintOf(FOCUS_LAYER)).toEqual(paintOf(SELECTED_LAYER))
+    expect(paintOf(FOCUS_CASING_LAYER)).toEqual(paintOf(SELECTED_CASING_LAYER))
+  })
+
+  it('highlights with the track own colour turned up, over a dark casing', () => {
+    const { layers } = collect()
+    const paintOf = (id: string) =>
+      (layers.find((l) => l.id === id) as { paint: Record<string, unknown> }).paint
+
+    // Its own colour, not a fixed one: a highlight must not throw away the sport or
+    // trip that colour is carrying.
+    expect(paintOf(FOCUS_LAYER)['line-color']).toEqual([
       'coalesce',
-      ['get', 'colour'],
-      '#0f1513',
+      ['get', 'colourHi'],
+      SELECTION.SELECTED_OUTLINE,
     ])
     // Dark, not white: the basemap is a pale greyscale, so a white casing is no casing.
-    expect(paintOf(SELECTED_CASING_LAYER)['line-color']).toBe(SELECTION.SELECTED_OUTLINE)
-
-    // The casing only works if it is under and wider than the line it separates.
-    expect(layers.findIndex((l) => l.id === SELECTED_CASING_LAYER)).toBeLessThan(
-      layers.findIndex((l) => l.id === SELECTED_LAYER),
-    )
-    expect(widthAt14(SELECTED_CASING_LAYER)).toBeGreaterThan(widthAt14(SELECTED_LAYER))
+    expect(paintOf(FOCUS_CASING_LAYER)['line-color']).toBe(SELECTION.SELECTED_OUTLINE)
   })
 
-  it('steps up in weight from resting to focused to selected', () => {
+  it('puts each casing under and wider than the line it separates', () => {
     const { layers } = collect()
     const widthAt14 = (id: string) => {
       const layer = layers.find((l) => l.id === id) as { paint: Record<string, unknown> }
       return (layer.paint['line-width'] as Array<unknown>).at(-1) as number
     }
+    const indexOf = (id: string) => layers.findIndex((l) => l.id === id)
 
-    // Weight is what finds the selection before hue does, so the ladder must hold at
-    // every rung — a selected track no heavier than a hovered one reads as neither.
-    expect(widthAt14(TRACKS_LAYER)).toBeLessThan(widthAt14(FOCUS_LAYER))
-    expect(widthAt14(FOCUS_LAYER)).toBeLessThan(widthAt14(SELECTED_LAYER))
-    expect(widthAt14(SELECTED_LAYER)).toBeLessThan(widthAt14(SELECTED_CASING_LAYER))
-  })
-
-  it('draws a focused track heavier than a resting one', () => {
-    const { layers } = collect()
-    const widthAt14 = (id: string) => {
-      const layer = layers.find((l) => l.id === id) as { paint: Record<string, unknown> }
-      return (layer.paint['line-width'] as Array<unknown>).at(-1) as number
+    const pairs: Array<[string, string]> = [
+      [FOCUS_CASING_LAYER, FOCUS_LAYER],
+      [SELECTED_CASING_LAYER, SELECTED_LAYER],
+    ]
+    for (const [casing, line] of pairs) {
+      expect(indexOf(casing)).toBeLessThan(indexOf(line))
+      expect(widthAt14(casing)).toBeGreaterThan(widthAt14(line))
     }
 
+    // And a highlight is heavier than a resting track, or it is not a highlight.
     expect(widthAt14(FOCUS_LAYER)).toBeGreaterThan(widthAt14(TRACKS_LAYER))
   })
 
@@ -261,7 +261,7 @@ describe('the track layers', () => {
       { name: 'a cluster', properties: { point_count: 12, point_count_abbreviated: '12' } },
     ],
     [SELECTED_SOURCE]: [
-      { name: 'the selected track', properties: { colour: '#0A6B48' } },
+      { name: 'the selected track', properties: { colourHi: '#00c27c' } },
       // The coalesce has to hold: a missing colour must not take the layer down.
       { name: 'a selected track with no colour', properties: {} },
     ],

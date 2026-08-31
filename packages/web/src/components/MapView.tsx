@@ -220,7 +220,9 @@ export function MapView({
           // Its own colour, turned up: same hue, so selecting a track never changes
           // what the track is telling you, but findable among a dozen painted like it.
           properties: {
-            colour: emphasise(
+            // `colourHi`, the same key the simplified line's highlight reads, so hover
+            // and selection are painted by one layer definition from one property.
+            colourHi: emphasise(
               activityColour(
                 detail.activity.tags,
                 Number(detail.activity.localDate.slice(0, 4)),
