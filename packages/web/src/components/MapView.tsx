@@ -1,4 +1,5 @@
 import type { ActivityDetail, Filter, TrackCollection } from '@tracks/core'
+import { formatFilter } from '@tracks/core'
 import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -28,18 +29,17 @@ import styles from './MapView.module.css'
  * a declarative wrapper would be a layer to fight rather than a layer to use.
  */
 
-/** Long enough that a slider drag fits once, short enough to feel immediate. */
-const SETTLE_MS = 300
-
 /** The map is the filter while this is on, so it must not chase itself. */
 const MOVE_MS = 250
 
 const INITIAL = { center: [11.0, 47.5] as [number, number], zoom: 5 }
 
-function boundsOf(tracks: TrackCollection): LngLatBoundsLike | null {
+function boundsOfCoordinates(
+  coordinates: ReadonlyArray<ReadonlyArray<number>>,
+): LngLatBoundsLike | null {
   const bounds = new maplibregl.LngLatBounds()
-  for (const feature of tracks.features) {
-    for (const coordinate of feature.geometry.coordinates) bounds.extend(coordinate)
+  for (const [lon, lat] of coordinates) {
+    if (lon !== undefined && lat !== undefined) bounds.extend([lon, lat])
   }
   return bounds.isEmpty() ? null : bounds
 }
@@ -58,6 +58,7 @@ export function MapView({
   scale,
   grouped,
   filter,
+  extent,
   hoveredId,
   selectedId,
   panelInsets,
@@ -72,6 +73,8 @@ export function MapView({
   scale: ColourScale
   grouped: boolean
   filter: Filter
+  /** Everything matching the filter without its bbox — what *view all* frames. */
+  extent: [number, number, number, number] | null
   hoveredId: number | null
   selectedId: number | null
   /** Left and right panel widths, so a fit centres in the visible map, not under glass. */
@@ -242,69 +245,57 @@ export function MapView({
 
   // --- Camera ---------------------------------------------------------------
 
-  const fitted = useRef<string>('')
+  /**
+   * What the camera is currently framing, as a cause rather than as a result.
+   *
+   * The bbox is deliberately not in it. Every fit ends in a `moveend` that writes the
+   * viewport back as the new bbox, so keying on the whole filter would make each fit
+   * the reason for the next one. Keyed on what the user *did* — changed a filter,
+   * picked an activity — a fit's own write cannot retrigger it, and the loop that cost
+   * the auto-fit in the first place cannot form.
+   */
+  const fitKey = `${formatFilter({ ...filter, bbox: null })}|${selectedId ?? ''}`
+  const fitted = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!ready || !map.current || !tracks) return
+    if (!ready || !map.current || fitted.current === fitKey) return
 
-    // The camera writes the filter, so refitting to what the filter then selected would
-    // be the map arguing with itself. One fit is allowed — the one before any viewport
-    // has been recorded — which is how the opening view frames everything you have.
-    if (filter.bbox !== null) return
+    // A selected activity is framed on its own; anything else frames everything that
+    // matches, which `extent` gives with the viewport term dropped — the tracks payload
+    // cannot, since the viewport is exactly what removed the rest of it.
+    const target =
+      selectedId !== null
+        ? detail && boundsOfCoordinates(detail.track.coordinates)
+        : extent && boundsOfCoordinates([extent.slice(0, 2), extent.slice(2, 4)])
 
-    const bounds = boundsOf(tracks)
-    // Nothing matches: hold the camera rather than lurching at empty bounds.
-    if (!bounds) return
+    // Not yet: the detail or the facets for this filter are still in flight. Leaving
+    // `fitted` alone means this runs again when they land, rather than never.
+    if (!target) return
 
-    // The same result set must not refit on every unrelated re-render.
-    const signature = JSON.stringify([tracks.features.map((f) => f.properties.id), selectedId])
-    if (signature === fitted.current) return
+    fitted.current = fitKey
+    map.current.fitBounds(target, {
+      padding: {
+        top: 88 + 24,
+        bottom: 40,
+        left: panelInsets.left + 32,
+        right: panelInsets.right + 32,
+      },
+      duration: 700,
+      maxZoom: 14,
+    })
+  }, [ready, fitKey, extent, detail, selectedId, panelInsets.left, panelInsets.right])
 
-    const timer = setTimeout(() => {
-      fitted.current = signature
-      const target =
-        selectedId !== null && detail
-          ? boundsOf({
-              type: 'FeatureCollection',
-              features: [
-                {
-                  type: 'Feature',
-                  id: selectedId,
-                  geometry: {
-                    type: 'LineString',
-                    coordinates: detail.track.coordinates,
-                  },
-                  properties: { id: selectedId, tags: [], year: 0 },
-                },
-              ],
-            })
-          : bounds
-
-      map.current?.fitBounds(target ?? bounds, {
-        padding: {
-          top: 88 + 24,
-          bottom: 40,
-          left: panelInsets.left + 32,
-          right: panelInsets.right + 32,
-        },
-        duration: 700,
-        maxZoom: 14,
-      })
-    }, SETTLE_MS)
-
-    return () => clearTimeout(timer)
-  }, [ready, tracks, selectedId, detail, filter.bbox, panelInsets.left, panelInsets.right])
-
-  // A bookmarked URL arrives with a bbox and a camera that has never seen it, and the
-  // auto-fit above is disabled precisely because a bbox is set — so without this the view
-  // would show one area while filtering to another. Once only: every later bbox comes
-  // from the camera, which is already there.
+  // A bookmarked URL arrives with a bbox and a camera that has never seen it. Restore
+  // it, and adopt the key it corresponds to, so the fit above does not immediately
+  // throw the bookmarked view away in favour of everything.
   const restored = useRef(false)
   useEffect(() => {
     if (!ready || !map.current || restored.current) return
     restored.current = true
     if (filter.bbox === null) return
+
     const [west, south, east, north] = filter.bbox
+    fitted.current = fitKey
     map.current.fitBounds(
       [
         [west, south],
@@ -312,13 +303,7 @@ export function MapView({
       ],
       { duration: 0 },
     )
-  }, [ready, filter.bbox])
-
-  // Only reachable before the first viewport is recorded; nothing in the UI clears a
-  // bbox once set, because widening the view is a camera move, not a filter to undo.
-  useEffect(() => {
-    if (filter.bbox === null) fitted.current = ''
-  }, [filter.bbox])
+  }, [ready, filter.bbox, fitKey])
 
   return <div ref={container} className={styles.map} data-testid="map" />
 }

@@ -352,11 +352,20 @@ recorded — and never again: `filter.bbox === null` is the whole condition. Tha
 everything you have; from then on the map is the filter, and a control that only ever wanted to be
 on is not a choice worth offering.
 
-What it costs is auto-fit. Choosing a tag no longer flies the camera to what it selected, and
-selecting an activity no longer zooms to it, because both would move the camera and so rewrite the
-filter that caused them.
+The camera still fits itself: to the selected activity when you pick one, and to everything
+matching otherwise. What makes that safe is *what the fit is keyed on*. Every fit ends in a
+`moveend` that writes the viewport back as the new bbox, so keying on the filter as a whole would
+make each fit the cause of the next. The key is the filter **with its bbox removed**, plus the
+selected id — what you did, not what the map did in response — so a fit's own write cannot
+retrigger it and the loop cannot form.
 
-Getting back out is therefore a camera control, not a filter to clear: *zoom out to all activities*
+A fit waits for the data that defines it: the detail for a selection, the facets for a filter
+change. Until they land the key stays unclaimed, so the fit happens when they arrive rather than
+never. And `extent` is read as null while a request is in flight, because react-query holds the
+previous response as placeholder data and framing the old filter's extent for the new one would
+fly the camera somewhere it was never asked to go.
+
+Getting back out by hand is a camera control, not a filter to clear: *zoom out to all activities*
 in the map chrome flies to `facets.extent`, the extent of everything matching the filter with its
 bbox term dropped. Self-excluded exactly as a facet is, and for the same reason — it answers "where
 is the rest of it?", which the viewport-filtered payload cannot, because the viewport is what

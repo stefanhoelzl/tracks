@@ -100,8 +100,14 @@ export function App() {
 
   const zoom = useCallback((delta: number) => mapHandle.current?.zoomBy(delta), [])
 
-  /** Where everything matching the non-spatial filters is, so the camera can go there. */
-  const extent = facets.data?.extent ?? null
+  /**
+   * Where everything matching the non-spatial filters is, so the camera can go there.
+   *
+   * Null while a request is in flight: react-query keeps the previous response as
+   * placeholder data, and framing the *old* filter's extent for the new one would fly
+   * the camera somewhere it was never asked to go.
+   */
+  const extent = facets.isPlaceholderData ? null : (facets.data?.extent ?? null)
 
   const listError = message(activities.error) ?? message(tracks.error) ?? urlError
 
@@ -115,6 +121,7 @@ export function App() {
         scale={scale}
         grouped={view.grouped}
         filter={filter}
+        extent={extent}
         hoveredId={hoveredId}
         selectedId={view.activity}
         panelInsets={insets}
