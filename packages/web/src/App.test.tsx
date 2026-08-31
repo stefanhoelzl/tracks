@@ -1,3 +1,4 @@
+import polyline from '@mapbox/polyline'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -50,15 +51,8 @@ const ACTIVITIES = {
 }
 
 const TRACKS = {
-  type: 'FeatureCollection',
-  features: [
-    {
-      type: 'Feature',
-      id: 7,
-      geometry: { type: 'LineString', coordinates: [[20.0, 49.2] as [number, number]] },
-      properties: { id: 7, tags: ['sport:hike'], year: 2025 },
-    },
-  ],
+  // The wire shape: geometry still encoded, as the map route now sends it.
+  tracks: [{ id: 7, polyline: polyline.encode([[49.2, 20.0]]), tags: ['sport:hike'], year: 2025 }],
 }
 
 const FACETS = {

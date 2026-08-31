@@ -356,37 +356,32 @@ describe('the REST surface', () => {
   })
 
   describe('GET /api/tracks', () => {
-    it('returns GeoJSON in longitude-latitude order', async () => {
+    it('hands over the stored polyline, still encoded', async () => {
       const response = await app.request('/api/tracks?tag=sport:hike')
       expect(response.status).toBe(200)
 
       const body = (await response.json()) as TracksResponse
-      expect(body.type).toBe('FeatureCollection')
-      expect(body.features).toHaveLength(1)
+      expect(body.tracks).toHaveLength(1)
 
-      const [feature] = body.features
-      expect(feature!.geometry.type).toBe('LineString')
-      const [lon, lat] = feature!.geometry.coordinates[0]!
-      expect(lon).toBeCloseTo(13.75, 4)
+      // Encoded [lat, lon] pairs, exactly as the column holds them. Flipping to the
+      // longitude-first order GeoJSON wants is the browser's job now.
+      const [lat, lon] = polyline.decode(body.tracks[0]!.polyline)[0]!
       expect(lat).toBeCloseTo(46.35, 4)
+      expect(lon).toBeCloseTo(13.75, 4)
     })
 
     it('carries the tags and year that colour-by paints from', async () => {
       const response = await app.request('/api/tracks?tag=sport:hike')
       const body = (await response.json()) as TracksResponse
 
-      expect(body.features[0]!.properties.tags).toEqual([
-        'source:komoot',
-        'sport:hike',
-        'trip:Balkan 2026',
-      ])
-      expect(body.features[0]!.properties.year).toBe(2025)
+      expect(body.tracks[0]!.tags).toEqual(['source:komoot', 'sport:hike', 'trip:Balkan 2026'])
+      expect(body.tracks[0]!.year).toBe(2025)
     })
 
     it('obeys the same filter as the list', async () => {
       const response = await app.request('/api/tracks?bbox=0,0,1,1')
       const body = (await response.json()) as TracksResponse
-      expect(body.features).toEqual([])
+      expect(body.tracks).toEqual([])
     })
   })
 

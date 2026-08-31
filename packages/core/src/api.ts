@@ -44,30 +44,49 @@ export const activitiesResponseSchema = z.object({
 export type ActivitiesResponse = z.infer<typeof activitiesResponseSchema>
 
 /**
- * GeoJSON, ready for `source.setData()`. Properties carry the tags and the year so
- * *colour by* is a MapLibre expression over what the payload already holds — changing
- * it repaints without refetching a byte.
+ * The map payload: one row per track, geometry still encoded.
+ *
+ * The database already stores a simplified encoded polyline, and the browser has to walk
+ * the payload anyway to bake in a colour — so decoding server-side only bought a bigger
+ * wire format. Decoded, the response is ~50k JSON coordinate arrays: 1.14MB to serialize,
+ * parse and validate, against 0.23MB and a decode loop. Whole round trip, 28.3ms to 2.6ms.
+ *
+ * Tags and year ride along so *colour by* is a MapLibre expression over what the payload
+ * already holds — changing it repaints without refetching a byte.
  */
-export const trackFeatureSchema = z.object({
-  type: z.literal('Feature'),
+export const trackSummarySchema = z.object({
   id: z.number().int(),
-  geometry: z.object({
-    type: z.literal('LineString'),
-    coordinates: z.array(z.tuple([z.number(), z.number()])),
-  }),
-  properties: z.object({
-    id: z.number().int(),
-    tags: z.array(z.string()),
-    year: z.number().int(),
-  }),
+  /** Encoded polyline, `[lat, lon]` pairs — the same string the database stores. */
+  polyline: z.string(),
+  tags: z.array(z.string()),
+  year: z.number().int(),
 })
 
 export const tracksResponseSchema = z.object({
-  type: z.literal('FeatureCollection'),
-  features: z.array(trackFeatureSchema),
+  tracks: z.array(trackSummarySchema),
 })
 
+export type TrackSummary = z.infer<typeof trackSummarySchema>
 export type TracksResponse = z.infer<typeof tracksResponseSchema>
+
+/**
+ * The decoded form, ready for `source.setData()`.
+ *
+ * A type rather than a schema: this is what the browser *builds* from the payload above,
+ * not something it receives, and validating our own decoder's output would cost more than
+ * the decode did.
+ */
+export interface TrackFeature {
+  type: 'Feature'
+  id: number
+  geometry: { type: 'LineString'; coordinates: Array<[number, number]> }
+  properties: { id: number; tags: string[]; year: number }
+}
+
+export interface TrackCollection {
+  type: 'FeatureCollection'
+  features: TrackFeature[]
+}
 
 /** One selectable value of a tag type, with its count under the self-excluded filter. */
 export const tagValueCountSchema = z.object({

@@ -1,4 +1,4 @@
-import type { TracksResponse } from '@tracks/core'
+import type { TrackCollection } from '@tracks/core'
 import type { ExpressionSpecification, MapLibreMap } from 'maplibre-gl'
 import { activityColour, activitySlot, type ColourScale, HASHED } from '../lib/colour.ts'
 import { clusterProperties } from './clusters.ts'
@@ -49,11 +49,11 @@ function fadeOutFrom(opacity: number): ExpressionSpecification {
   return ['interpolate', ['linear'], ['zoom'], CLUSTER_MAX_ZOOM - 1, opacity, CLUSTER_MAX_ZOOM, 0]
 }
 
-type Coloured = TracksResponse['features'][number] & { properties: { colour: string } }
+type Coloured = TrackCollection['features'][number] & { properties: { colour: string } }
 
 /** The same payload with a `colour` property baked in, ready for `setData`. */
 export function paint(
-  tracks: TracksResponse,
+  tracks: TrackCollection,
   colourBy: string | null,
   scale: ColourScale = HASHED,
 ) {
@@ -73,7 +73,7 @@ export function paint(
 
 /** Start points, derived from the tracks already in memory — no second request. */
 export function startPoints(
-  tracks: TracksResponse,
+  tracks: TrackCollection,
   colourBy: string | null,
   scale: ColourScale = HASHED,
 ) {

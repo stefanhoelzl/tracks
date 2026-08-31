@@ -1,4 +1,3 @@
-import polyline from '@mapbox/polyline'
 import {
   type ActivityDetail,
   type ActivityRow,
@@ -91,35 +90,24 @@ export function listActivities(db: Db, filter: Filter): ActivityRow[] {
 }
 
 /**
- * The map's payload. Decoded server-side so the browser hands it straight to
- * `setData()` and owns no codec; the tags and year ride along as properties so
- * changing *colour by* repaints from what is already in memory.
+ * The map's payload: the stored polyline, handed over as-is.
+ *
+ * Decoding here produced ~50k coordinate arrays per response and cost more in
+ * `JSON.stringify` alone than the query did. The browser rebuilds every feature anyway to
+ * bake in a colour, so the decode goes where that pass already is.
  */
 export function listTracks(db: Db, filter: Filter): TracksResponse {
-  const rows = db.all<{ id: number; polyline: string | null; local_date: string }>(sql`
+  const rows = db.all<{ id: number; polyline: string; local_date: string; tags: string }>(sql`
     SELECT a.id, a.polyline, ${LOCAL_DATE} AS local_date, a.tags FROM activities a
     WHERE ${whereFor(scopeFor(db, filter))} AND a.polyline IS NOT NULL
     ORDER BY ${orderFor(filter)}`)
 
-  const tagged = rows as Array<(typeof rows)[number] & { tags: string }>
-
   return {
-    type: 'FeatureCollection',
-    features: tagged.map((row) => ({
-      type: 'Feature' as const,
+    tracks: rows.map((row) => ({
       id: row.id,
-      geometry: {
-        type: 'LineString' as const,
-        // Stored as [lat, lon] pairs; GeoJSON wants them the other way round.
-        coordinates: polyline
-          .decode(row.polyline!)
-          .map(([lat, lon]) => [lon, lat] as [number, number]),
-      },
-      properties: {
-        id: row.id,
-        tags: JSON.parse(row.tags) as string[],
-        year: Number(row.local_date.slice(0, 4)),
-      },
+      polyline: row.polyline,
+      tags: JSON.parse(row.tags) as string[],
+      year: Number(row.local_date.slice(0, 4)),
     })),
   }
 }

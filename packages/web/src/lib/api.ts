@@ -10,11 +10,13 @@ import {
   facetsResponseSchema,
   formatFilter,
   type TagTypesResponse,
+  type TrackCollection,
   type TracksResponse,
   tagTypesResponseSchema,
   tracksResponseSchema,
 } from '@tracks/core'
 import type { z } from 'zod'
+import { decodeTracks } from './tracks.ts'
 
 /**
  * The client half of the contract.
@@ -76,10 +78,18 @@ export function useActivities(filter: Filter) {
 }
 
 export function useTracks(filter: Filter) {
-  return useQuery({
+  return useQuery<TrackCollection>({
     queryKey: key('tracks', filter),
-    queryFn: ({ signal }) =>
-      get<TracksResponse>(`/api/tracks?${formatFilter(filter)}`, tracksResponseSchema, signal),
+    // Decoded once here, so the cache holds what the map consumes rather than the wire
+    // shape, and a repaint never decodes again.
+    queryFn: async ({ signal }) =>
+      decodeTracks(
+        await get<TracksResponse>(
+          `/api/tracks?${formatFilter(filter)}`,
+          tracksResponseSchema,
+          signal,
+        ),
+      ),
     placeholderData: (previous) => previous,
   })
 }

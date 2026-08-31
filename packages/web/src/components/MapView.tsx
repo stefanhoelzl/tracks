@@ -1,4 +1,4 @@
-import type { ActivityDetail, Filter, TracksResponse } from '@tracks/core'
+import type { ActivityDetail, Filter, TrackCollection } from '@tracks/core'
 import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -36,7 +36,7 @@ const MOVE_MS = 250
 
 const INITIAL = { center: [11.0, 47.5] as [number, number], zoom: 5 }
 
-function boundsOf(tracks: TracksResponse): LngLatBoundsLike | null {
+function boundsOf(tracks: TrackCollection): LngLatBoundsLike | null {
   const bounds = new maplibregl.LngLatBounds()
   for (const feature of tracks.features) {
     for (const coordinate of feature.geometry.coordinates) bounds.extend(coordinate)
@@ -66,7 +66,7 @@ export function MapView({
   onViewportChange,
 }: {
   ref?: Ref<MapHandle>
-  tracks: TracksResponse | undefined
+  tracks: TrackCollection | undefined
   detail: ActivityDetail | undefined
   colourBy: string | null
   scale: ColourScale

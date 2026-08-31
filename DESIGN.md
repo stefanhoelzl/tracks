@@ -311,7 +311,7 @@ map-options surface for one control to live in.
 
 | | |
 |---|---|
-| **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance, decoded server-side and served as one GeoJSON by `/api/tracks`. All 197 measure 214 KB stored, 1.1 MB as GeoJSON — 50 ms to build, over loopback; full-resolution points load only when you open one activity. |
+| **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance, served still encoded by `/api/tracks` and decoded in the browser. All 197 measure 214 KB stored and 0.23 MB on the wire, against 1.14 MB decoded; full-resolution points load only when you open one activity. |
 | **Colour** | A *colour by* selector over the values of any registered type, or year — never over types themselves, since a type has one colour and colouring by it would draw every ride, hike and run identically. There is no *nothing*: a single-colour map answers no question the list does not answer better, so the default is the registry's first type. The registry's own `color` is for chips and sidebar group headers, not for tracks. |
 | **Hover linking** | Two-way. Hover a list row and its track highlights while the rest dim; hover a track and the list scrolls to it. |
 | **Viewport** | Eases to the result bounds once the filter settles — debounced, so dragging a slider fits at the end rather than every frame. It holds still when nothing matches, rather than lurching at empty bounds, and stays put entirely while *filter to this area* is on. |
@@ -477,7 +477,7 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 | Route | Returns |
 |---|---|
 | `GET /api/activities?<filters>` | List rows, ordered by `sort_key`/`sort_order` |
-| `GET /api/tracks?<filters>` | GeoJSON FeatureCollection of the simplified polylines; each feature carries its `id` and `tags` |
+| `GET /api/tracks?<filters>` | The simplified polylines, still encoded; each carries its `id`, `tags` and `year` |
 | `GET /api/facets?<filters>` | Summary totals, per-value counts and range bounds + histograms — all self-excluded |
 | `GET /api/activities/:id` | Detail plus full trackpoints |
 | `GET /api/tag-types` | The registry, which the browser needs to render and validate |
@@ -592,6 +592,7 @@ will otherwise propose all of these again.
 | CSV as sport fallback | Its sport vocabulary is localized to the account language. Two untyped rides are tagged by hand instead. |
 | Deno 2 | drizzle-kit has an open bug with `node:sqlite`; the workaround is a third-party patch on core tooling. |
 | H3 cell precompute | Deferred with the heatmap. The trackpoint table supports it and every alternative. |
+| Decoding polylines server-side | Kept the browser codec-free, but meant ~50k JSON coordinate arrays per response: 1.14 MB, and more time in `JSON.stringify` and Zod than in the query. The browser already rebuilt every feature to paint it, so the decode joined a pass that existed. 28.3 ms to 2.6 ms. |
 | `trackpoints_spatial` index | 35MB to prune one dimension of two. A cached bbox column with an exact SQL refine is the same answer for 6KB, and faster zoomed in. Adopted in 0002 — an earlier draft rejected the idea when the refine was imagined client-side, in turf. |
 | `sport_raw` | Already in the on-disk raw JSON. Duplicating the archive into the DB for a query nobody runs. |
 | `local_date` | Derivable from `started_at` + `utc_offset`. Denormalization that can drift, for an index nothing needs. |

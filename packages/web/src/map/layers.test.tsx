@@ -4,7 +4,7 @@ import {
   latest,
   validateStyleMin,
 } from '@maplibre/maplibre-gl-style-spec'
-import type { TracksResponse } from '@tracks/core'
+import type { TrackCollection } from '@tracks/core'
 import type {
   AddLayerObject,
   Map as MapLibreMap,
@@ -64,7 +64,7 @@ function styleOf(sources: Record<string, SourceSpecification>, layers: AddLayerO
   } as unknown as StyleSpecification
 }
 
-const TRACKS: TracksResponse = {
+const TRACKS: TrackCollection = {
   type: 'FeatureCollection',
   features: [
     {
@@ -298,7 +298,7 @@ describe('painting by value', () => {
   })
 
   it('skips a track with no coordinates rather than emitting a broken point', () => {
-    const empty: TracksResponse = {
+    const empty: TrackCollection = {
       type: 'FeatureCollection',
       features: [
         {
