@@ -1,6 +1,5 @@
 import { Minus, Plus, Ungroup } from 'lucide-react'
 import styles from './MapChrome.module.css'
-import { IconButton } from './ui/IconButton.tsx'
 
 /**
  * The controls that belong to the map rather than to the data.
@@ -22,6 +21,8 @@ export function MapChrome({
   insetRight: number
   insetLeft: number
 }) {
+  const label = grouped ? 'Grouping nearby starts' : 'Showing every track'
+
   return (
     <>
       <div className={styles.zoom} style={{ right: insetRight + 12 }}>
@@ -38,13 +39,16 @@ export function MapChrome({
           the tracks for a tally at low zoom, so turning it off says "show me the actual
           lines" — which is the whole point of a track map, and why *off* is the lit state. */}
       <div className={styles.grouping} style={{ left: insetLeft, right: insetRight }}>
-        <IconButton
-          icon={Ungroup}
-          label={grouped ? 'Grouping nearby starts' : 'Showing every track'}
+        <button
+          type="button"
+          className={[styles.group, grouped ? '' : styles.groupOn].join(' ')}
           onClick={onToggleGrouping}
-          active={!grouped}
-          size={16}
-        />
+          aria-label={label}
+          title={label}
+          aria-pressed={!grouped}
+        >
+          <Ungroup size={17} strokeWidth={2} />
+        </button>
       </div>
 
       <div className={styles.attribution} style={{ left: insetLeft + 16 }}>

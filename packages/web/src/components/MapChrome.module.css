@@ -41,8 +41,40 @@
   pointer-events: none;
 }
 
-.grouping > * {
+/* The same plate as the zoom control: a map control has to carry its own background,
+   or it is an icon lying loose on whatever tile happens to be under it. */
+.group {
   pointer-events: auto;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-ctrl);
+  background: var(--glass-hi);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink-2);
+  transition:
+    background 140ms var(--ease),
+    color 140ms var(--ease);
+}
+
+.group:hover {
+  background: var(--sunk);
+  color: var(--ink);
+}
+
+/* Lit when grouping is off, because "show me the actual lines" is the deliberate state. */
+.groupOn {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.groupOn:hover {
+  background: var(--accent);
+  color: var(--surface);
 }
 
 .attribution {
