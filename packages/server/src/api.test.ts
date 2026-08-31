@@ -5,10 +5,12 @@ import polyline from '@mapbox/polyline'
 import type {
   ActivitiesResponse,
   ActivityDetailResponse,
+  ApiError,
   FacetsResponse,
   TagTypesResponse,
   TracksResponse,
 } from '@tracks/core'
+import { sql } from 'drizzle-orm'
 import type { Hono } from 'hono'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApi } from './api.ts'
@@ -439,6 +441,117 @@ describe('the REST surface', () => {
     it('is a 404 for an activity that is not there, and a 400 for one that cannot be', async () => {
       expect((await app.request('/api/activities/99999')).status).toBe(404)
       expect((await app.request('/api/activities/nonsense')).status).toBe(400)
+    })
+  })
+
+  describe('POST /api/tags', () => {
+    const post = (query: string, body: unknown) =>
+      app.request(`/api/tags?${query}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+    const tagsOf = (title: string) =>
+      JSON.parse(
+        (
+          db.get<{ tags: string }>(sql`SELECT tags FROM activities WHERE title = ${title}`) as {
+            tags: string
+          }
+        ).tags,
+      ) as string[]
+
+    it('applies to everything the filter matches, and counts what changed', async () => {
+      const response = await post('tag=sport:bike', { add: ['trip:Alps'] })
+      expect(response.status).toBe(200)
+      // Two bikes match; one already carries the trip, so only the other gained it.
+      expect(await response.json()).toEqual({ changed: 1 })
+      expect(tagsOf('Night ride')).toContain('trip:Alps')
+      expect(tagsOf('Home run')).not.toContain('trip:Alps')
+    })
+
+    it('replaces silently on a single-valued type', async () => {
+      await post('tag=trip:Balkan 2026', { add: ['trip:Balkans'] })
+      // The old trip is gone rather than sitting beside the new one — which is what
+      // makes a rename one bulk add.
+      expect(tagsOf('Balkan hike')).toEqual(['source:komoot', 'sport:hike', 'trip:Balkans'])
+    })
+
+    it('removes over the filter, and takes the type with the last tag of it', async () => {
+      const response = await post('', { remove: ['trip:Alps', 'trip:Balkan 2026'] })
+      expect(await response.json()).toEqual({ changed: 2 })
+
+      const types = (await (await app.request('/api/tag-types')).json()) as TagTypesResponse
+      // Nothing carries a trip any more, so there is no Trip: the registry describes
+      // the data rather than outliving it.
+      expect(types.tagTypes.map((t) => t.name)).toEqual(['sport', 'source'])
+    })
+
+    it('creates a type and applies its first tag in one request', async () => {
+      const response = await post('tag=sport:run', {
+        add: ['gear:steel'],
+        newType: { name: 'gear', label: 'Gear', singleValued: false },
+      })
+      expect(await response.json()).toEqual({ changed: 1 })
+
+      const types = (await (await app.request('/api/tag-types')).json()) as TagTypesResponse
+      expect(types.tagTypes.at(-1)).toMatchObject({
+        name: 'gear',
+        label: 'Gear',
+        singleValued: false,
+        values: [{ value: 'steel', count: 1 }],
+      })
+    })
+
+    it('refuses a tag whose type nothing declared, and writes nothing', async () => {
+      const response = await post('', { add: ['gear:steel'] })
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ error: "no tag type 'gear'" })
+      expect(tagsOf('Alps ride')).toEqual(['source:strava', 'sport:bike', 'trip:Alps'])
+    })
+
+    it('reports a malformed filter and a malformed body apart', async () => {
+      expect(((await (await post('from=nonsense', { add: [] })).json()) as ApiError).error).toBe(
+        'invalid filter',
+      )
+      expect(((await (await post('', { add: 'trip:Alps' })).json()) as ApiError).error).toBe(
+        'invalid request',
+      )
+    })
+  })
+
+  describe('PUT /api/activities/:id/tags', () => {
+    const idOf = (title: string) =>
+      db.get<{ id: number }>(sql`SELECT id FROM activities WHERE title = ${title}`)!.id
+
+    const put = (id: number, body: unknown) =>
+      app.request(`/api/activities/${id}/tags`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+    it('replaces the array wholesale, sorted', async () => {
+      const response = await put(idOf('Home run'), {
+        tags: ['trip:Alps', 'source:strava', 'sport:run'],
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({
+        tags: ['source:strava', 'sport:run', 'trip:Alps'],
+      })
+    })
+
+    it('creates a type alongside the tag that needs it', async () => {
+      const response = await put(idOf('Untyped'), {
+        tags: ['source:strava', 'gear:steel'],
+        newType: { name: 'gear', label: 'Gear', singleValued: false },
+      })
+      expect(await response.json()).toEqual({ tags: ['gear:steel', 'source:strava'] })
+    })
+
+    it('is a 404 for an activity that is not there, and a 400 for a bad tag', async () => {
+      expect((await put(99999, { tags: [] })).status).toBe(404)
+      expect((await put(idOf('Home run'), { tags: ['nonsense'] })).status).toBe(400)
     })
   })
 

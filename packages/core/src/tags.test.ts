@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyTagEdits,
   formatTagTerm,
   mergeDerivedTags,
   parseTag,
@@ -36,6 +37,32 @@ describe('tag grammar', () => {
     expect(validateTag(registry, 'sport:ski')).toBeNull()
     expect(validateTag(registry, 'gear:steel')).toMatch(/no tag type/)
     expect(validateTag(registry, 'steel')).toMatch(/not a <type>:<value> tag/)
+  })
+
+  it('replaces on a single-valued type and appends on a multi-valued one', () => {
+    const many: TagRegistry = new Map([
+      ...registry,
+      ['gear', { name: 'gear', label: 'Gear', singleValued: false, sort: 3 }],
+    ])
+
+    // Single-valued means the new value takes the old one's place — which is what
+    // makes renaming a trip one bulk add rather than an operation of its own.
+    expect(applyTagEdits(many, ['trip:Alps', 'sport:bike'], { add: ['trip:Balkan 2026'] })).toEqual(
+      ['sport:bike', 'trip:Balkan 2026'],
+    )
+    expect(applyTagEdits(many, ['gear:steel'], { add: ['gear:carbon'] })).toEqual([
+      'gear:carbon',
+      'gear:steel',
+    ])
+  })
+
+  it('removes before it adds, so an edit doing both is an add', () => {
+    expect(
+      applyTagEdits(registry, ['trip:Alps'], { add: ['trip:Alps'], remove: ['trip:Alps'] }),
+    ).toEqual(['trip:Alps'])
+    expect(applyTagEdits(registry, ['trip:Alps', 'sport:bike'], { remove: ['trip:Alps'] })).toEqual(
+      ['sport:bike'],
+    )
   })
 
   it('sorts and deduplicates on write', () => {

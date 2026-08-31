@@ -664,11 +664,18 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 | `POST /api/import/:source` | Takes NDJSON frames, writes them in one transaction, streams NDJSON progress back |
 | `GET /api/stats?<filters>` | Aggregates for the analytics views — **M5** |
 | `GET /api/heatmap?<filters>` | Grid cell counts — **deferred** |
-| `POST` / `DELETE /api/activities/:id/tags` | Tag mutations for one activity — **M4** |
-| `POST /api/tags` | Bulk: a filter plus `add` / `remove`. The lever that makes 500 untagged activities tractable, and nearly free once filters are shared code — **M4** |
-| `POST` / `PUT` / `DELETE /api/tag-types/:name` | Registry mutations. Delete and enum-shrink cascade onto activities — **M4** |
+| `POST /api/tags?<filters>` | Bulk `add` / `remove` over everything the filter matches. The lever that makes 500 untagged activities tractable, and nearly free because the target is parsed by the same code every read uses |
+| `PUT /api/activities/:id/tags` | One activity's tags, replaced with what the detail panel is showing |
 
-**The import routes are the only writes, and the only streams.** `select` is what makes a
+**A tag write names its target in the query string, like a read.** `POST /api/tags?tag=trip:&q=balkan`
+is the filter you are looking at, parsed by `withFilter` — so what the sidebar counted and what
+the write touches are the same statement, and there is no second way to hand a filter to the
+server. There is no `ids` parameter and no selection set: narrowing the filter is how you say
+which activities you mean. Both write routes take an optional `newType`, because a type is born
+with its first tag and creating it separately would leave it empty long enough to be collected;
+both run the type GC as the last thing inside their transaction.
+
+**The import routes are the only streams.** `select` is what makes a
 re-import free; the other is one request that owns the run from `BEGIN` to `COMMIT`. There
 is no job id and nothing to poll, because nothing outlives the connection: if it goes away,
 the transaction rolls back. `EventSource` was never a candidate — it is GET-only and could

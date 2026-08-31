@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { RANGE_KEYS } from './filter.ts'
-import { tagTypeSchema } from './tags.ts'
+import { newTypeSchema, tagTypeSchema } from './tags.ts'
 
 /**
  * The API contract.
@@ -204,6 +204,48 @@ export const tagTypesResponseSchema = z.object({
 })
 
 export type TagTypesResponse = z.infer<typeof tagTypesResponseSchema>
+
+/**
+ * A bulk tag write: what to do, over the filter in the query string.
+ *
+ * The target is the URL, parsed by the same code every read parses it with, so "the
+ * current filter" cannot come to mean two things. `newType` rides along because a type
+ * is born with its first tag: creating it and applying that tag are one transaction,
+ * and there is no window in which an empty type exists to be collected.
+ */
+export const tagWriteSchema = z.object({
+  add: z.array(z.string()).default([]),
+  remove: z.array(z.string()).default([]),
+  newType: newTypeSchema.optional(),
+})
+
+export type TagWrite = z.infer<typeof tagWriteSchema>
+
+/** How many activities the write actually changed — the result line's one number. */
+export const tagWriteResponseSchema = z.object({
+  changed: z.number().int(),
+})
+
+export type TagWriteResponse = z.infer<typeof tagWriteResponseSchema>
+
+/**
+ * One activity's tags, replaced wholesale.
+ *
+ * The detail panel holds every chip already, so it sends what the row should be rather
+ * than naming a change — which makes adding and removing the same request, and leaves
+ * no `DELETE` carrying a tag in its query string.
+ */
+export const activityTagsSchema = z.object({
+  tags: z.array(z.string()),
+  newType: newTypeSchema.optional(),
+})
+
+export const activityTagsResponseSchema = z.object({
+  /** As stored: sorted, deduplicated. */
+  tags: z.array(z.string()),
+})
+
+export type ActivityTagsResponse = z.infer<typeof activityTagsResponseSchema>
 
 /** What a 4xx carries. One shape, so the browser has one thing to render. */
 export const apiErrorSchema = z.object({

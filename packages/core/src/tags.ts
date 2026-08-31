@@ -42,6 +42,18 @@ export type TagRegistry = ReadonlyMap<string, TagType>
 /** Types are identifiers so they can be a query key and a JSON prefix unambiguously. */
 const TYPE_PATTERN = /^[a-z][a-z0-9_]*$/
 
+/**
+ * A type as it arrives from the browser, to be created in the same transaction as its
+ * first tag — a type created empty would be collected before it was used.
+ */
+export const newTypeSchema = z.object({
+  name: z.string().regex(TYPE_PATTERN, 'a type name is lowercase letters, digits and _'),
+  label: z.string().min(1, 'a type needs a label'),
+  singleValued: z.boolean(),
+})
+
+export type NewType = z.infer<typeof newTypeSchema>
+
 export function formatTag(tag: Tag): string {
   return `${tag.type}:${tag.value}`
 }
@@ -79,6 +91,38 @@ export function validateTag(registry: TagRegistry, raw: string): string | null {
  */
 export function sortTags(tags: Iterable<string>): string[] {
   return [...new Set(tags)].sort()
+}
+
+/**
+ * Applying an edit to one activity's tags.
+ *
+ * Removals happen first, so an edit that removes and adds the same value is an add —
+ * the order the words are in. An add of a single-valued type drops that type's other
+ * values silently: replacement is what single-valued *means*, so reporting it as an
+ * event would be reporting the rule.
+ */
+export function applyTagEdits(
+  registry: TagRegistry,
+  existing: Iterable<string>,
+  edits: { add?: readonly string[]; remove?: readonly string[] },
+): string[] {
+  const tags = new Set(existing)
+
+  for (const tag of edits.remove ?? []) tags.delete(tag)
+
+  for (const raw of edits.add ?? []) {
+    const tag = parseTag(raw)
+    if (!tag) continue
+
+    if (registry.get(tag.type)?.singleValued) {
+      for (const held of tags) {
+        if (parseTag(held)?.type === tag.type) tags.delete(held)
+      }
+    }
+    tags.add(raw)
+  }
+
+  return sortTags(tags)
 }
 
 /**

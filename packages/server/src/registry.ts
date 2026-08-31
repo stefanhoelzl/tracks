@@ -1,6 +1,6 @@
 import type { TagType } from '@tracks/core'
 import { sql } from 'drizzle-orm'
-import type { Db } from './db.ts'
+import type { Conn } from './db.ts'
 import { tagTypes } from './schema.ts'
 
 /**
@@ -10,7 +10,7 @@ import { tagTypes } from './schema.ts'
  * and not caching means a hand-edit in a SQLite browser — still the way this database
  * is inspected — takes effect without a restart.
  */
-export function loadRegistry(db: Db): Map<string, TagType> {
+export function loadRegistry(db: Conn): Map<string, TagType> {
   const rows = db.select().from(tagTypes).orderBy(tagTypes.sort).all()
 
   return new Map(
@@ -54,7 +54,7 @@ export function seedFor(name: string): { label: string; singleValued: boolean } 
  * type in the same run would try to create it again and hit the primary key.
  */
 export function createType(
-  db: Db,
+  db: Conn,
   registry: Map<string, TagType>,
   type: { name: string; label: string; singleValued: boolean },
 ): TagType {
@@ -67,4 +67,21 @@ export function createType(
   registry.set(row.name, row)
 
   return row
+}
+
+/**
+ * Deletes every type no activity carries a tag of.
+ *
+ * This is the whole of type deletion: no control, no cascade dialog, no confirmation,
+ * because a type is not a thing you administer — it is the shape of what the data
+ * already says. Emptying its last value removes it, whether that was a bulk untag, an
+ * edit on one activity, or a re-tag onto a different type.
+ *
+ * Runs inside the caller's transaction, after every write that touches tags.
+ */
+export function collectTypes(db: Conn): void {
+  db.run(sql`
+    DELETE FROM tag_types WHERE NOT EXISTS (
+      SELECT 1 FROM activities, json_each(activities.tags) AS t
+      WHERE substr(t.value, 1, length(tag_types.name) + 1) = tag_types.name || ':')`)
 }

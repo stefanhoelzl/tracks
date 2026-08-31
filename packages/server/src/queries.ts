@@ -13,7 +13,7 @@ import {
   type TracksResponse,
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
-import type { Db } from './db.ts'
+import type { Conn, Db } from './db.ts'
 import { LOCAL_DATE, orderFor, RANGE_EXPR, type Scope, SPEED, whereFor } from './query.ts'
 
 /** Enough bars to show a distribution, few enough to stay legible at 300 px wide. */
@@ -63,7 +63,7 @@ function toRow(raw: RawRow): ActivityRow {
  * Every route calls this before building any SQL, so the trackpoint query runs once
  * per request no matter how many WHERE clauses the route goes on to build.
  */
-function scopeFor(db: Db, filter: Filter): Scope {
+export function scopeFor(db: Conn, filter: Filter): Scope {
   if (filter.bbox === null) return { filter, bboxIds: null }
 
   const [west, south, east, north] = filter.bbox

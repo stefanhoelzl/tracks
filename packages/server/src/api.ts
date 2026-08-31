@@ -2,10 +2,14 @@ import {
   type ApiError,
   activitiesResponseSchema,
   activityDetailSchema,
+  activityTagsResponseSchema,
+  activityTagsSchema,
   type Filter,
   facetsResponseSchema,
   parseFilter,
   tagTypesResponseSchema,
+  tagWriteResponseSchema,
+  tagWriteSchema,
   tracksResponseSchema,
 } from '@tracks/core'
 import { type Context, Hono } from 'hono'
@@ -14,6 +18,7 @@ import type { Db } from './db.ts'
 import { importRoutes } from './import-route.ts'
 import { activityDetail, facets, listActivities, listTracks, tagVocabulary } from './queries.ts'
 import { loadRegistry } from './registry.ts'
+import { TagWriteError, writeActivityTags, writeTags } from './tagging.ts'
 
 /**
  * The REST surface.
@@ -33,14 +38,20 @@ import { loadRegistry } from './registry.ts'
  * import runs its transaction on a second connection — see `openWriter`.
  */
 
+function issuesOf(error: z.ZodError) {
+  return error.issues.map((issue) => ({
+    path: issue.path.join('.'),
+    message: issue.message,
+  }))
+}
+
 function badRequest(error: z.ZodError): ApiError {
-  return {
-    error: 'invalid filter',
-    issues: error.issues.map((issue) => ({
-      path: issue.path.join('.'),
-      message: issue.message,
-    })),
-  }
+  return { error: 'invalid filter', issues: issuesOf(error) }
+}
+
+/** A write's body, as opposed to its target — the two fail for different reasons. */
+function badBody(error: z.ZodError): ApiError {
+  return { error: 'invalid request', issues: issuesOf(error) }
 }
 
 export function createApi(db: Db, dbPath: string) {
@@ -79,6 +90,55 @@ export function createApi(db: Db, dbPath: string) {
     '/api/facets',
     withFilter((filter) => facetsResponseSchema.parse(facets(db, filter, loadRegistry(db)))),
   )
+
+  /**
+   * The bulk write, over the filter in the query string.
+   *
+   * Its target is parsed by `withFilter`, the same code every read uses, so what a
+   * write applies to and what the sidebar was counting are the same statement. There
+   * is no id list and no selection: narrowing the filter is how you say which
+   * activities you mean.
+   */
+  app.post('/api/tags', async (c) => {
+    let filter: Filter
+    try {
+      filter = parseFilter(new URL(c.req.url).searchParams)
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json(badRequest(error), 400)
+      throw error
+    }
+
+    const body = tagWriteSchema.safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json(badBody(body.error), 400)
+
+    try {
+      return c.json(tagWriteResponseSchema.parse(writeTags(db, filter, body.data)))
+    } catch (error) {
+      if (error instanceof TagWriteError) return c.json<ApiError>({ error: error.message }, 400)
+      throw error
+    }
+  })
+
+  /** One activity's tags, replaced with what the detail panel is showing. */
+  app.put('/api/activities/:id/tags', async (c) => {
+    const id = Number(c.req.param('id'))
+    if (!Number.isInteger(id) || id <= 0) {
+      return c.json<ApiError>({ error: 'activity id must be a positive integer' }, 400)
+    }
+
+    const body = activityTagsSchema.safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json(badBody(body.error), 400)
+
+    try {
+      const written = writeActivityTags(db, id, body.data)
+      if (!written) return c.json<ApiError>({ error: `no activity ${id}` }, 404)
+
+      return c.json(activityTagsResponseSchema.parse(written))
+    } catch (error) {
+      if (error instanceof TagWriteError) return c.json<ApiError>({ error: error.message }, 400)
+      throw error
+    }
+  })
 
   app.get('/api/activities/:id', (c) => {
     const id = Number(c.req.param('id'))
