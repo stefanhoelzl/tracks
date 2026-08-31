@@ -10,7 +10,10 @@ export default defineConfig({
   plugins: [react()],
   test: {
     name: 'web',
-    include: ['src/**/*.test.tsx'],
+    // `.ts` as well as `.tsx`: the sources moved here from the server and have no JSX,
+    // but they are browser code now — DOMParser, DecompressionStream, zip.js — so they
+    // belong in the lane that has a DOM rather than the one that does not.
+    include: ['src/**/*.test.{ts,tsx}'],
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
   },
