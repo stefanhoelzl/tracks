@@ -33,9 +33,10 @@ const CLUSTER_MAX_ZOOM = 8
 /**
  * The ink a highlight is outlined in, and the colour it falls back to.
  *
- * Dark, because the basemap is `graybeard` — a pale greyscale. The casing began white
- * and did nothing at all against it: a white halo on a near-white map is not a halo,
- * which left the whole of "this one" resting on line width.
+ * Dark, because the basemap is pale. The casing began white and did nothing at all
+ * against it — a white halo on a near-white map is not a halo — which left the whole
+ * of "this one" resting on line width. Dark also holds up now the basemap carries
+ * colour, where a light casing tuned to one background would not have.
  */
 const SELECTED_OUTLINE = '#0f1513'
 

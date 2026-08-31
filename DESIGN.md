@@ -296,9 +296,13 @@ table lookups.
 
 [VersaTiles](https://versatiles.org/) serves OpenStreetMap-derived vector tiles with no API
 key, no usage fees and no user tracking, on the CC-0 Shortbread schema. The style is
-`@versatiles/style`'s `graybeard`, warmed by a `recolor` blend — neutral grey, so the tracks own
-the only real colour on screen. It lives in one `basemap.ts` module, which is what keeps swapping
-providers or dropping to a locally-served container a one-line change.
+`@versatiles/style`'s `colorful`, pulled back by a `recolor` pass — desaturated a third and washed
+towards the paper the app is drawn on. It began as `graybeard`, on the principle that the tracks
+should own the only colour on screen; that turned out to read as a wireframe rather than as a map
+of anywhere. Muted colour keeps water reading as water and woodland as woodland while still losing
+to a saturated line drawn on top, which is the property the grey was really protecting. It lives
+in one `basemap.ts` module, which is what keeps swapping providers or dropping to a locally-served
+container a one-line change.
 
 Global elevation shipped in April 2026 as a `raster-dem` tileset — terrarium encoding, 512 px,
 z0–12 — and it closes both gaps that kept VersaTiles from being an outdoor basemap. Hillshading
@@ -441,7 +445,8 @@ drift.
 
 What is left is a highlight: the track's own colour turned up — hue untouched, saturation raised,
 lightness pulled into one narrow band — over a dark casing. The casing is dark because the basemap
-is `graybeard`, a pale greyscale; it began white, which against that is not a casing at all. A
+is pale; it began white, which against that is not a casing at all. Dark also survives the
+basemap gaining colour, which a light casing tuned to one background would not have. A
 selected activity differs from a hovered one in one respect only, and it is not visual: its
 geometry is the full-resolution track rather than the simplified line.
 

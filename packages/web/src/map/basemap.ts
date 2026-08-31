@@ -1,4 +1,4 @@
-import { graybeard } from '@versatiles/style'
+import { colorful } from '@versatiles/style'
 import mlcontour from 'maplibre-contour'
 import type { StyleSpecification } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
@@ -36,9 +36,9 @@ const ELEVATION = `${TILES}/tiles/elevation/{z}/{x}/{y}`
 /**
  * VersaTiles' own hillshade, tuned down.
  *
- * The tracks are the only saturated thing on screen and relief must stay under them:
- * a warm highlight and a cool shadow at low exaggeration reads as terrain without
- * ever competing with a line drawn on top of it.
+ * Relief has to stay under everything: a warm highlight and a cool shadow at low
+ * exaggeration reads as terrain without competing with the landcover beneath it or
+ * with a line drawn on top.
  */
 const HILLSHADE = {
   shadowColor: '#4a5a63',
@@ -84,12 +84,15 @@ function contourTiles(): string {
 }
 
 export async function basemapStyle(): Promise<StyleSpecification> {
-  const style = await graybeard({
+  const style = await colorful({
     baseUrl: TILES,
     hillshade: HILLSHADE,
-    // Grey, but not cold: a shade of warmth keeps a map of the Alps from looking
-    // like a wireframe, while leaving the hues free for the tracks.
-    recolor: { saturate: -0.15, gamma: 1.05, blend: 0.12, blendColor: '#eef1ee' },
+    // Colour, held back. `colorful` at full strength puts saturated green woodland
+    // and blue water under tracks whose whole job is to be the saturated thing —
+    // so it is desaturated a third and washed towards the paper the app is drawn
+    // on, which leaves water reading as water and forest as forest while no part of
+    // it competes with a line on top.
+    recolor: { saturate: -0.32, gamma: 1.05, blend: 0.16, blendColor: '#eef1ee' },
     language: 'en',
   })
 
@@ -107,7 +110,9 @@ export async function basemapStyle(): Promise<StyleSpecification> {
       'source-layer': 'contours',
       minzoom: CONTOUR_MIN_ZOOM,
       paint: {
-        'line-color': 'rgba(90, 106, 99, 0.35)',
+        // Darker and a touch more opaque than the grey basemap wanted: a contour has
+        // to stay legible crossing woodland, not only crossing paper.
+        'line-color': 'rgba(74, 88, 82, 0.45)',
         // Index lines carry the labels, so they carry the weight too.
         'line-width': ['match', ['get', 'level'], 1, 1, 0.5],
       },
@@ -127,9 +132,10 @@ export async function basemapStyle(): Promise<StyleSpecification> {
         'text-max-angle': 25,
       },
       paint: {
-        'text-color': 'rgba(70, 86, 79, 0.9)',
-        'text-halo-color': 'rgba(238, 241, 238, 0.85)',
-        'text-halo-width': 1.4,
+        'text-color': 'rgba(58, 72, 66, 0.95)',
+        // A denser halo, for the same reason: the label now has colour behind it.
+        'text-halo-color': 'rgba(244, 246, 243, 0.92)',
+        'text-halo-width': 1.6,
       },
     },
   )
