@@ -23,10 +23,13 @@ const TAG_TYPES = {
     {
       name: 'sport',
       label: 'Sport',
-      enumValues: ['bike', 'hike', 'run'],
       singleValued: true,
-      color: '#0A6B48',
       sort: 1,
+      values: [
+        { value: 'bike', count: 102 },
+        { value: 'hike', count: 23 },
+        { value: 'run', count: 70 },
+      ],
     },
   ],
 }

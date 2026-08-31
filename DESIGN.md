@@ -179,7 +179,10 @@ locale-independent. There is no CSV fallback: an activity whose file carries no 
 automatic sport tag and is tagged manually. Each source maps its own vocabulary to a `sport:`
 tag itself rather than handing a raw string to the pipeline, so Komoot's `touringbicycle` and
 Strava's `cycling` are two facts about two services that are free to drift apart. A string
-neither source's map recognises derives nothing at all. Accordingly, **re-derivation only acts
+neither source's map recognises derives nothing at all, and one no registry type accepts is
+dropped and reported rather than failing the import — except for `sport:` and `source:`
+themselves, whose types the importer recreates from their seeds when the archive is empty
+enough to have lost them. Accordingly, **re-derivation only acts
 when the source supplies a type**; where it does not, existing tags are left untouched, so a
 manual sport tag survives every future import.
 
@@ -252,9 +255,7 @@ activities (
 tag_types (
   name          TEXT PRIMARY KEY,           -- 'sport', 'trip', 'source'
   label         TEXT NOT NULL,              -- 'Sport'
-  enum_values   TEXT,                       -- JSON array, or NULL = free string
   single_valued INTEGER NOT NULL,           -- one radio, or many checkboxes
-  color         TEXT NOT NULL,              -- per type, not per value
   sort          INTEGER NOT NULL UNIQUE     -- sidebar order
 );
 
@@ -282,15 +283,14 @@ columns on `activities` replace it with 6KB, and answer the same question faster
 
 Every tag is `<type>:<value>` — `sport:hike`, `trip:Balkan 2026`, `source:komoot`. The
 assignment stays a flat JSON array on the activity, queried with `json_each()`. What the
-schema gains is a registry of the *types*, because a type carries what a bare string cannot:
-which values it permits, whether an activity may hold more than one, and how the sidebar
-draws it.
+schema gains is a registry of the *types*, because a type carries the two things a bare
+string cannot: whether an activity may hold more than one, and how the sidebar says it.
 
-| Seeded type | Values | Single | Written by |
-|---|---|---|---|
-| `sport` | enum: `bike`, `hike`, `run` | yes | import |
-| `trip` | free string | yes | you |
-| `source` | free string | yes | import |
+| Seeded type | Single | Written by |
+|---|---|---|
+| `sport` | yes | import |
+| `trip` | yes | you |
+| `source` | yes | import |
 
 Splitting on the **first** colon makes the type an identifier (`/^[a-z][a-z0-9_]*$/`) and
 leaves the value free — `trip:Balkan 2026` keeps its capitals and its space, so nothing has
@@ -311,11 +311,36 @@ What replaces `isReservedTag` is one merge rule: **for each `(type, value)` a so
 drop that type's existing tags and add the new one.** A type the source says nothing about is
 untouched, which is exactly the property that keeps a hand-tagged Garmin upload hand-tagged.
 
+**A type declares no vocabulary.** `enum_values` was the registry's third column and the last
+place a value could be *wrong*: `sport` listed `bike`, `hike`, `run`, the UI refused anything
+else, and an importer deriving `gravel` put it back into the enum, because a source's
+vocabulary is a fact and the registry is a preference. That rule was the tell. If a value the
+data contains is always allowed to join, then the enum is not a constraint — it is a slow
+copy of `SELECT DISTINCT`, kept in sync by a re-add path, an enum-shrink cascade and a
+validator branch, all to describe what the tags already said. So a type's values are simply
+the ones in use, and `validateTag` is down to the grammar and the type. What guards against
+`balkan 2026` is the autocomplete, which is where it was doing the work anyway; what keeps
+`sport:` clean is that each source maps its own vocabulary in code, and a hand-typed sport is
+a sport you went and did.
+
 **Types only — still no tag ids.** The registry holds types, never values, so `trip:Balkan
 2026` remains a string in an array: tagging is one `UPDATE`, and there is nothing to garbage
-collect when the last activity loses a trip. The price is that renaming a trip rewrites every
-array mentioning it — a 500-row update measured in milliseconds, against a join table that
-would have to exist all the time.
+collect when the last activity loses a trip. Renaming is therefore not an operation at all —
+it is re-tagging, and for a single-valued type that is one bulk add, since the new value
+replaces the old on every row and the old one ceases to exist by having no rows left.
+
+**A type lives exactly as long as its last tag.** The registry is not administered: there is
+no delete-type control and no cascade dialog, because deletion is what *happens* when nothing
+carries a tag of a type any more. A GC after every write drops those rows. That makes the
+registry a description of the data rather than a second thing to keep in step with it, and it
+decides two smaller questions on its own — a type must be created together with its first tag,
+or it would vanish before it was used; and the metadata for the types an importer owns lives
+in code, so `sport` and `source` come back with the next import rather than lingering as rows
+describing an empty database.
+
+**A type has no colour column either.** It is hashed from the type name and unjammed against
+the other types, exactly as a value's colour is hashed from `type:value` — one mechanism, and
+one less field on a form that appears in the middle of tagging.
 
 **`source:` duplicates `activities.source` on purpose.** The column cannot go: the upsert key
 `(source, external_id)` needs it, and it decides which importer owns a row and which raw
@@ -328,13 +353,6 @@ depend on. The server validates on write, the browser validates before submittin
 run the identical function. The JSON array itself carries no constraints, and the registry is
 read per request rather than cached, so a hand-edit in a SQLite browser takes effect without
 a restart.
-
-**The registry is authoritative, so it cascades.** Deleting a type, or removing a value from
-an enum, strips those tags from every activity in the same transaction; no tag outlives its
-type. The one flow that runs the other way is the importer: a derived value the enum no
-longer contains is **re-added** to the registry, and the run reports it. A source's
-vocabulary is a fact, the registry is a preference — so deleting `run` only sticks until you
-go for a run.
 
 ### Time
 
@@ -633,7 +651,7 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 | `GET /api/tracks?<filters>` | The simplified polylines, still encoded; each carries its `id`, `tags` and `year` |
 | `GET /api/facets?<filters>` | Summary totals, per-value counts, range bounds + histograms, and the bbox-excluded `extent` — all self-excluded |
 | `GET /api/activities/:id` | Detail plus the full-resolution track, encoded at precision 6 with altitude alongside |
-| `GET /api/tag-types` | The registry, which the browser needs to render and validate |
+| `GET /api/tag-types` | The registry, each type with the values in use counted over *every* activity — the sidebar renders it, the autocomplete offers it, and the colour layout is laid out from it |
 | `POST /api/import/select` | Takes `{source, ids}`, returns the subset with no track yet. A pure query — no lock, no session |
 | `POST /api/import/:source` | Takes NDJSON frames, writes them in one transaction, streams NDJSON progress back |
 | `GET /api/stats?<filters>` | Aggregates for the analytics views — **M5** |
@@ -788,6 +806,9 @@ will otherwise propose all of these again.
 | Self-computed metrics | Segment metrics must be dynamic regardless, so storing whole-activity copies duplicates code that already exists. |
 | `sync_runs` / `sync_state` | The full-list-plus-missing-streams strategy makes the database its own sync state. |
 | Tags join table | Still no join table for *assignments*: a JSON array with `json_each()` does the job at this size. The registry that arrived in M2.5 holds types, not values, so tags never gained ids. |
+| `enum_values` on a type | Shipped in M2.5, removed in M4. A vocabulary an importer is allowed to grow on sight is not a constraint — it is `SELECT DISTINCT` kept in a column by a re-add path, a shrink cascade and a validator branch. The values in use say the same thing and cannot drift. |
+| A colour column on a type | Hashed from the name instead, the way value colours always were. One mechanism, and one less field on the form that interrupts tagging. |
+| Administering the registry | No create-type screen, no delete, no edit. A type is created with its first tag and deleted with its last, so the registry describes the data instead of being a second copy of it to maintain. |
 | `tags_auto` / `tags_manual` | Traded for the type prefix. Which tags the importer owns is a property of their type, not a second column. |
 | Reserved sport vocabulary | Superseded by `<type>:<value>`. A prefix removes the collision outright; reserving names only forbade it. |
 | `sport:other` | An unrecognised sport now derives nothing and reads as *not set*. Keeping `other` would also mean the importer resurrects the value every time you delete it. |

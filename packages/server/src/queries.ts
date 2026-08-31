@@ -4,10 +4,12 @@ import {
   type ActivityRow,
   type FacetsResponse,
   type Filter,
+  parseTag,
   RANGE_KEYS,
   type RangeFacet,
   type RangeKey,
   type TagRegistry,
+  type TagTypesResponse,
   type TracksResponse,
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
@@ -169,6 +171,40 @@ function rangeFacet(db: Db, scope: Scope, key: RangeKey): RangeFacet {
   return bucket(rows.map((r) => r.v))
 }
 
+/**
+ * The registry, with each type's values in use counted over every activity.
+ *
+ * Deliberately unfiltered, unlike every other count in the app. It is what the
+ * autocomplete offers — which must include the values nothing currently matching
+ * carries, since narrowing to the untagged is how tagging starts — and what the colour
+ * layout is built from, which must not depend on where the map is pointed.
+ */
+export function tagVocabulary(db: Db, registry: TagRegistry): TagTypesResponse {
+  const counted = db.all<{ tag: string; n: number }>(sql`
+    SELECT t.value AS tag, count(*) AS n
+    FROM activities a, json_each(a.tags) t
+    GROUP BY t.value`)
+
+  const byType = new Map<string, Array<{ value: string; count: number }>>()
+  for (const row of counted) {
+    const tag = parseTag(row.tag)
+    if (!tag) continue
+    const values = byType.get(tag.type)
+    const entry = { value: tag.value, count: row.n }
+    if (values) values.push(entry)
+    else byType.set(tag.type, [entry])
+  }
+
+  return {
+    tagTypes: [...registry.values()]
+      .sort((a, b) => a.sort - b.sort)
+      .map((type) => ({
+        ...type,
+        values: (byType.get(type.name) ?? []).sort((a, b) => b.count - a.count),
+      })),
+  }
+}
+
 export function facets(db: Db, filter: Filter, registry: TagRegistry): FacetsResponse {
   const scope = scopeFor(db, filter)
   const summary = db.get<{ n: number; d: number; e: number; t: number }>(sql`
@@ -207,13 +243,12 @@ export function facets(db: Db, filter: Filter, registry: TagRegistry): FacetsRes
         WHERE ${where} AND substr(t.value, 1, ${prefix.length}) = ${prefix}
         GROUP BY t.value`)
 
-      const counts = new Map(counted.map((r) => [r.v, r.n]))
-      // An enum keeps its declared order and shows a value at zero, so a facet you
-      // filtered yourself out of still says what putting it back would give. A free
-      // string has no declared vocabulary, so it lists what exists, commonest first.
-      const values = type.enumValues
-        ? type.enumValues.map((value) => ({ value, count: counts.get(value) ?? 0 }))
-        : counted.map((r) => ({ value: r.v, count: r.n })).sort((a, b) => b.count - a.count)
+      // What exists, commonest first. No type declares a vocabulary any more, so there
+      // is no order to preserve and no value to show at zero — a value with no
+      // activities is not a value.
+      const values = counted
+        .map((r) => ({ value: r.v, count: r.n }))
+        .sort((a, b) => b.count - a.count)
 
       const notSet = db.get<{ n: number }>(sql`
         SELECT count(*) AS n FROM activities a

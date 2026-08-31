@@ -21,14 +21,16 @@ export interface Tag {
  * One entry of the `tag_types` registry, parsed. A schema rather than an interface
  * because the browser receives these over the wire and validates what it renders
  * against the same definition the server validates what it stores.
+ *
+ * Four fields, and none of them is a vocabulary. A type used to declare which values
+ * it permitted; now its values are simply the ones in use, so the registry holds what
+ * a value cannot carry for itself — how to say it, whether an activity may hold more
+ * than one, and where it sits in the sidebar.
  */
 export const tagTypeSchema = z.object({
   name: z.string(),
   label: z.string(),
-  /** Allowed values, or null when any non-empty string is one. */
-  enumValues: z.array(z.string()).nullable(),
   singleValued: z.boolean(),
-  color: z.string(),
   sort: z.number().int(),
 })
 
@@ -56,17 +58,18 @@ export function parseTag(raw: string): Tag | null {
   return { type, value }
 }
 
-/** Null when valid, otherwise why not — the same message the API and the UI show. */
+/**
+ * Null when valid, otherwise why not — the same message the API and the UI show.
+ *
+ * The only thing a tag can now be wrong about is its grammar and its type. Values are
+ * never refused: there is no declared vocabulary to be outside of, and what stops
+ * `balkan 2026` becoming a second trip is the autocomplete, not a rule.
+ */
 export function validateTag(registry: TagRegistry, raw: string): string | null {
   const tag = parseTag(raw)
   if (!tag) return `'${raw}' is not a <type>:<value> tag`
+  if (!registry.has(tag.type)) return `no tag type '${tag.type}'`
 
-  const type = registry.get(tag.type)
-  if (!type) return `no tag type '${tag.type}'`
-
-  if (type.enumValues && !type.enumValues.includes(tag.value)) {
-    return `'${tag.value}' is not a value of '${tag.type}'`
-  }
   return null
 }
 

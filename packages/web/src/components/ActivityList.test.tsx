@@ -10,9 +10,7 @@ const TAG_TYPES: TagType[] = [
   {
     name: 'sport',
     label: 'Sport',
-    enumValues: ['bike', 'hike', 'run'],
     singleValued: true,
-    color: '#0A6B48',
     sort: 1,
   },
 ]

@@ -73,18 +73,19 @@ export const trackpoints = sqliteTable(
  *
  * Types, never values: `trip:Balkan 2026` stays a string in an activity's array, so
  * tagging is one UPDATE and there is nothing to garbage collect. What a type carries
- * is what a bare string cannot — which values it permits, whether an activity may
- * hold more than one, and how the sidebar draws it.
+ * is only what a bare string cannot — how to say it, whether an activity may hold more
+ * than one, and where it sits in the sidebar.
+ *
+ * It does not carry a vocabulary, and it does not carry a colour. A type's values are
+ * whatever activities have; its colour is hashed from its name, like every value's.
+ * What is left is metadata for a type that exists in the data — and only for as long
+ * as it does, since a type with no tags left is deleted.
  */
 export const tagTypes = sqliteTable('tag_types', {
   /** Identifier, and the prefix of every tag of this type. */
   name: text('name').primaryKey(),
   label: text('label').notNull(),
-  /** JSON array of allowed values. NULL means any non-empty string is one. */
-  enumValues: text('enum_values'),
   singleValued: integer('single_valued', { mode: 'boolean' }).notNull(),
-  /** Chips and sidebar group headers. Per type — track colours are hashed per value. */
-  color: text('color').notNull(),
   /** Sidebar order; unique so it is never ambiguous. */
   sort: integer('sort').notNull().unique(),
 })

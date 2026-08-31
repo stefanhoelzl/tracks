@@ -12,7 +12,7 @@ import { type Context, Hono } from 'hono'
 import { z } from 'zod'
 import type { Db } from './db.ts'
 import { importRoutes } from './import-route.ts'
-import { activityDetail, facets, listActivities, listTracks } from './queries.ts'
+import { activityDetail, facets, listActivities, listTracks, tagVocabulary } from './queries.ts'
 import { loadRegistry } from './registry.ts'
 
 /**
@@ -92,10 +92,12 @@ export function createApi(db: Db, dbPath: string) {
     return c.json(activityDetailSchema.parse(detail))
   })
 
-  // Read-only in M3: the registry is what the sidebar renders and validates against.
-  // Its mutations arrive with the tag UI that needs them.
+  // The registry and the vocabulary in one response, because they change together:
+  // every tag written can create a value, and emptying the last one deletes the type.
+  // It is what the sidebar renders, what the autocomplete offers and what the colour
+  // layout is laid out from.
   app.get('/api/tag-types', (c) =>
-    c.json(tagTypesResponseSchema.parse({ tagTypes: [...loadRegistry(db).values()] })),
+    c.json(tagTypesResponseSchema.parse(tagVocabulary(db, loadRegistry(db)))),
   )
 
   // The browser reads Strava and Komoot; these two write what it read. `select` says

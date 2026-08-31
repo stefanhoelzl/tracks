@@ -20,7 +20,7 @@ import {
   useTagTypes,
   useTracks,
 } from './lib/api.ts'
-import { buildScale, type ColourGroup } from './lib/colour.ts'
+import { buildScale, type ColourGroup, TYPE_GROUP } from './lib/colour.ts'
 import { setBbox } from './lib/filter-ops.ts'
 import { useUrlState } from './lib/url.ts'
 
@@ -70,28 +70,26 @@ export function App() {
   /**
    * The colour layout, rebuilt only when the value sets change.
    *
-   * Values come from the registry where a type declares them and from the facets
-   * where it does not. Facet counts are self-excluded, so this does not change when
-   * you filter by a type — which is what stops the map repainting mid-comparison.
-   * Years come from the tracks themselves, since no facet enumerates them.
+   * Values come from the registry response, which counts them over every activity
+   * rather than over the filter — so panning the map or picking a date cannot re-lay
+   * out the sports underneath you. The type names are laid out too, for the swatch a
+   * sidebar group wears. Years come from the tracks themselves, since nothing else
+   * enumerates them.
    */
   const scale = useMemo(() => {
-    const groups: ColourGroup[] = []
-
-    for (const type of tagTypes.data?.tagTypes ?? []) {
-      const facet = facets.data?.tags.find((t) => t.type === type.name)
-      groups.push({
-        type: type.name,
-        values: type.enumValues ?? (facet?.values ?? []).map((v) => v.value),
-      })
-    }
+    const types = tagTypes.data?.tagTypes ?? []
+    const groups: ColourGroup[] = types.map((type) => ({
+      type: type.name,
+      values: type.values.map((v) => v.value),
+    }))
+    groups.push({ type: TYPE_GROUP, values: types.map((type) => type.name) })
 
     const years = new Set<string>()
     for (const feature of tracks.data?.features ?? []) years.add(String(feature.properties.year))
     groups.push({ type: 'year', values: [...years] })
 
     return buildScale(groups)
-  }, [tagTypes.data, facets.data, tracks.data])
+  }, [tagTypes.data, tracks.data])
 
   const insets = {
     left: (filtersOpen ? PANEL_W : RAIL_W) + 16,
@@ -123,8 +121,8 @@ export function App() {
 
   /**
    * An import landed, so everything on screen is stale: the rows, the geometry, the
-   * counts and histogram bounds, and possibly the registry itself if a source put an
-   * enum value back. All four caches go.
+   * counts and histogram bounds, and the registry itself — an import can create a type
+   * and certainly creates values. All four caches go.
    *
    * The filter goes with them. New activities arriving behind an active filter would
    * be imported and invisible in the same breath — and the viewport is part of the

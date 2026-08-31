@@ -10,12 +10,10 @@ const TAG_TYPES: TagType[] = [
   {
     name: 'sport',
     label: 'Sport',
-    enumValues: ['bike', 'hike', 'run'],
     singleValued: true,
-    color: '#0A6B48',
     sort: 1,
   },
-  { name: 'trip', label: 'Trip', enumValues: null, singleValued: true, color: '#CE7A0C', sort: 2 },
+  { name: 'trip', label: 'Trip', singleValued: true, sort: 2 },
 ]
 
 const SCALE = buildScale([{ type: 'sport', values: ['bike', 'hike', 'run'] }])

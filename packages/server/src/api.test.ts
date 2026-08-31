@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApi } from './api.ts'
 import { type Db, openDb } from './db.ts'
 import { boundingBox } from './ingest.ts'
-import { activities, trackpoints } from './schema.ts'
+import { activities, tagTypes, trackpoints } from './schema.ts'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../migrations')
 
@@ -106,6 +106,17 @@ describe('the REST surface', () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'tracks-api-'))
     ;({ db, path, close } = openDb(join(dir, 'test.db'), MIGRATIONS))
+
+    // A type exists exactly as long as something carries a tag of it, so a fresh
+    // database has an empty registry and the fixture declares the three these
+    // activities use — the way an import and a first hand-applied tag would.
+    db.insert(tagTypes)
+      .values([
+        { name: 'sport', label: 'Sport', singleValued: true, sort: 1 },
+        { name: 'trip', label: 'Trip', singleValued: true, sort: 2 },
+        { name: 'source', label: 'Source', singleValued: true, sort: 3 },
+      ])
+      .run()
 
     for (const seed of SEED) {
       const [lat, lon] = seed.at
@@ -295,19 +306,20 @@ describe('the REST surface', () => {
 
     it('still narrows a tag type by every other facet', async () => {
       const body = await facets('tag=sport:bike&source=x&tag=source:komoot')
-      // Nothing is both a bike and from Komoot, so the sport counts collapse — the
-      // source term applies to them even though the sport terms do not.
-      expect(facet(body, 'sport').values).toEqual([
-        { value: 'bike', count: 0 },
-        { value: 'hike', count: 1 },
-        { value: 'run', count: 0 },
-      ])
+      // Only the Komoot hike is left, so it is the only sport still worth offering —
+      // the source term applies to the sport counts even though the sport terms do not.
+      expect(facet(body, 'sport').values).toEqual([{ value: 'hike', count: 1 }])
     })
 
-    it('keeps enum values that match nothing, and drops free-string ones', async () => {
+    it('lists what exists, commonest first', async () => {
       const body = await facets('')
-      expect(facet(body, 'sport').values.map((v) => v.value)).toEqual(['bike', 'hike', 'run'])
-      // `trip` is a free string, so it lists what exists, commonest first.
+      // No type declares a vocabulary, so every facet is what the data says: two bikes
+      // before the single hike and run, and the two trips that anything carries.
+      expect(facet(body, 'sport').values).toEqual([
+        { value: 'bike', count: 2 },
+        { value: 'hike', count: 1 },
+        { value: 'run', count: 1 },
+      ])
       expect(facet(body, 'trip').values.map((v) => v.value)).toEqual(['Alps', 'Balkan 2026'])
     })
 
@@ -419,15 +431,30 @@ describe('the REST surface', () => {
   })
 
   describe('GET /api/tag-types', () => {
-    it('returns the registry in sidebar order, enums parsed', async () => {
+    it('returns the registry in sidebar order, with the values in use', async () => {
       const response = await app.request('/api/tag-types')
       expect(response.status).toBe(200)
 
       const body = (await response.json()) as TagTypesResponse
       expect(body.tagTypes.map((t) => t.name)).toEqual(['sport', 'trip', 'source'])
-      expect(body.tagTypes[0]!.enumValues).toEqual(['bike', 'hike', 'run'])
-      expect(body.tagTypes[1]!.enumValues).toBeNull()
       expect(body.tagTypes[0]!.singleValued).toBe(true)
+      // Commonest first, and counted over every activity — the autocomplete has to
+      // offer a value precisely when the filter has narrowed away from it.
+      expect(body.tagTypes[0]!.values).toEqual([
+        { value: 'bike', count: 2 },
+        { value: 'hike', count: 1 },
+        { value: 'run', count: 1 },
+      ])
+      expect(body.tagTypes[1]!.values.map((v) => v.value).sort()).toEqual(['Alps', 'Balkan 2026'])
+    })
+
+    it('counts the whole archive, not the filter', async () => {
+      // No filter is even accepted here: the route takes none, and the vocabulary it
+      // returns is the same one whatever the sidebar is currently showing.
+      const body = (await (
+        await app.request('/api/tag-types?tag=sport:run')
+      ).json()) as TagTypesResponse
+      expect(body.tagTypes[0]!.values).toContainEqual({ value: 'bike', count: 2 })
     })
   })
 })

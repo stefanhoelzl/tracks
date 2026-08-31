@@ -276,10 +276,6 @@ function Summary({ state, onClose }: { state: ImportState; onClose: () => void }
       <Failures label="could not be read" failures={state.readFailures} />
       <Failures label="could not be written" failures={state.writeFailures} />
 
-      {state.readdedValues.length > 0 ? (
-        <p className={styles.note}>Put back in the registry: {state.readdedValues.join(', ')}</p>
-      ) : null}
-
       {state.rejectedTags.length > 0 ? (
         <p className={styles.note}>
           Tags dropped, because no type in the registry accepts them:{' '}

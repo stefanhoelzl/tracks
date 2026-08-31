@@ -137,26 +137,27 @@ describe('when a frame is bad', () => {
     expect(rows()).toHaveLength(2)
   })
 
-  it('re-adds an enum value a source still derives, rather than dropping the tag', async () => {
-    // A source's vocabulary is a fact; the registry is a preference.
-    handle.sqlite
-      .prepare(`update tag_types set enum_values = '["bike"]' where name = 'sport'`)
-      .run()
+  it('creates the types it derives, since a fresh database has none', async () => {
+    // The registry is empty until something carries a tag: migrations seed no types,
+    // and the ones an importer owns come back from the seeds in code.
+    expect(handle.sqlite.prepare('select count(*) as n from tag_types').get()).toEqual({ n: 0 })
 
     const result = await run([frame()])
-    expect(result.readdedValues).toEqual(['sport:hike'])
+    expect(result.rejectedTags.size).toBe(0)
+    expect(JSON.parse(rows()[0]?.tags ?? '[]')).toEqual(['source:komoot', 'sport:hike'])
     expect(
-      handle.sqlite.prepare(`select enum_values as v from tag_types where name = 'sport'`).get(),
-    ).toEqual({ v: '["bike","hike"]' })
+      handle.sqlite.prepare('select name, label, sort from tag_types order by sort').all(),
+    ).toEqual([
+      { name: 'sport', label: 'Sport', sort: 1 },
+      { name: 'source', label: 'Source', sort: 2 },
+    ])
   })
 
-  it('drops a derived tag whose type is unknown, without failing the import', async () => {
-    handle.sqlite.prepare(`delete from tag_types where name = 'source'`).run()
-
-    const result = await run([frame()])
+  it('drops a derived tag whose type is not one an importer owns', async () => {
+    const result = await run([frame({ tags: ['sport:hike', 'gear:gravel'] })])
     expect(result).toMatchObject({ written: 1, failed: [] })
-    expect(result.rejectedTags.get('source:komoot')).toBe(1)
-    expect(JSON.parse(rows()[0]?.tags ?? '[]')).not.toContain('source:komoot')
+    expect(result.rejectedTags.get('gear:gravel')).toBe(1)
+    expect(JSON.parse(rows()[0]?.tags ?? '[]')).not.toContain('gear:gravel')
   })
 })
 

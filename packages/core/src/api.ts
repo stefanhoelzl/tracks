@@ -184,8 +184,23 @@ export interface ActivityDetail {
   track: ActivityTrack
 }
 
+/**
+ * A registered type together with the values in use, counted over *every* activity.
+ *
+ * Unfiltered on purpose. Every other count in the app is scoped to what you are
+ * looking at, and this one must not be: it feeds the autocomplete, which is at its
+ * least useful when the filter has narrowed to the activities that lack the tag you
+ * are about to apply, and it feeds the colour layout, which has to be the same
+ * whichever way the map is panned.
+ */
+export const registeredTypeSchema = tagTypeSchema.extend({
+  values: z.array(tagValueCountSchema),
+})
+
+export type RegisteredType = z.infer<typeof registeredTypeSchema>
+
 export const tagTypesResponseSchema = z.object({
-  tagTypes: z.array(tagTypeSchema),
+  tagTypes: z.array(registeredTypeSchema),
 })
 
 export type TagTypesResponse = z.infer<typeof tagTypesResponseSchema>

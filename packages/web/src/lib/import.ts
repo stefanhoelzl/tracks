@@ -41,7 +41,6 @@ export interface ImportState {
   writeFailures: ImportFailure[]
   written: number
   /** Enum values a source derived that the registry had lost, and got back. */
-  readdedValues: string[]
   /** Derived tags no registry type could accept, counted by tag. */
   rejectedTags: Array<[string, number]>
 }
@@ -54,7 +53,6 @@ const initial = (): ImportState => ({
   readFailures: [],
   writeFailures: [],
   written: 0,
-  readdedValues: [],
   rejectedTags: [],
 })
 
@@ -201,7 +199,6 @@ export async function runImport(
     } else if (progress.type === 'done') {
       state.written = progress.written
       state.writeFailures = progress.failed
-      state.readdedValues = progress.readdedValues
       state.rejectedTags = progress.rejectedTags
       state.phase = 'done'
       state.title = null

@@ -92,7 +92,6 @@ export function importRoutes(db: Db, dbPath: string) {
               type: 'done',
               written: result.written,
               failed: result.failed,
-              readdedValues: result.readdedValues,
               rejectedTags: [...result.rejectedTags],
             })
           } catch (error) {

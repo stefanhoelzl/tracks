@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { FacetsResponse, Filter, TagType } from '@tracks/core'
+import type { FacetsResponse, Filter, RegisteredType } from '@tracks/core'
 import { emptyFilter, formatFilter } from '@tracks/core'
 import { describe, expect, it, vi } from 'vitest'
 import { buildScale } from '../lib/colour.ts'
@@ -12,16 +12,19 @@ import { FilterSidebar } from './FilterSidebar.tsx'
  * the URL is the observable result.
  */
 
-const TAG_TYPES: TagType[] = [
+const TAG_TYPES: RegisteredType[] = [
   {
     name: 'sport',
     label: 'Sport',
-    enumValues: ['bike', 'hike', 'run'],
     singleValued: true,
-    color: '#0A6B48',
     sort: 1,
+    values: [
+      { value: 'bike', count: 102 },
+      { value: 'hike', count: 23 },
+      { value: 'run', count: 70 },
+    ],
   },
-  { name: 'trip', label: 'Trip', enumValues: null, singleValued: true, color: '#CE7A0C', sort: 2 },
+  { name: 'trip', label: 'Trip', singleValued: true, sort: 2, values: [] },
 ]
 
 const FACETS: FacetsResponse = {

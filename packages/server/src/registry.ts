@@ -1,5 +1,5 @@
-import type { TagRegistry, TagType } from '@tracks/core'
-import { eq } from 'drizzle-orm'
+import type { TagType } from '@tracks/core'
+import { sql } from 'drizzle-orm'
 import type { Db } from './db.ts'
 import { tagTypes } from './schema.ts'
 
@@ -7,10 +7,10 @@ import { tagTypes } from './schema.ts'
  * Reads the tag type registry.
  *
  * Read per call rather than cached: it is a handful of rows on a local SQLite file,
- * and not caching means a hand-edit in a SQLite browser — which is how this database
- * is inspected until the UI exists — takes effect without a restart.
+ * and not caching means a hand-edit in a SQLite browser — still the way this database
+ * is inspected — takes effect without a restart.
  */
-export function loadRegistry(db: Db): TagRegistry {
+export function loadRegistry(db: Db): Map<string, TagType> {
   const rows = db.select().from(tagTypes).orderBy(tagTypes.sort).all()
 
   return new Map(
@@ -19,9 +19,7 @@ export function loadRegistry(db: Db): TagRegistry {
       {
         name: row.name,
         label: row.label,
-        enumValues: row.enumValues === null ? null : (JSON.parse(row.enumValues) as string[]),
         singleValued: row.singleValued,
-        color: row.color,
         sort: row.sort,
       },
     ]),
@@ -29,21 +27,44 @@ export function loadRegistry(db: Db): TagRegistry {
 }
 
 /**
- * Adds a value to an enum type, keeping the stored order.
+ * The types an importer writes, and what they are called.
  *
- * A source's vocabulary is a fact and the registry is a preference, so an importer
- * that derives a value the enum no longer contains puts it back rather than dropping
- * the tag. Deleting `run` therefore only sticks until you go for a run.
+ * Here rather than in a migration because a type lives only as long as something
+ * carries a tag of it: `sport` and `source` are deleted with the last activity that
+ * had them, and an import must be able to bring them back. A seeded row would only
+ * describe the first database ever created.
  *
- * Updates the passed type in place as well as the row, so a caller holding a
- * registry for the length of an import does not re-add the same value 70 times.
+ * Everything else is created by hand, with its label typed at the moment the first
+ * tag of it is applied.
  */
-export function addEnumValue(db: Db, type: TagType, value: string): void {
-  if (!type.enumValues || type.enumValues.includes(value)) return
-  type.enumValues.push(value)
+const SEED_TYPES: Record<string, { label: string; singleValued: boolean }> = {
+  sport: { label: 'Sport', singleValued: true },
+  source: { label: 'Source', singleValued: true },
+}
 
-  db.update(tagTypes)
-    .set({ enumValues: JSON.stringify(type.enumValues) })
-    .where(eq(tagTypes.name, type.name))
-    .run()
+export function seedFor(name: string): { label: string; singleValued: boolean } | undefined {
+  return SEED_TYPES[name]
+}
+
+/**
+ * Registers a type, appended to the end of the sidebar.
+ *
+ * Callers hold the registry they read at the start of a request, so the new type is
+ * spliced into that map as well as the table — otherwise a second tag of the same new
+ * type in the same run would try to create it again and hit the primary key.
+ */
+export function createType(
+  db: Db,
+  registry: Map<string, TagType>,
+  type: { name: string; label: string; singleValued: boolean },
+): TagType {
+  const { max } = db.get<{ max: number | null }>(sql`SELECT max(sort) AS max FROM tag_types`) ?? {
+    max: null,
+  }
+  const row: TagType = { ...type, sort: (max ?? 0) + 1 }
+
+  db.insert(tagTypes).values(row).run()
+  registry.set(row.name, row)
+
+  return row
 }

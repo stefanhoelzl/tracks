@@ -10,28 +10,8 @@ import {
 } from './tags.ts'
 
 const registry: TagRegistry = new Map([
-  [
-    'sport',
-    {
-      name: 'sport',
-      label: 'Sport',
-      enumValues: ['bike', 'hike', 'run'],
-      singleValued: true,
-      color: '#0A6B48',
-      sort: 1,
-    },
-  ],
-  [
-    'trip',
-    {
-      name: 'trip',
-      label: 'Trip',
-      enumValues: null,
-      singleValued: true,
-      color: '#CE7A0C',
-      sort: 2,
-    },
-  ],
+  ['sport', { name: 'sport', label: 'Sport', singleValued: true, sort: 1 }],
+  ['trip', { name: 'trip', label: 'Trip', singleValued: true, sort: 2 }],
 ])
 
 describe('tag grammar', () => {
@@ -48,11 +28,14 @@ describe('tag grammar', () => {
     expect(parseTag('Sport:bike')).toBeNull() // types are identifiers
   })
 
-  it('validates against the registry, not against a word list', () => {
+  it('validates the grammar and the type, and nothing about the value', () => {
     expect(validateTag(registry, 'sport:hike')).toBeNull()
-    expect(validateTag(registry, 'trip:Balkan 2026')).toBeNull() // free string
-    expect(validateTag(registry, 'sport:ski')).toMatch(/not a value/)
+    expect(validateTag(registry, 'trip:Balkan 2026')).toBeNull()
+    // A value is never wrong: no type declares a vocabulary to be outside of, and a
+    // sport the registry has not seen is a sport you went and did.
+    expect(validateTag(registry, 'sport:ski')).toBeNull()
     expect(validateTag(registry, 'gear:steel')).toMatch(/no tag type/)
+    expect(validateTag(registry, 'steel')).toMatch(/not a <type>:<value> tag/)
   })
 
   it('sorts and deduplicates on write', () => {

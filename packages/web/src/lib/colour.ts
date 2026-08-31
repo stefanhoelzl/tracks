@@ -74,6 +74,15 @@ export function preferredSlot(tag: string): number {
   return hash(tag) % PALETTE_SIZE
 }
 
+/**
+ * The group the tag *type* names are laid out in, so a type's own swatch is hashed and
+ * unjammed exactly like a value's.
+ *
+ * A sentinel rather than a name a type could take: the grammar forbids `#` in a type,
+ * so this can never collide with a real one.
+ */
+export const TYPE_GROUP = '#type'
+
 /** One type, and every value of it that exists. */
 export interface ColourGroup {
   type: string

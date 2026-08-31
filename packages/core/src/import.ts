@@ -94,8 +94,6 @@ export const importProgressSchema = z.discriminatedUnion('type', [
     type: z.literal('done'),
     written: z.number().int(),
     failed: z.array(importFailureSchema),
-    /** Enum values a source derived that the registry had lost, and got back. */
-    readdedValues: z.array(z.string()),
     /** Derived tags no registry type could accept, counted by tag. */
     rejectedTags: z.array(z.tuple([z.string(), z.number().int()])),
   }),

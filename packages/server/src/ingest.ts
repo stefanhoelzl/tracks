@@ -5,13 +5,13 @@ import {
   type ImportFrame,
   mergeDerivedTags,
   parseTag,
-  type TagRegistry,
+  type TagType,
   validateTag,
 } from '@tracks/core'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Db, Writer } from './db.ts'
 import { simplify } from './polyline.ts'
-import { addEnumValue, loadRegistry } from './registry.ts'
+import { createType, loadRegistry, seedFor } from './registry.ts'
 import { activities, trackpoints } from './schema.ts'
 import { utcOffsetAt } from './timezone.ts'
 
@@ -33,8 +33,6 @@ export interface IngestResult {
   written: number
   /** Activities that failed. One bad frame costs itself and nothing else. */
   failed: ImportFailure[]
-  /** Enum values a source derived that the registry had lost, and got back. */
-  readdedValues: string[]
   /** Derived tags no registry type could accept, counted by tag. */
   rejectedTags: Map<string, number>
 }
@@ -67,14 +65,16 @@ export function boundingBox(points: ReadonlyArray<{ lat: number; lon: number }>)
 /**
  * Accepts the tags a source derived, against the registry.
  *
- * A source's vocabulary is a fact and the registry is a preference, so a value an
- * enum has lost is put back rather than dropped. A tag whose *type* is unknown is a
- * different matter — nothing says what it means — so it is dropped and reported.
- * Either way the activity itself imports: a taxonomy choice never fails an import.
+ * Values are never refused — a source's vocabulary is a fact, and there is no declared
+ * one left to be outside of. A *type* is different: nothing says what `gear:` means
+ * unless something already does. So a type an importer owns is recreated from its
+ * seed, which is what brings `sport` and `source` back after their last activity was
+ * deleted, and any other unknown type is dropped and reported. Either way the activity
+ * itself imports: a taxonomy question never fails an import.
  */
 function acceptDerived(
   writer: Writer,
-  registry: TagRegistry,
+  registry: Map<string, TagType>,
   derived: string[],
   result: IngestResult,
 ) {
@@ -82,14 +82,8 @@ function acceptDerived(
 
   for (const raw of derived) {
     const tag = parseTag(raw)
-    const type = tag ? registry.get(tag.type) : undefined
-
-    if (tag && type?.enumValues && !type.enumValues.includes(tag.value)) {
-      addEnumValue(writer.db, type, tag.value)
-      result.readdedValues.push(raw)
-      accepted.push(raw)
-      continue
-    }
+    const seed = tag && !registry.has(tag.type) ? seedFor(tag.type) : undefined
+    if (tag && seed) createType(writer.db, registry, { name: tag.type, ...seed })
 
     if (validateTag(registry, raw) !== null) {
       result.rejectedTags.set(raw, (result.rejectedTags.get(raw) ?? 0) + 1)
@@ -144,7 +138,12 @@ function decodePoints(frame: ImportFrame): Point[] {
 }
 
 /** Writes one activity, inside the caller's transaction. */
-function write(writer: Writer, registry: TagRegistry, frame: ImportFrame, result: IngestResult) {
+function write(
+  writer: Writer,
+  registry: Map<string, TagType>,
+  frame: ImportFrame,
+  result: IngestResult,
+) {
   const points = decodePoints(frame)
   const first = points[0]!
 
@@ -219,7 +218,6 @@ export async function ingest(
   const result: IngestResult = {
     written: 0,
     failed: [],
-    readdedValues: [],
     rejectedTags: new Map(),
   }
 

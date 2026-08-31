@@ -61,23 +61,25 @@ describe('the typed-tags migration', () => {
         ['source:strava', 'sport:run'],
         ['source:strava'],
       ])
+
+      // `trip` was seeded with the others and nothing ever carried one, so the rule
+      // that a type lives only as long as its last tag takes it away here.
+      expect(after.sqlite.prepare('select name from tag_types order by sort').all()).toEqual([
+        { name: 'sport' },
+        { name: 'source' },
+      ])
     } finally {
       after.close()
     }
   })
 
-  it('seeds the three types that exist today', () => {
+  it('leaves a fresh database with no types at all', () => {
     const handle = openDb(join(dir, 'seed.db'), MIGRATIONS)
     try {
-      const rows = handle.sqlite
-        .prepare('select name, enum_values, single_valued from tag_types order by sort')
-        .all()
-
-      expect(rows).toEqual([
-        { name: 'sport', enum_values: '["bike","hike","run"]', single_valued: 1 },
-        { name: 'trip', enum_values: null, single_valued: 1 },
-        { name: 'source', enum_values: null, single_valued: 1 },
-      ])
+      // Seeding three types into an empty database would put three facets in the
+      // sidebar that nothing has ever used. `sport` and `source` come back from their
+      // seeds in code the first time an import derives one; the rest you name yourself.
+      expect(handle.sqlite.prepare('select count(*) as n from tag_types').get()).toEqual({ n: 0 })
     } finally {
       handle.close()
     }

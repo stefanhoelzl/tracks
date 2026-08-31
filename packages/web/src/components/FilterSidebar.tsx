@@ -1,8 +1,8 @@
-import type { FacetsResponse, Filter, RangeKey, TagType } from '@tracks/core'
+import type { FacetsResponse, Filter, RangeKey, RegisteredType } from '@tracks/core'
 import { RANGE_KEYS } from '@tracks/core'
 import { CalendarDays, Check, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
-import type { ColourScale } from '../lib/colour.ts'
+import { type ColourScale, TYPE_GROUP } from '../lib/colour.ts'
 import {
   datePresets,
   excludeTag,
@@ -34,7 +34,7 @@ function TagGroup({
   scale,
   onChange,
 }: {
-  type: TagType
+  type: RegisteredType
   facet: FacetsResponse['tags'][number] | undefined
   filter: Filter
   scale: ColourScale
@@ -47,7 +47,10 @@ function TagGroup({
   return (
     <section className={styles.group} aria-label={type.label}>
       <div className={styles.groupHead}>
-        <span className={styles.groupSwatch} style={{ background: type.color }} />
+        <span
+          className={styles.groupSwatch}
+          style={{ background: scale.colour(TYPE_GROUP, type.name) }}
+        />
         <span className={styles.groupLabel}>{type.label}</span>
         <span className={styles.groupName}>{type.name}:</span>
       </div>
@@ -205,7 +208,7 @@ export function FilterSidebar({
   scale,
   onChange,
 }: {
-  tagTypes: TagType[]
+  tagTypes: RegisteredType[]
   facets: FacetsResponse | undefined
   filter: Filter
   scale: ColourScale
