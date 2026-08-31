@@ -313,7 +313,7 @@ map-options surface for one control to live in.
 |---|---|
 | **What gets drawn** | A precomputed Douglas–Peucker polyline per activity at ~10 m tolerance, served still encoded by `/api/tracks` and decoded in the browser. All 197 measure 214 KB stored and 0.23 MB on the wire, against 1.14 MB decoded; full-resolution points load only when you open one activity. |
 | **Colour** | A *colour by* selector over the values of any registered type, or year — never over types themselves, since a type has one colour and colouring by it would draw every ride, hike and run identically. There is no *nothing*: a single-colour map answers no question the list does not answer better, so the default is the registry's first type. The registry's own `color` is for chips and sidebar group headers, not for tracks. |
-| **Hover linking** | Two-way. Hover a list row and its track highlights while the rest dim; hover a track and the list scrolls to it. |
+| **Hover linking** | Two-way. Hover a list row and its track thickens; hover a track and the list scrolls to it. The rest keep their colour and weight. |
 | **Viewport** | Eases to the result bounds once the filter settles — debounced, so dragging a slider fits at the end rather than every frame. It holds still when nothing matches, rather than lurching at empty bounds, and stays put entirely while *filter to this area* is on. |
 | **Low zoom** | Start points cluster into **donuts**, split by the same colour-by that paints the tracks — which valley is all hiking and which is half rides, before you zoom in to find out. The client derives the start points from the track payload it already holds, so clustering costs no endpoint. A toggle turns grouping off entirely, and the tracks then never fade: the zoom interpolation existed only to make room for the donuts. |
 
@@ -419,8 +419,15 @@ stopped adjusting the filter and started reading the map under it.
 A list row is a coloured bar plus title, distance, elevation, duration and date. The bar follows
 the active *colour by* rather than being hardwired to sport, so the list and the map never read as
 two different legends. Clicking one selects it — `?activity=123` — and the right panel swaps to a
-read-only detail while the full-resolution track draws and everything else dims. Selection is
+read-only detail while the full-resolution track draws over the simplified one. Selection is
 single; the checkboxes and shift-click ranges belong to the M4 flow that needs them.
+
+Nothing dims and nothing changes colour. Both were tried and both were wrong: dimming the rest
+answered "which one is it?" by deleting the context that made the answer worth having, and painting
+the selection a fixed near-black threw away the sport or trip its colour was carrying — saying
+"different kind of thing" where it meant "the one you picked". Emphasis is weight instead: a
+heavier line for a focused track, and for a selected one a white casing beneath its own unchanged
+colour, so it separates from whatever it crosses without lying about what it is.
 
 Zero results show an empty state naming the facets doing the narrowing, with the map holding its
 camera rather than lurching at empty bounds. A filter change keeps the previous results on screen
@@ -575,7 +582,7 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Validation** | Zod, in core, for the filter and every response shape — parsed on the way in *and* on the way out. |
 | **Web build** | Vite. In development the Hono app runs inside it via `@hono/vite-dev-server`, so one command HMRs both sides; `tracks serve` mounts the built `dist` beside the API. |
 | **Web state** | No router — the app is one page, and core already parses the query string. A `useFilterState` hook over `useSyncExternalStore` is the whole of it. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
-| **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover, dimming and a viewport-derived filter are all things a declarative wrapper would be in the way of. |
+| **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover and a viewport-derived filter are both things a declarative wrapper would be in the way of. |
 | **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file. |
 | **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
 | **Testing** | Vitest in two projects: `node` (core, server, msw-replayed Komoot, file fixtures for Strava) stays offline and under a second; `web` (jsdom) covers the components and mounts the whole app against a mocked API. `--project node` keeps the fast lane. Map styles are checked against `@maplibre/maplibre-gl-style-spec` — validated *and* evaluated against the features each layer will actually meet, because the expression bugs that matter are legal ones that meet the wrong data. |

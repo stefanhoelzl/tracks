@@ -3,7 +3,7 @@ import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap }
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import type { ColourScale } from '../lib/colour.ts'
+import { activityColour, type ColourScale } from '../lib/colour.ts'
 import { basemapStyle } from '../map/basemap.ts'
 import { ClusterMarkers } from '../map/clusters.ts'
 import {
@@ -217,7 +217,16 @@ export function MapView({
       features: [
         {
           type: 'Feature',
-          properties: {},
+          // Its own colour, computed the same way the simplified line under it was:
+          // selecting a track must not change what the track is telling you.
+          properties: {
+            colour: activityColour(
+              detail.activity.tags,
+              Number(detail.activity.localDate.slice(0, 4)),
+              colourBy,
+              scale,
+            ),
+          },
           geometry: {
             type: 'LineString',
             coordinates: detail.track.coordinates,
@@ -225,7 +234,7 @@ export function MapView({
         },
       ],
     })
-  }, [ready, detail])
+  }, [ready, detail, colourBy, scale])
 
   // --- Camera ---------------------------------------------------------------
 

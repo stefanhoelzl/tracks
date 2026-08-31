@@ -19,6 +19,7 @@ export const SELECTED_SOURCE = 'selected'
 export const TRACKS_LAYER = 'tracks-base'
 export const FOCUS_LAYER = 'tracks-focus'
 export const STARTS_LAYER = 'starts-circles'
+export const SELECTED_CASING_LAYER = 'selected-track-casing'
 export const SELECTED_LAYER = 'selected-track'
 
 /**
@@ -28,9 +29,17 @@ export const SELECTED_LAYER = 'selected-track'
  */
 const CLUSTER_MAX_ZOOM = 8
 
-/** Full strength for an unfocused track, and what it recedes to when one is focused. */
+/** Only reached by a selected feature built without a colour, which nothing does. */
+const SELECTED_FALLBACK = '#0f1513'
+
+/**
+ * What every track is drawn at, focused or not.
+ *
+ * Nothing recedes when one track is picked out. Dimming the rest answered "which one
+ * is it?" by deleting the context that made the answer worth having — where this ride
+ * sits among the others is the reason to look at a map of all of them at once.
+ */
 const RESTING_OPACITY = 0.85
-const DIMMED_OPACITY = 0.18
 
 /**
  * A zoom fade that ends at `opacity`.
@@ -127,7 +136,7 @@ export function addTrackLayers(map: MapLibreMap): void {
       'line-color': ['get', 'colour'],
       // Thin enough at country scale to show a shape rather than a blot, heavy
       // enough at valley scale to follow.
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.2, 10, 2, 14, 3],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.8, 10, 3, 14, 4.5],
       'line-opacity': fadeInTo(RESTING_OPACITY),
     },
   })
@@ -142,8 +151,24 @@ export function addTrackLayers(map: MapLibreMap): void {
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ['get', 'colour'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 2.4, 10, 3.6, 14, 5],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 3.2, 10, 5, 14, 7],
       'line-opacity': 1,
+    },
+  })
+
+  // A halo, not a colour. Painting the selection black said "this is a different kind
+  // of thing" when what it means is "this is the one you picked" — and it threw away
+  // the sport or trip the colour was carrying. A casing separates it from whatever it
+  // crosses while its own colour stays the colour it always was.
+  map.addLayer({
+    id: SELECTED_CASING_LAYER,
+    type: 'line',
+    source: SELECTED_SOURCE,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 7, 10, 10, 14, 13],
+      'line-opacity': 0.9,
     },
   })
 
@@ -153,8 +178,10 @@ export function addTrackLayers(map: MapLibreMap): void {
     source: SELECTED_SOURCE,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': '#0f1513',
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 2.4, 10, 3.4, 14, 4.6],
+      // Coalesced: `line-color` is not optional, and a feature arriving without one
+      // would take the whole layer down rather than draw in the wrong colour.
+      'line-color': ['coalesce', ['get', 'colour'], SELECTED_FALLBACK],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 3.6, 10, 5.4, 14, 7.5],
     },
   })
 
@@ -194,12 +221,14 @@ export function paintTracks(
   // this do not know that happened — so check rather than throw into the console.
   if (!map.getLayer(TRACKS_LAYER)) return
 
-  const resting = focusId === null ? RESTING_OPACITY : DIMMED_OPACITY
-
   map.setFilter(FOCUS_LAYER, ['==', ['get', 'id'], focusId ?? -1])
-  map.setPaintProperty(TRACKS_LAYER, 'line-opacity', grouped ? fadeInTo(resting) : resting)
+  map.setPaintProperty(
+    TRACKS_LAYER,
+    'line-opacity',
+    grouped ? fadeInTo(RESTING_OPACITY) : RESTING_OPACITY,
+  )
   map.setLayoutProperty(STARTS_LAYER, 'visibility', grouped ? 'visible' : 'none')
 }
 
 /** Exported for the style-spec test, which validates what `addTrackLayers` builds. */
-export const OPACITY = { RESTING_OPACITY, DIMMED_OPACITY, fadeInTo, fadeOutFrom }
+export const OPACITY = { RESTING_OPACITY, fadeInTo, fadeOutFrom }

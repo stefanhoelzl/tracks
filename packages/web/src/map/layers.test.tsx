@@ -14,9 +14,12 @@ import type {
 import { describe, expect, it } from 'vitest'
 import {
   addTrackLayers,
+  FOCUS_LAYER,
   OPACITY,
   paint,
   paintTracks,
+  SELECTED_CASING_LAYER,
+  SELECTED_LAYER,
   SELECTED_SOURCE,
   STARTS_SOURCE,
   startPoints,
@@ -160,10 +163,47 @@ describe('the track layers', () => {
     expect(painted({ focusId: null, grouped: false })['starts-circles.visibility']).toBe('none')
   })
 
-  it('dims the rest around a focused track, grouped or not', () => {
-    expect(painted({ focusId: 7, grouped: false })['line-opacity']).toBe(OPACITY.DIMMED_OPACITY)
+  it('keeps the selected track its own colour, and separates it with a casing', () => {
+    const { layers } = collect()
+    const paintOf = (id: string) =>
+      (layers.find((l) => l.id === id) as { paint: Record<string, unknown> }).paint
+    const widthAt14 = (id: string) => {
+      const stops = paintOf(id)['line-width'] as Array<unknown>
+      return stops.at(-1) as number
+    }
+
+    // Selection is weight, not hue: painting it a fixed colour would throw away the
+    // sport or trip the colour is carrying, and say "different thing" not "this one".
+    expect(paintOf(SELECTED_LAYER)['line-color']).toEqual([
+      'coalesce',
+      ['get', 'colour'],
+      '#0f1513',
+    ])
+    expect(paintOf(SELECTED_CASING_LAYER)['line-color']).toBe('#ffffff')
+
+    // The casing only works if it is under and wider than the line it separates.
+    expect(layers.findIndex((l) => l.id === SELECTED_CASING_LAYER)).toBeLessThan(
+      layers.findIndex((l) => l.id === SELECTED_LAYER),
+    )
+    expect(widthAt14(SELECTED_CASING_LAYER)).toBeGreaterThan(widthAt14(SELECTED_LAYER))
+  })
+
+  it('draws a focused track heavier than a resting one', () => {
+    const { layers } = collect()
+    const widthAt14 = (id: string) => {
+      const layer = layers.find((l) => l.id === id) as { paint: Record<string, unknown> }
+      return (layer.paint['line-width'] as Array<unknown>).at(-1) as number
+    }
+
+    expect(widthAt14(FOCUS_LAYER)).toBeGreaterThan(widthAt14(TRACKS_LAYER))
+  })
+
+  it('picks out a focused track without dimming the rest', () => {
+    // Focusing is the wider line on its own layer, nothing else. The map around it is
+    // the point of the map, so it stays exactly as bright as it was.
+    expect(painted({ focusId: 7, grouped: false })['line-opacity']).toBe(OPACITY.RESTING_OPACITY)
     expect(painted({ focusId: 7, grouped: true })['line-opacity']).toEqual(
-      OPACITY.fadeInTo(OPACITY.DIMMED_OPACITY),
+      OPACITY.fadeInTo(OPACITY.RESTING_OPACITY),
     )
     expect(painted({ focusId: 7, grouped: true }).filter).toEqual(['==', ['get', 'id'], 7])
   })
@@ -204,7 +244,11 @@ describe('the track layers', () => {
       // What MapLibre's own clustering adds; nothing in this module produces it.
       { name: 'a cluster', properties: { point_count: 12, point_count_abbreviated: '12' } },
     ],
-    [SELECTED_SOURCE]: [{ name: 'the selected track', properties: {} }],
+    [SELECTED_SOURCE]: [
+      { name: 'the selected track', properties: { colour: '#0A6B48' } },
+      // The coalesce has to hold: a missing colour must not take the layer down.
+      { name: 'a selected track with no colour', properties: {} },
+    ],
   }
 
   it('evaluates every paint property against the features its source holds', () => {
