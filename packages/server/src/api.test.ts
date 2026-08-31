@@ -208,6 +208,18 @@ describe('the REST surface', () => {
       expect(await titles(app, 'tag=sport:hike&tag=sport:')).toEqual(['Balkan hike', 'Untyped'])
     })
 
+    it('searches titles, case-insensitively, and never a null one', async () => {
+      expect(await titles(app, 'q=balkan')).toEqual(['Balkan hike'])
+      expect(await titles(app, 'q=RIDE')).toEqual(['Night ride', 'Alps ride'])
+      // The wildcards are characters, not syntax: `%` must not match everything.
+      expect(await titles(app, 'q=%')).toEqual([])
+    })
+
+    it('narrows with everything else rather than replacing it', async () => {
+      expect(await titles(app, 'q=ride&tag=sport:bike')).toEqual(['Night ride', 'Alps ride'])
+      expect(await titles(app, 'q=ride&tag=trip:Alps')).toEqual(['Alps ride'])
+    })
+
     it('filters on the local date, not the UTC instant', async () => {
       // The night ride starts at 23:30 UTC on 2024-12-31 and is a 2025 activity.
       expect(await titles(app, 'from=2025-01-01')).toEqual(['Balkan hike', 'Night ride'])

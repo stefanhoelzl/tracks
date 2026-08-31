@@ -70,6 +70,24 @@ function setup(filter: Filter = emptyFilter()) {
 }
 
 describe('the filter sidebar', () => {
+  it('writes a title search, replacing rather than pushing', async () => {
+    const { onChange, search } = setup()
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search titles' }), 'b')
+    expect(search()).toBe('q=b')
+    // Typing is one gesture: Back should leave the search, not walk it back a letter
+    // at a time.
+    expect(onChange.mock.calls[0]![1]).toBe('replace')
+  })
+
+  it('clears the search, and offers nothing to clear when there is none', async () => {
+    expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
+
+    const { search } = setup({ ...emptyFilter(), q: 'balkan' })
+    await userEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(search()).toBe('')
+  })
+
   it('renders one group per registry type, in registry order', () => {
     setup()
     const groups = screen.getAllByRole('region')

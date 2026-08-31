@@ -52,6 +52,11 @@ const bboxSchema = z
 
 const shape = z.object({
   tags: z.array(tagTermSchema),
+  /**
+   * Free text, matched against the title. A filter term like any other — it is what
+   * finds the untagged ride by the name you gave it, which is where tagging starts.
+   */
+  q: z.string().nullable(),
   /** Local dates, compared against the activity's own local date. Inclusive. */
   from: isoDate.nullable(),
   to: isoDate.nullable(),
@@ -75,6 +80,7 @@ export type Filter = z.infer<typeof shape>
 export function emptyFilter(): Filter {
   return {
     tags: [],
+    q: null,
     from: null,
     to: null,
     bbox: null,
@@ -122,8 +128,12 @@ export const filterSchema = z.preprocess((input) => {
   const params = asSearchParams(input)
   const bbox = params.get('bbox')
 
+  const q = params.get('q')
+
   return {
     tags: params.getAll('tag'),
+    // Whitespace is not a search: it would narrow nothing and hold a chip saying so.
+    q: q === null || q.trim() === '' ? null : q,
     from: params.get('from'),
     to: params.get('to'),
     bbox: bbox === null || bbox.trim() === '' ? null : bbox.split(',').map(Number),
@@ -151,6 +161,7 @@ export function formatFilter(filter: Filter): URLSearchParams {
   const params = new URLSearchParams()
 
   for (const term of filter.tags) params.append('tag', formatTagTerm(term))
+  if (filter.q !== null) params.set('q', filter.q)
   if (filter.from !== null) params.set('from', filter.from)
   if (filter.to !== null) params.set('to', filter.to)
   if (filter.bbox !== null) params.set('bbox', filter.bbox.join(','))

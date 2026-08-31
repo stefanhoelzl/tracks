@@ -1,6 +1,6 @@
 import type { FacetsResponse, Filter, RangeKey, RegisteredType } from '@tracks/core'
 import { RANGE_KEYS } from '@tracks/core'
-import { CalendarDays, Check, ChevronDown } from 'lucide-react'
+import { CalendarDays, Check, ChevronDown, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { type ColourScale, TYPE_GROUP } from '../lib/colour.ts'
 import {
@@ -8,6 +8,7 @@ import {
   excludeTag,
   setDates,
   setRange,
+  setSearch,
   termState,
   toggleTag,
 } from '../lib/filter-ops.ts'
@@ -201,6 +202,48 @@ function RangeGroup({
   )
 }
 
+/**
+ * Search by title.
+ *
+ * A filter term like any other, so it lives with the rest of them rather than over
+ * the list it narrows — and at the top, because it is what you reach for first when
+ * hunting the activities that a tag is missing from.
+ *
+ * Every keystroke replaces rather than pushes: typing is one gesture, and Back should
+ * leave the search rather than walk back through it a letter at a time.
+ */
+function SearchField({
+  filter,
+  onChange,
+}: {
+  filter: Filter
+  onChange: (next: Filter, mode?: 'push' | 'replace') => void
+}) {
+  return (
+    <div className={styles.search}>
+      <Search size={13} color="var(--muted)" strokeWidth={2.2} />
+      <input
+        type="search"
+        className={styles.searchInput}
+        placeholder="Search titles"
+        aria-label="Search titles"
+        value={filter.q ?? ''}
+        onChange={(event) => onChange(setSearch(filter, event.target.value), 'replace')}
+      />
+      {filter.q !== null ? (
+        <button
+          type="button"
+          className={styles.searchClear}
+          aria-label="Clear search"
+          onClick={() => onChange(setSearch(filter, ''))}
+        >
+          <X size={12} strokeWidth={2.4} />
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 export function FilterSidebar({
   tagTypes,
   facets,
@@ -218,6 +261,8 @@ export function FilterSidebar({
 
   return (
     <div className={styles.sidebar}>
+      <SearchField filter={filter} onChange={onChange} />
+
       <div className={styles.group}>
         <Label>Tags</Label>
         <div className={styles.tagGroups}>

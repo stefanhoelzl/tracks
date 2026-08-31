@@ -33,6 +33,14 @@ describe('filter serialization', () => {
     expect(filter.sortOrder).toBe('asc')
   })
 
+  it('carries free text, and treats blank as no search at all', () => {
+    expect(parseFilter('q=balkan').q).toBe('balkan')
+    // A search of spaces would narrow nothing while holding a chip that says it does.
+    expect(parseFilter('q=%20%20').q).toBeNull()
+    expect(parseFilter('q=').q).toBeNull()
+    expect(formatFilter(parseFilter('q=balkan+day')).toString()).toBe('q=balkan+day')
+  })
+
   it('treats an empty query string as everything, newest first', () => {
     expect(parseFilter('')).toEqual(emptyFilter())
   })

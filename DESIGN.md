@@ -571,7 +571,7 @@ tool and does not pretend otherwise.
 
 | Group | Facets |
 |---|---|
-| Core | Date range · tags of any registered type (include / exclude / *not set*) · the map viewport |
+| Core | Free-text search on the title · date range · tags of any registered type (include / exclude / *not set*) · the map viewport |
 | Ranges | Distance, elevation, duration, average speed — dual-handle sliders **on** the histogram, so the shape you are reading is the thing you are cutting |
 | Presets | Last 30 days · this year · **not set**, per type |
 
@@ -622,12 +622,20 @@ type the values are ORed, across types ANDed; a leading `-` negates, and an empt
      └── bike or hike ───────┘  └ not that trip ──┘  └ no trip at all
 ```
 
+Search is `q`, matched against the title with a case-insensitive `LIKE` whose wildcards are
+escaped, so a title containing `%` is searched for rather than matching everything. An
+activity with no title matches no search, the same way one with no distance matches no
+distance range. It sits at the top of the sidebar rather than over the list, because it is a
+filter term like the rest — and because it is what narrows to the ride whose tag is missing,
+which is where a tagging pass begins. FTS5 would be a second copy of the titles, three
+triggers and a migration, to save microseconds on a few hundred rows.
+
 Everything else is a plain named parameter, and every range is **two** of them rather than one
 compound value — `distance_min` / `distance_max`, matching `sort_key` / `sort_order`. An absent
 bound simply means unbounded, so there is no `..` syntax to parse, escape or explain.
 
 ```
-?tag=sport:bike&tag=-trip:Balkan 2026
+?tag=sport:bike&tag=-trip:Balkan 2026&q=balkan
 &from=2024-01-01&to=2024-12-31
 &bbox=13.68,46.31,13.86,46.44
 &distance_min=0&distance_max=50000&elevation_min=500&duration_max=7200&speed_min=4.2

@@ -50,6 +50,11 @@ export function setRange(
   return { ...filter, ranges: { ...filter.ranges, [key]: bounds } }
 }
 
+/** Blank is not a search — it would hold a chip that narrows nothing. */
+export function setSearch(filter: Filter, q: string): Filter {
+  return { ...filter, q: q.trim() === '' ? null : q }
+}
+
 export function setDates(filter: Filter, from: string | null, to: string | null): Filter {
   return { ...filter, from, to }
 }
@@ -67,6 +72,7 @@ export function setBbox(filter: Filter, bbox: Filter['bbox']): Filter {
 export function isNarrowed(filter: Filter): boolean {
   return (
     filter.tags.length > 0 ||
+    filter.q !== null ||
     filter.from !== null ||
     filter.to !== null ||
     Object.values(filter.ranges).some((r) => r.min !== null || r.max !== null)
@@ -80,6 +86,7 @@ export function narrowingFacets(filter: Filter, labels: Map<string, string>): st
   for (const type of new Set(filter.tags.map((t) => t.type))) {
     names.push(labels.get(type) ?? type)
   }
+  if (filter.q !== null) names.push('Search')
   if (filter.from !== null || filter.to !== null) names.push('Date range')
 
   const rangeLabels: Record<RangeKey, string> = {
@@ -135,6 +142,16 @@ export function activeTerms(
         ...filter,
         tags: filter.tags.filter((t) => t !== term),
       },
+    })
+  }
+
+  if (filter.q !== null) {
+    terms.push({
+      key: 'search',
+      facet: 'Search',
+      value: filter.q,
+      negated: false,
+      without: { ...filter, q: null },
     })
   }
 

@@ -129,6 +129,17 @@ export function whereFor(scope: Scope, exclude: Exclusion = {}): SQL {
     if (condition) parts.push(condition)
   }
 
+  if (filter.q !== null) {
+    // `LIKE` is case-insensitive for ASCII in SQLite by default, and at a few hundred
+    // titles it is instant — an FTS5 table would be a second copy of the titles, three
+    // triggers and a migration to save microseconds. The wildcards are escaped so a
+    // title containing `%` searches for the character rather than for everything.
+    const pattern = `%${filter.q.replace(/[\\%_]/g, '\\$&')}%`
+    // A null title matches nothing, exactly as a null distance is absent from a
+    // distance range: the rule that keeps narrowing monotonic.
+    parts.push(sql`a.title LIKE ${pattern} ESCAPE '\\'`)
+  }
+
   if (!exclude.date) {
     if (filter.from !== null) parts.push(sql`${LOCAL_DATE} >= ${filter.from}`)
     if (filter.to !== null) parts.push(sql`${LOCAL_DATE} <= ${filter.to}`)

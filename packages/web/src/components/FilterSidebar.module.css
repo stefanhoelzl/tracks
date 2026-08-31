@@ -60,6 +60,46 @@
   border: 1.5px dashed var(--line-2);
 }
 
+/* The one control above the facets: it narrows like they do, but it is also how you
+   find the activity a tag is missing from, which is where every tagging pass starts. */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border-radius: var(--radius-ctrl);
+  background: var(--sunk);
+  border: 2px solid transparent;
+}
+
+.search:focus-within {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.searchInput::-webkit-search-cancel-button {
+  display: none;
+}
+
+.searchClear {
+  display: flex;
+  color: var(--muted);
+}
+
+.searchClear:hover {
+  color: var(--ink);
+}
+
 .anchor {
   position: relative;
 }
