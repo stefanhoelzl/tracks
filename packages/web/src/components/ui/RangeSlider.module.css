@@ -8,9 +8,13 @@
  * Bars and handles occupy one box. The track is pushed down to the foot of the bars so
  * the thumbs ride their bottom edge — close enough to read as one control, low enough
  * that a thumb never covers the shape it is cutting.
+ *
+ * `--brush-h` is how far down the bars reach before the handles begin. The drag surface
+ * claims exactly that much and no more, so a grab aimed at a thumb still lands on one.
  */
 .plot {
   position: relative;
+  --brush-h: 30px;
 }
 
 .bars {
@@ -21,10 +25,27 @@
   pointer-events: none;
 }
 
+/*
+ * Drag across the distribution to cut it. Transparent, and above the bars — which are
+ * pointer-inert — so the whole shape is grabbable.
+ *
+ * `touch-action: none` because without it a horizontal drag is the sidebar scrolling
+ * instead, and the gesture never reaches this element at all.
+ */
+.brush {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--brush-h);
+  cursor: crosshair;
+  touch-action: none;
+}
+
 .track {
   position: relative;
   height: 18px;
-  margin-top: 30px;
+  margin-top: var(--brush-h);
 }
 
 .rail,

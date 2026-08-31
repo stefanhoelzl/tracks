@@ -103,3 +103,20 @@ class NoopResizeObserver implements ResizeObserver {
 }
 
 globalThis.ResizeObserver ??= NoopResizeObserver
+
+/**
+ * jsdom has no pointer capture.
+ *
+ * A drag that leaves the element it started on has to keep receiving events, which is
+ * what capture is for — so `RangeSlider` asks for it. jsdom implements neither the
+ * methods nor the concept, and since nothing in a headless DOM can leave an element
+ * that has no size, no-ops are the whole of the behaviour worth standing in for.
+ */
+for (const method of ['setPointerCapture', 'releasePointerCapture'] as const) {
+  if (typeof Element.prototype[method] !== 'function') {
+    Element.prototype[method] = () => {}
+  }
+}
+if (typeof Element.prototype.hasPointerCapture !== 'function') {
+  Element.prototype.hasPointerCapture = () => false
+}
