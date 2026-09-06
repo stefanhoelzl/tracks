@@ -1,0 +1,49 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tighter);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* Native, and deliberately: a one-word choice from a list of three is a press, where
+   the app's popover would be a layer to open, aim at and dismiss. */
+.select {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--sunk);
+  border: none;
+  border-radius: var(--radius-ctrl);
+  padding: 5px 8px;
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

@@ -1,5 +1,5 @@
 import type { FacetsResponse, Filter, TagType } from '@tracks/core'
-import { Activity } from 'lucide-react'
+import { Activity, ChartColumn, List } from 'lucide-react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, km, metres } from '../lib/format.ts'
 import { FilterChips } from './FilterChips.tsx'
@@ -19,26 +19,30 @@ import { Panel } from './ui/Panel.tsx'
  * beside it scroll, because an action you cannot reach is worse than a filter term
  * you have to scroll to.
  *
- * The analytics switch the design canvas puts here is still absent: it has nowhere to
- * go until M5, and a control that answers a click with nothing is worse than one that
- * is not there yet. It lands beside Import when it does something.
+ * Beside it is the analytics switch — two segments rather than a button, because the
+ * panel it opens covers the list, so what you are choosing between is which of the two
+ * you are reading. It is view state, so the choice survives a link.
  */
 export function TopBar({
   summary,
   filter,
   tagTypes,
   scale,
+  analytics,
   onChange,
   onClear,
   onImport,
+  onAnalytics,
 }: {
   summary: FacetsResponse['summary'] | undefined
   filter: Filter
   tagTypes: TagType[]
   scale: ColourScale
+  analytics: boolean
   onChange: (next: Filter) => void
   onClear: () => void
   onImport: (source: ImportSource) => void
+  onAnalytics: (open: boolean) => void
 }) {
   return (
     <Panel className={styles.bar}>
@@ -70,6 +74,29 @@ export function TopBar({
         onChange={onChange}
         onClear={onClear}
       />
+
+      {/* No group role: each segment names itself and says whether it is the one
+          showing, which is everything a group label would have added. */}
+      <div className={styles.views}>
+        <button
+          type="button"
+          className={[styles.view, analytics ? '' : styles.viewOn].join(' ')}
+          aria-pressed={!analytics}
+          onClick={() => onAnalytics(false)}
+        >
+          <List size={14} strokeWidth={2} />
+          Activities
+        </button>
+        <button
+          type="button"
+          className={[styles.view, analytics ? styles.viewOn : ''].join(' ')}
+          aria-pressed={analytics}
+          onClick={() => onAnalytics(true)}
+        >
+          <ChartColumn size={14} strokeWidth={2} />
+          Analytics
+        </button>
+      </div>
 
       <ImportButton onPick={onImport} />
     </Panel>

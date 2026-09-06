@@ -515,8 +515,9 @@ stopped adjusting the filter and started reading the map under it.
 
 At its right edge is **Import**, a dropdown with one entry per source. The chips beside it
 scroll; it never shrinks, because an
-action you cannot reach is worse than a filter term you have to scroll to. The M5 analytics
-switch lands beside it.
+action you cannot reach is worse than a filter term you have to scroll to. Beside it is the
+analytics switch, two segments rather than a button: the panel it opens covers the list, so
+what you are choosing between is which of the two you are reading.
 
 Picking a source opens a modal — a real `<dialog>`, so the platform supplies the focus trap
 and the layer above the map canvas — which moves through the form, the reading, the writing

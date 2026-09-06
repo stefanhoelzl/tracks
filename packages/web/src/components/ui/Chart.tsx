@@ -65,12 +65,19 @@ export function Chart({
   height,
   className,
   onInit,
+  onEvent,
 }: {
   option: ChartOption
   height: number
   className?: string
   /** The way out to the instance, for the one caller that dispatches into it. */
   onInit?: (chart: EChartsType) => void
+  /**
+   * ECharts events, by name — `click` is the only one used, and it is what makes a
+   * bar or a day a filter term. Bound once at init and read through a ref, so a
+   * handler that closes over fresh props does not need the chart rebuilt.
+   */
+  onEvent?: Record<string, (params: { dataIndex: number; data: unknown; name: string }) => void>
 }) {
   const box = useRef<HTMLDivElement>(null)
   const chart = useRef<EChartsType | null>(null)
@@ -78,8 +85,8 @@ export function Chart({
   // The init effect runs once and reads these when it fires, which can be long after
   // this render — a stale closure would init against the first option and never the
   // one that arrived while the panel was still 0 px wide.
-  const live = useRef({ option, onInit })
-  live.current = { option, onInit }
+  const live = useRef({ option, onInit, onEvent })
+  live.current = { option, onInit, onEvent }
 
   /**
    * Init is deferred until the box has been measured at a non-zero size.
@@ -102,6 +109,15 @@ export function Chart({
       }
       chart.current = init(element, THEME, { renderer: 'svg' })
       chart.current.setOption(live.current.option, true)
+      // Bound to the ref rather than to the handler this render closed over, so a
+      // click always reaches the current props without re-binding on every option.
+      for (const name of Object.keys(live.current.onEvent ?? {})) {
+        chart.current.on(name, (params: unknown) => {
+          live.current.onEvent?.[name]?.(
+            params as { dataIndex: number; data: unknown; name: string },
+          )
+        })
+      }
       live.current.onInit?.(chart.current)
     })
     observer.observe(element)

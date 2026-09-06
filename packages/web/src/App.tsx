@@ -4,6 +4,7 @@ import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from '
 import { useCallback, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { ActivityList } from './components/ActivityList.tsx'
+import { AnalyticsPanel } from './components/AnalyticsPanel.tsx'
 import { DetailPanel } from './components/DetailPanel.tsx'
 import { FilterSidebar } from './components/FilterSidebar.tsx'
 import { ImportDialog, type ImportSource } from './components/ImportDialog.tsx'
@@ -201,9 +202,11 @@ export function App() {
           filter={filter}
           tagTypes={tagTypes.data?.tagTypes ?? []}
           scale={scale}
+          analytics={view.analytics}
           onChange={setFilter}
           onClear={reset}
           onImport={setImporting}
+          onAnalytics={(analytics) => setView({ ...view, analytics })}
         />
       </div>
 
@@ -302,6 +305,24 @@ export function App() {
           />
         </Panel>
       )}
+
+      {view.analytics ? (
+        <AnalyticsPanel
+          // Every card is computed from these rows, which the list and the map have
+          // already fetched — so opening the panel costs no request at all.
+          rows={activities.data?.activities ?? []}
+          filter={filter}
+          tagTypes={tagTypes.data?.tagTypes ?? []}
+          colourBy={colourBy}
+          bucket={view.bucket}
+          metric={view.metric}
+          scale={scale}
+          onBucket={(bucket) => setView({ ...view, bucket })}
+          onMetric={(metric) => setView({ ...view, metric })}
+          onFilter={setFilter}
+          onClose={() => setView({ ...view, analytics: false })}
+        />
+      ) : null}
 
       <MapChrome
         grouped={view.grouped}
