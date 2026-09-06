@@ -318,6 +318,9 @@ export function App() {
           metric={view.metric}
           calendar={view.calendar}
           calendarColour={view.calendarColour}
+          // The panel runs from the sidebar's edge to the window's, and follows it
+          // when the sidebar folds to a rail — the same inset the map is padded by.
+          insetLeft={insets.left}
           scale={scale}
           onBucket={(bucket) => setView({ ...view, bucket })}
           onMetric={(metric) => setView({ ...view, metric })}

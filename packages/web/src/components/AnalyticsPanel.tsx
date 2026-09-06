@@ -30,6 +30,7 @@ export function AnalyticsPanel({
   metric,
   calendar,
   calendarColour,
+  insetLeft,
   scale,
   onBucket,
   onMetric,
@@ -50,6 +51,8 @@ export function AnalyticsPanel({
   calendar: CalendarRange | null
   /** `ramp` colours the calendar by intensity; `tag` follows `colourBy`. */
   calendarColour: 'ramp' | 'tag'
+  /** Where the filter sidebar ends — the panel starts there and runs to the edge. */
+  insetLeft: number
   scale: ColourScale
   onBucket: (bucket: Bucket) => void
   onMetric: (metric: Metric) => void
@@ -74,7 +77,7 @@ export function AnalyticsPanel({
         aria-label="Close analytics"
         onClick={onClose}
       />
-      <Panel className={styles.panel}>
+      <Panel className={styles.panel} style={{ left: insetLeft }}>
         <div className={styles.head}>
           <h2 className={styles.title}>Analytics</h2>
           <div className={styles.spacer} />

@@ -9,14 +9,19 @@
   cursor: default;
 }
 
+/* Everything from the filter sidebar's edge to the window's, because a chart is only
+   as readable as it is wide — six years of months, or a year of days, want the room.
+   The sidebar keeps its width and nothing else does: it is what every card here is
+   answering, so it stays reachable. `left` is set inline, since it follows the
+   sidebar between its panel width and its rail. */
 .panel {
   position: absolute;
   top: calc(var(--gap) + var(--topbar-h) + var(--gap));
   right: var(--gap);
   bottom: var(--gap);
-  /* Wide enough for six years of monthly bars, and no wider: the filter sidebar has
-     to stay reachable, because it is what every card here is answering. */
-  width: min(1006px, calc(100% - var(--panel-w) - var(--gap) * 3));
+  /* The inline `left` is where the sidebar ends; this is the gutter every other panel
+     keeps from its neighbour, so the two do not touch. */
+  margin-left: var(--gap);
   z-index: 16;
   display: flex;
   flex-direction: column;
