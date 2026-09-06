@@ -27,6 +27,9 @@ const RESTING = '#eef1ee'
 /** A cell and its gutter. Wide enough to hit, narrow enough for six years of them. */
 const CELL = 14
 
+/** The mark inside a cell, leaving the gutter the calendar's own grid draws. */
+const MARK = CELL - 3
+
 export type CalendarRange = 'ytd' | 'all' | string
 
 /** Today, as a local date — the app's dates are local, so this one is too. */
@@ -119,10 +122,14 @@ export function buildCalendarOption(
     },
     series: [
       {
-        type: 'heatmap' as const,
+        // Scatter, not heatmap: a heatmap series throws without a `visualMap`, and
+        // these cells are coloured per day — by the ramp, or by the palette slot the
+        // dominant tag value already owns — rather than by a scale ECharts derives.
+        type: 'scatter' as const,
         coordinateSystem: 'calendar' as const,
+        symbol: 'roundRect' as const,
+        symbolSize: MARK,
         data,
-        itemStyle: { borderRadius: 3, borderWidth: 3, borderColor: '#fff' },
       },
     ],
   }

@@ -9,7 +9,10 @@ import { buildCalendarOption, resolveRange, today } from './CalendarCard.tsx'
 
 type Built = {
   calendar: { range: string[]; top: number; monthLabel: { formatter: (p: unknown) => string } }
-  series: Array<{ data: Array<{ value: [string, number]; itemStyle: { color: string } }> }>
+  series: Array<{
+    type: string
+    data: Array<{ value: [string, number]; itemStyle: { color: string } }>
+  }>
 }
 
 const days = new Map<string, DayTotal>([
@@ -66,6 +69,12 @@ describe('the calendar range', () => {
 })
 
 describe('the calendar option', () => {
+  it('draws with scatter, which a heatmap could not do without a visualMap', () => {
+    // The cells are coloured per day — from the ramp, or from the palette slot a tag
+    // value owns — and a heatmap series throws rather than accept that.
+    expect(build().series[0]!.type).toBe('scatter')
+  })
+
   it('draws only the days inside the range it was given', () => {
     const dates = build().series[0]!.data.map((cell) => cell.value[0])
 

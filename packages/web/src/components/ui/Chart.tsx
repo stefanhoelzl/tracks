@@ -1,10 +1,10 @@
 import {
   BarChart,
   type BarSeriesOption,
-  HeatmapChart,
-  type HeatmapSeriesOption,
   LineChart,
   type LineSeriesOption,
+  ScatterChart,
+  type ScatterSeriesOption,
 } from 'echarts/charts'
 import {
   AxisPointerComponent,
@@ -46,11 +46,17 @@ import styles from './Chart.module.css'
 // The calendar coordinate system is why ECharts won the charting decision along with
 // the profile: a year of days laid out in weeks, and a `range` that spans years
 // continuously, are the analytics calendar in one component rather than a grid to
-// compute. `HeatmapChart` is the series that draws into it.
+// compute.
+//
+// Scatter is what draws into it, not heatmap. A heatmap series refuses to render
+// without a `visualMap` — it is built to take its colour from one, and throws rather
+// than fall back — where the calendar's cells are coloured per day from a ramp the
+// app already computes, or from the palette a tag value already owns. Scatter takes
+// an `itemStyle` per point and asks nothing.
 use([
   LineChart,
   BarChart,
-  HeatmapChart,
+  ScatterChart,
   GridComponent,
   CalendarComponent,
   TooltipComponent,
@@ -70,7 +76,7 @@ registerTheme(THEME, THEME_DEFINITION)
 export type ChartOption = ComposeOption<
   | BarSeriesOption
   | LineSeriesOption
-  | HeatmapSeriesOption
+  | ScatterSeriesOption
   | GridComponentOption
   | CalendarComponentOption
   | TooltipComponentOption
