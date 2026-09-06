@@ -316,9 +316,14 @@ export function App() {
           colourBy={colourBy}
           bucket={view.bucket}
           metric={view.metric}
+          calendar={view.calendar}
+          calendarColour={view.calendarColour}
           scale={scale}
           onBucket={(bucket) => setView({ ...view, bucket })}
           onMetric={(metric) => setView({ ...view, metric })}
+          onCalendar={(calendar) => setView({ ...view, calendar })}
+          onCalendarColour={(calendarColour) => setView({ ...view, calendarColour })}
+          onColourBy={(colourBy) => setView({ ...view, colourBy })}
           onFilter={setFilter}
           onClose={() => setView({ ...view, analytics: false })}
         />

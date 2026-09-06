@@ -1,6 +1,15 @@
-import { BarChart, type BarSeriesOption, LineChart, type LineSeriesOption } from 'echarts/charts'
+import {
+  BarChart,
+  type BarSeriesOption,
+  HeatmapChart,
+  type HeatmapSeriesOption,
+  LineChart,
+  type LineSeriesOption,
+} from 'echarts/charts'
 import {
   AxisPointerComponent,
+  CalendarComponent,
+  type CalendarComponentOption,
   GridComponent,
   type GridComponentOption,
   MarkAreaComponent,
@@ -34,10 +43,16 @@ import styles from './Chart.module.css'
 // AxisPointerComponent is not optional decoration: it is what `tooltip.trigger: 'axis'`
 // and `dispatchAction({ type: 'showTip' })` are both implemented on top of. Without it
 // installed, both simply do nothing, and they do it silently.
+// The calendar coordinate system is why ECharts won the charting decision along with
+// the profile: a year of days laid out in weeks, and a `range` that spans years
+// continuously, are the analytics calendar in one component rather than a grid to
+// compute. `HeatmapChart` is the series that draws into it.
 use([
   LineChart,
   BarChart,
+  HeatmapChart,
   GridComponent,
+  CalendarComponent,
   TooltipComponent,
   AxisPointerComponent,
   MarkAreaComponent,
@@ -55,7 +70,9 @@ registerTheme(THEME, THEME_DEFINITION)
 export type ChartOption = ComposeOption<
   | BarSeriesOption
   | LineSeriesOption
+  | HeatmapSeriesOption
   | GridComponentOption
+  | CalendarComponentOption
   | TooltipComponentOption
   | MarkAreaComponentOption
 >

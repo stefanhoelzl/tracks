@@ -1,8 +1,10 @@
-import type { ActivityRow, Bucket, Filter, Metric, TagType } from '@tracks/core'
+import type { ActivityRow, BandKey, Bucket, Filter, Metric, TagType } from '@tracks/core'
 import { X } from 'lucide-react'
 import type { ColourScale } from '../lib/colour.ts'
 import { narrowingFacets } from '../lib/filter-ops.ts'
 import styles from './AnalyticsPanel.module.css'
+import { CalendarCard, type CalendarRange } from './CalendarCard.tsx'
+import { Distributions } from './Distributions.tsx'
 import { IconButton } from './ui/IconButton.tsx'
 import { Panel } from './ui/Panel.tsx'
 import { VolumeTrend } from './VolumeTrend.tsx'
@@ -26,9 +28,14 @@ export function AnalyticsPanel({
   colourBy,
   bucket,
   metric,
+  calendar,
+  calendarColour,
   scale,
   onBucket,
   onMetric,
+  onCalendar,
+  onCalendarColour,
+  onColourBy,
   onFilter,
   onClose,
 }: {
@@ -40,9 +47,15 @@ export function AnalyticsPanel({
   colourBy: string | null
   bucket: Bucket
   metric: Metric
+  calendar: CalendarRange | null
+  /** `ramp` colours the calendar by intensity; `tag` follows `colourBy`. */
+  calendarColour: 'ramp' | 'tag'
   scale: ColourScale
   onBucket: (bucket: Bucket) => void
   onMetric: (metric: Metric) => void
+  onCalendar: (range: CalendarRange) => void
+  onCalendarColour: (colour: 'ramp' | 'tag') => void
+  onColourBy: (type: string) => void
   onFilter: (next: Filter) => void
   onClose: () => void
 }) {
@@ -78,16 +91,44 @@ export function AnalyticsPanel({
               </span>
             </div>
           ) : (
-            <VolumeTrend
-              rows={rows}
-              bucket={bucket}
-              metric={metric}
-              splitBy={splitBy}
-              scale={scale}
-              onBucket={onBucket}
-              onMetric={onMetric}
-              onRange={(from, to) => onFilter({ ...filter, from, to })}
-            />
+            <>
+              <VolumeTrend
+                rows={rows}
+                bucket={bucket}
+                metric={metric}
+                splitBy={splitBy}
+                scale={scale}
+                onBucket={onBucket}
+                onMetric={onMetric}
+                onRange={(from, to) => onFilter({ ...filter, from, to })}
+              />
+
+              <CalendarCard
+                rows={rows}
+                metric={metric}
+                range={calendar}
+                colourBy={calendarColour === 'tag' ? splitBy : null}
+                scale={scale}
+                onRange={onCalendar}
+                // Picking a type here is picking the app's colour by — one legend
+                // across the map, the list bars, the trend's stack and these cells.
+                onColour={(type) => {
+                  if (type === null) onCalendarColour('ramp')
+                  else {
+                    onColourBy(type)
+                    onCalendarColour('tag')
+                  }
+                }}
+                onDate={(date) => onFilter({ ...filter, from: date, to: date })}
+              />
+
+              <Distributions
+                rows={rows}
+                onBand={(key: BandKey, min, max) =>
+                  onFilter({ ...filter, ranges: { ...filter.ranges, [key]: { min, max } } })
+                }
+              />
+            </>
           )}
         </div>
       </Panel>

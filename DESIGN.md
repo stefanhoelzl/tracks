@@ -8,7 +8,7 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | Local-only, single user |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
 | **Stack** | Node 24 · pnpm · SQLite · React · MapLibre |
-| **Status** | M1–M4 complete; M5 (analytics) next |
+| **Status** | M1–M5 complete; M6 (heatmap and coverage) next |
 
 ---
 
@@ -708,7 +708,7 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 | `GET /api/tag-types` | The registry, each type with the values in use counted over *every* activity — the sidebar renders it, the autocomplete offers it, and the colour layout is laid out from it |
 | `POST /api/import/select` | Takes `{source, ids}`, returns the subset with no track yet. A pure query — no lock, no session |
 | `POST /api/import/:source` | Takes NDJSON frames, writes them in one transaction, streams NDJSON progress back |
-| `GET /api/stats?<filters>` | Aggregates for the analytics views — **M5** |
+| `GET /api/stats?<filters>` | Aggregates for the analytics views — **deferred**, and possibly for good: the browser already holds every matching row, which is all four cards' input |
 | `GET /api/heatmap?<filters>` | Grid cell counts — **deferred** |
 | `POST /api/tags?<filters>` | Bulk `add` / `remove` over everything the filter matches. The lever that makes 500 untagged activities tractable, and nearly free because the target is parsed by the same code every read uses |
 | `PUT /api/activities/:id/tags` | One activity's tags, replaced with what the detail panel is showing |
@@ -746,18 +746,63 @@ rather than an undefined three frames later.
 Analytics recomputes over whatever the filter currently selects — so "gravel rides in the Alps
 in 2024" is one filter away from a full breakdown. No compare-to-previous-period selector.
 
-- **Volume trends** — distance, elevation, moving time and count by week, month or year, split by the values of any tag type.
-- **Calendar heatmap** — a year grid coloured by distance or duration, for spotting consistency and gaps.
-- **Distributions and records** — histograms of distance, elevation, duration and speed, plus longest, highest, fastest and longest streak.
+It is a **slide-over**, not a place you go: a panel from the right edge over a scrim, with the
+map still drawing underneath and the filter sidebar still live beside it. That is the whole
+premise made structural — the control that changes what the charts say never leaves the screen,
+and clicking the scrim puts the map back. `?analytics=true`, because it changes what a shared
+link shows. It carries no summary of its own: the top bar is directly above it with the same
+totals for the same filter.
+
+- **Volume trend** — a stacked bar per bucket, with two controls and deliberately not a third.
+  Bucket (week/month/year) and metric (distance, elevation, moving time, count) are its own;
+  what it *stacks by* is the app-wide `colour_by`, so the map, the list bars and this chart are
+  one legend, and closing the panel leaves the map coloured as the chart was. Empty buckets keep
+  their slot and draw a stub: a bar of zero draws nothing, and nothing is indistinguishable from
+  a bucket that fell off the axis.
+- **Calendar** — a day per cell, with one range control that picks the *shape* as well as the
+  range. A year, or **YTD** — this year without the empty months a full grid would draw after
+  today — is one row of weeks; **All** carries that row on unbroken from the first activity to
+  the last and scrolls sideways, because an archive is continuous rather than a stack of years.
+  There is no chip for the current year, since YTD is it. Colouring is one dropdown with two
+  sections: an *intensity* ramp of four steps cut at the 25th/50th/80th percentile of the active
+  days — quartiles, so one 200 km day cannot flatten a year, and cut over everything in scope so
+  a shade means the same thing in 2021 as in 2025 — or the day's *dominant tag*, which sets
+  `colour_by` and therefore colours the map with it.
+- **Distributions** — all four at once, no control: distance, elevation, moving time and speed in
+  a 2×2 of banded bars. The sidebar already draws these four with handles on them, and the
+  difference is why this card exists — those are a shape to cut, these are a table to read. So
+  the bands are hand-picked and uneven (0–5, 5–15, 15–30 km is how a ride is talked about) and
+  every bar carries its count, which a draggable histogram cannot.
+
+**Clicking a bucket filters to it.** A bar writes the date range it covers, a day writes that
+day, a band writes that range's bounds — each landing as a chip in the top bar, so undoing is one
+click. The trend then collapses to a single bar, which is abrupt and honest.
+
+There are **no records**. Longest, highest, fastest and longest streak were designed and cut: the
+first three are one activity each, which the list already sorts to the top, and a streak measured
+in days turned out to say mostly whether you were away.
+
+**There is no `/api/stats`.** Every card needs the same input — rows carrying a local date, tags
+and four metrics, over the current filter — and the browser already holds exactly that,
+unpaginated, because the list and the map need it. So aggregation is pure functions rather than a
+route: no schema, no second cache key, and changing a bucket or a metric redraws without a
+request. They live in `packages/core` all the same, over `ActivityRow[]`, so the day a chart
+outgrows those rows a route is a handler that selects rows and calls the identical function; the
+two paths could not then disagree about what a month is. Analytics does not move the boundary
+that decision rests on — the client already fetches every matching row — it inherits it.
+
 The fourth view, the per-activity **elevation profile**, is not here: it belongs to one activity
 rather than to a filter, so it lives in the detail panel and shipped with M3. It is what brought
 ECharts in a milestone early, and the primitive it left behind — `ui/Chart.tsx`, an option in and
 a chart out — is what the three views above are built on.
 
-**ECharts**, reversing an earlier preference for Observable Plot. Two of the four cases hit
-ECharts built-ins directly — it has a purpose-built calendar coordinate system, and
-`dispatchAction` makes the two-way chart↔map cursor sync trivial. Plot's main advantage, its
-statistical transforms, is neutralised because aggregation happens in SQL anyway.
+**ECharts**, reversing an earlier preference for Observable Plot. Its calendar coordinate system
+is the calendar card: a `range` spanning years continuously is the All strip, month and year
+labels included. Plot's main advantage, its statistical transforms, is neutralised because
+aggregation happens in `core` anyway. The third argument made for it — `dispatchAction` making a
+two-way chart↔map cursor sync trivial — belongs to the elevation profile, where the sync is real;
+the analytics panel covers the map, so nothing here dispatches into a chart. One of the three
+reasons simply did not cash.
 
 It renders to **SVG**, not canvas. jsdom has no canvas and the sidebar mounts four charts in a
 single component test, so canvas would have meant a mock in the setup file for charts that are
@@ -828,7 +873,7 @@ inspected through a SQLite browser.
 | **M3** | Map, list and filters | The REST API, the MapLibre map with hillshade and contours, the synced activity list, a read-only activity detail with its elevation profile, and the full filter sidebar with viewport spatial filtering. Lands in three commits — the core split, the backend, the browser. |
 | **M3.5** | Import from the UI | The Import dropdown, and with it the end of the CLI. Both sources move into the browser, so Komoot credentials never reach the server and a Strava export is never uploaded; the server becomes a source-agnostic writer whose whole run is one rollback-able transaction. Three commits — the sources, the ingest route, the UI. |
 | **M4** | Tagging | Writes, at last — and the milestone that took things away. The registry loses its vocabulary and its colours and stops being administered at all; tagging becomes two controls in the sidebar over the current filter, plus editable chips in the detail panel; title search lands beside them, because finding the untagged by name is where the flow starts. Four commits — the registry, search, the routes, the UI. |
-| **M5** | Analytics | The three filter-scoped ECharts views. The fourth, the elevation profile, belongs to one activity and shipped with M3 — which is what brought ECharts in early. |
+| **M5** | Analytics | The three filter-scoped ECharts views, in a slide-over over the map, and the route that was going to serve them deleted before it was written — the rows the client already holds are the input. Three commits — the aggregations, the panel and its trend, the calendar and the distributions. |
 | **M6** | Heatmap and coverage | "Everywhere I've been", percentage of terrain covered, new-versus-repeated per activity. |
 
 ---
