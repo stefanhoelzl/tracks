@@ -58,7 +58,17 @@ export interface UrlState {
   reset: () => void
 }
 
-const EMPTY_VIEW: View = { colourBy: null, activity: null, grouped: true, basemap: 'map' }
+const EMPTY_VIEW: View = {
+  colourBy: null,
+  activity: null,
+  grouped: true,
+  basemap: 'map',
+  analytics: false,
+  bucket: 'month',
+  metric: 'distance',
+  calendar: null,
+  calendarColour: 'ramp',
+}
 
 export function useUrlState(): UrlState {
   const search = useSyncExternalStore(subscribe, snapshot, () => '')

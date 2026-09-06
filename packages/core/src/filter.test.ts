@@ -7,6 +7,7 @@ import {
   parseFilter,
   parseView,
   RANGE_KEYS,
+  type View,
 } from './filter.ts'
 
 describe('filter serialization', () => {
@@ -97,32 +98,51 @@ describe('filter serialization', () => {
   })
 })
 
+/** The defaults, so a test states only the field it is about. */
+const VIEW: View = {
+  colourBy: null,
+  activity: null,
+  grouped: true,
+  basemap: 'map',
+  analytics: false,
+  bucket: 'month',
+  metric: 'distance',
+  calendar: null,
+  calendarColour: 'ramp',
+}
+
 describe('view state', () => {
   it('is parsed apart from the filter, since the server has no use for it', () => {
     expect(parseView('colour_by=trip&activity=123')).toEqual({
+      ...VIEW,
       colourBy: 'trip',
       activity: 123,
-      grouped: true,
-      basemap: 'map',
     })
-    expect(parseView('')).toEqual({
-      colourBy: null,
-      activity: null,
-      grouped: true,
-      basemap: 'map',
+    expect(parseView('')).toEqual(VIEW)
+  })
+
+  it('carries the analytics panel and its three choices, writing no default', () => {
+    expect(parseView('analytics=true&bucket=week&metric=elevation&calendar=2024')).toMatchObject({
+      analytics: true,
+      bucket: 'week',
+      metric: 'elevation',
+      calendar: '2024',
     })
+    // The panel's own state never reaches the server: the charts are computed from
+    // rows the browser already has.
+    expect(formatView({ ...VIEW, analytics: true }).toString()).toBe('analytics=true')
+    expect(formatView({ ...VIEW, bucket: 'month', metric: 'distance' }).toString()).toBe('')
+    // The calendar's range picks itself from the data when it is not written down.
+    expect(parseView('').calendar).toBeNull()
+    expect(formatView({ ...VIEW, calendarColour: 'tag' }).toString()).toBe('cal_colour=tag')
   })
 
   it('treats grouping as on unless the URL turns it off', () => {
     // Only the departure from the default is worth a parameter.
     expect(parseView('grouped=0').grouped).toBe(false)
     expect(parseView('grouped=1').grouped).toBe(true)
-    expect(
-      formatView({ colourBy: null, activity: null, grouped: true, basemap: 'map' }).toString(),
-    ).toBe('')
-    expect(
-      formatView({ colourBy: null, activity: null, grouped: false, basemap: 'map' }).toString(),
-    ).toBe('grouped=0')
+    expect(formatView(VIEW).toString()).toBe('')
+    expect(formatView({ ...VIEW, grouped: false }).toString()).toBe('grouped=0')
   })
 
   it('treats the vector map as the default, so only satellite is written down', () => {
@@ -130,24 +150,16 @@ describe('view state', () => {
     expect(parseView('basemap=satellite').basemap).toBe('satellite')
     // Anything else is the default rather than an error: a URL is not a contract.
     expect(parseView('basemap=nonsense').basemap).toBe('map')
-    expect(
-      formatView({
-        colourBy: null,
-        activity: null,
-        grouped: true,
-        basemap: 'satellite',
-      }).toString(),
-    ).toBe('basemap=satellite')
+    expect(formatView({ ...VIEW, basemap: 'satellite' }).toString()).toBe('basemap=satellite')
   })
 
   it('joins the filter in one URL', () => {
     const filter = parseFilter('tag=sport:bike')
     expect(
       formatSearch(filter, {
+        ...VIEW,
         colourBy: 'sport',
         activity: 42,
-        grouped: true,
-        basemap: 'map',
       }),
     ).toBe('tag=sport%3Abike&colour_by=sport&activity=42')
   })

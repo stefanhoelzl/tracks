@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { BUCKETS, METRICS } from './stats.ts'
 import { formatTagTerm, parseTagTerm, type TagTerm } from './tags.ts'
 
 /**
@@ -200,6 +201,23 @@ const viewShape = z.object({
    * it changes what a shared link shows without changing which activities match.
    */
   basemap: z.enum(['map', 'satellite']),
+  /**
+   * The analytics panel, and the three choices it holds.
+   *
+   * View state rather than filter: none of it changes which activities match, all of
+   * it changes what a shared link shows. The charts are computed in the browser from
+   * rows it already has, so these never reach the server at all.
+   */
+  analytics: z.boolean(),
+  bucket: z.enum(BUCKETS),
+  metric: z.enum(METRICS),
+  /**
+   * `null` picks itself: the current year when the rows reach it, else the most recent
+   * one they do. A default that depends on the data cannot be written down.
+   */
+  calendar: z.union([z.literal('ytd'), z.literal('all'), z.string().regex(/^\d{4}$/)]).nullable(),
+  /** The calendar's own colouring. `tag` follows the app-wide `colourBy`. */
+  calendarColour: z.enum(['ramp', 'tag']),
 })
 
 export type View = z.infer<typeof viewShape>
@@ -215,6 +233,11 @@ export const viewSchema = z.preprocess((input) => {
     grouped: params.get('grouped') !== '0',
     // As is the vector map, so only satellite is.
     basemap: params.get('basemap') === 'satellite' ? 'satellite' : 'map',
+    analytics: params.get('analytics') === 'true',
+    bucket: params.get('bucket') ?? 'month',
+    metric: params.get('metric') ?? 'distance',
+    calendar: params.get('calendar'),
+    calendarColour: params.get('cal_colour') === 'tag' ? 'tag' : 'ramp',
   }
 }, viewShape)
 
@@ -228,6 +251,11 @@ export function formatView(view: View): URLSearchParams {
   if (view.activity !== null) params.set('activity', String(view.activity))
   if (!view.grouped) params.set('grouped', '0')
   if (view.basemap === 'satellite') params.set('basemap', 'satellite')
+  if (view.analytics) params.set('analytics', 'true')
+  if (view.bucket !== 'month') params.set('bucket', view.bucket)
+  if (view.metric !== 'distance') params.set('metric', view.metric)
+  if (view.calendar !== null) params.set('calendar', view.calendar)
+  if (view.calendarColour !== 'ramp') params.set('cal_colour', view.calendarColour)
   return params
 }
 
