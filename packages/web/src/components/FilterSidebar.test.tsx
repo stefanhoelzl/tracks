@@ -292,4 +292,30 @@ describe('the filter sidebar', () => {
     setup(emptyFilter(), { facets: { ...FACETS, summary: { ...FACETS.summary, count: 0 } } })
     expect(screen.getByRole('textbox', { name: 'type:value' })).toHaveProperty('disabled', true)
   })
+
+  it('makes the first date entered a single day, so the other picker opens on it', async () => {
+    const { onChange } = setup()
+
+    await userEvent.click(screen.getByRole('button', { name: /^Date range/ }))
+    // A native date input takes the whole value at once, as its picker does.
+    await userEvent.type(screen.getByLabelText('From date'), '2026-08-20')
+
+    // Both ends, so the second picker opens on the day just chosen rather than on
+    // today — months away from where you already were.
+    expect(onChange.mock.calls.at(-1)![0]).toMatchObject({
+      from: '2026-08-20',
+      to: '2026-08-20',
+    })
+  })
+
+  it('leaves the other end alone once it is set, and clears only what was cleared', async () => {
+    const { onChange } = setup({ ...emptyFilter(), from: '2026-08-01', to: '2026-08-31' })
+
+    await userEvent.click(screen.getByRole('button', { name: /^Date range/ }))
+    await userEvent.clear(screen.getByLabelText('To date'))
+
+    // Unbounded is a thing you can mean, so clearing one end does not resurrect it
+    // from the other.
+    expect(onChange.mock.calls.at(-1)![0]).toMatchObject({ from: '2026-08-01', to: null })
+  })
 })

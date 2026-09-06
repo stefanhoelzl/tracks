@@ -13,6 +13,7 @@ import { type ColourScale, TYPE_GROUP } from '../lib/colour.ts'
 import {
   datePresets,
   excludeTag,
+  setDateBound,
   setDates,
   setRange,
   setSearch,
@@ -124,6 +125,10 @@ function DateFilter({ filter, onChange }: { filter: Filter; onChange: (next: Fil
       <button
         type="button"
         className={[styles.field, open ? styles.fieldOpen : ''].join(' ')}
+        // The visible text is the *value* — "All time", or two dates — which on its
+        // own says nothing about what it sets. The label names the facet and keeps
+        // the value, so it reads the way the group headers above it do.
+        aria-label={`Date range: ${current}`}
         onClick={() => setOpen((was) => !was)}
       >
         <CalendarDays size={15} color={open ? 'var(--accent)' : 'var(--muted)'} />
@@ -161,7 +166,7 @@ function DateFilter({ filter, onChange }: { filter: Filter; onChange: (next: Fil
               className={styles.date}
               value={filter.from ?? ''}
               aria-label="From date"
-              onChange={(e) => onChange(setDates(filter, e.target.value || null, filter.to))}
+              onChange={(e) => onChange(setDateBound(filter, 'from', e.target.value || null))}
             />
             <span className={styles.to}>to</span>
             <input
@@ -169,7 +174,7 @@ function DateFilter({ filter, onChange }: { filter: Filter; onChange: (next: Fil
               className={styles.date}
               value={filter.to ?? ''}
               aria-label="To date"
-              onChange={(e) => onChange(setDates(filter, filter.from, e.target.value || null))}
+              onChange={(e) => onChange(setDateBound(filter, 'to', e.target.value || null))}
             />
           </div>
         </div>

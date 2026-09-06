@@ -59,6 +59,23 @@ export function setDates(filter: Filter, from: string | null, to: string | null)
   return { ...filter, from, to }
 }
 
+/**
+ * One end of the custom range, where setting the first end sets both.
+ *
+ * A range is entered left to right, and the second picker opening on today — months
+ * away from the day just chosen — makes you navigate back to where you already were.
+ * So the first date entered is a single day, and the other end widens it. Clearing an
+ * end clears only that end: unbounded is a thing you can mean.
+ */
+export function setDateBound(filter: Filter, end: 'from' | 'to', value: string | null): Filter {
+  if (value === null)
+    return setDates(filter, end === 'from' ? null : filter.from, end === 'to' ? null : filter.to)
+
+  return end === 'from'
+    ? setDates(filter, value, filter.to ?? value)
+    : setDates(filter, filter.from ?? value, value)
+}
+
 export function setBbox(filter: Filter, bbox: Filter['bbox']): Filter {
   return { ...filter, bbox }
 }
