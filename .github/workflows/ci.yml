@@ -72,6 +72,13 @@ jobs:
       # in the database's hostname, and identifies rather than authorises: the API key
       # looks it up and mints the token for the run, so no database credential is
       # stored here at all.
+      # TEMPORARY: read the account's databases, because the id derived from the
+      # hostname does not resolve and there is no local CLI to ask.
+      - name: What databases are there
+        run: |
+          bunny db list || true
+          bunny db list --output json || true
+
       - name: Apply migrations
         run: bunny db migrations apply ${{ vars.BUNNY_DATABASE_ID }} --force
 
