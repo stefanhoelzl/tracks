@@ -20,7 +20,7 @@ import { activities, tagTypes, trackpoints, users } from './schema.ts'
 
 /** An account that already has a password, so its sessions have a key to be signed with. */
 async function claimed(db: Db, email: string, password = 'a good long one') {
-  return db
+  return await db
     .insert(users)
     .values({ email, passwordHash: await hashPassword(password, CHEAP) })
     .returning({ id: users.id, passwordHash: users.passwordHash })
@@ -133,7 +133,7 @@ describe('the REST surface', () => {
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'tracks-api-'))
-    ;({ db, close } = openDb(join(dir, 'test.db'), MIGRATIONS))
+    ;({ db, close } = await openDb(`file:${join(dir, 'test.db')}`, MIGRATIONS))
 
     const account = await claimed(db, 'rider@example.com')
     userId = account.id
@@ -142,7 +142,8 @@ describe('the REST surface', () => {
     // A type exists exactly as long as something carries a tag of it, so a fresh
     // database has an empty registry and the fixture declares the three these
     // activities use — the way an import and a first hand-applied tag would.
-    db.insert(tagTypes)
+    await db
+      .insert(tagTypes)
       .values([
         { userId, name: 'sport', label: 'Sport', singleValued: true, sort: 1 },
         { userId, name: 'trip', label: 'Trip', singleValued: true, sort: 2 },
@@ -160,27 +161,30 @@ describe('the REST surface', () => {
         [lat + 0.02, lon],
       ] as Array<[number, number]>
 
-      const id = db
-        .insert(activities)
-        .values({
-          userId,
-          source: seed.source,
-          externalId: seed.title,
-          title: seed.title,
-          startedAt: seed.startedAt,
-          utcOffset: seed.utcOffset,
-          distanceM: seed.distanceM,
-          durationS: seed.durationS,
-          elapsedS: seed.elapsedS,
-          elevationGainM: seed.elevationGainM,
-          polyline: polyline.encode(points),
-          ...boundingBox(points.map(([pLat, pLon]) => ({ lat: pLat, lon: pLon }))),
-          tags: JSON.stringify([...seed.tags].sort()),
-        })
-        .returning({ id: activities.id })
-        .get().id
+      const id = (
+        await db
+          .insert(activities)
+          .values({
+            userId,
+            source: seed.source,
+            externalId: seed.title,
+            title: seed.title,
+            startedAt: seed.startedAt,
+            utcOffset: seed.utcOffset,
+            distanceM: seed.distanceM,
+            durationS: seed.durationS,
+            elapsedS: seed.elapsedS,
+            elevationGainM: seed.elevationGainM,
+            polyline: polyline.encode(points),
+            ...boundingBox(points.map(([pLat, pLon]) => ({ lat: pLat, lon: pLon }))),
+            tags: JSON.stringify([...seed.tags].sort()),
+          })
+          .returning({ id: activities.id })
+          .get()
+      ).id
 
-      db.insert(trackpoints)
+      await db
+        .insert(trackpoints)
         .values(
           points.map((p, seq) => ({
             activityId: id,
@@ -490,10 +494,12 @@ describe('the REST surface', () => {
         body: JSON.stringify(body),
       })
 
-    const tagsOf = (title: string) =>
+    const tagsOf = async (title: string) =>
       JSON.parse(
         (
-          db.get<{ tags: string }>(sql`SELECT tags FROM activities WHERE title = ${title}`) as {
+          (await db.get<{ tags: string }>(
+            sql`SELECT tags FROM activities WHERE title = ${title}`,
+          )) as {
             tags: string
           }
         ).tags,
@@ -504,15 +510,15 @@ describe('the REST surface', () => {
       expect(response.status).toBe(200)
       // Two bikes match; one already carries the trip, so only the other gained it.
       expect(await response.json()).toEqual({ changed: 1 })
-      expect(tagsOf('Night ride')).toContain('trip:Alps')
-      expect(tagsOf('Home run')).not.toContain('trip:Alps')
+      expect(await tagsOf('Night ride')).toContain('trip:Alps')
+      expect(await tagsOf('Home run')).not.toContain('trip:Alps')
     })
 
     it('replaces silently on a single-valued type', async () => {
       await post('tag=trip:Balkan 2026', { add: ['trip:Balkans'] })
       // The old trip is gone rather than sitting beside the new one — which is what
       // makes a rename one bulk add.
-      expect(tagsOf('Balkan hike')).toEqual(['source:komoot', 'sport:hike', 'trip:Balkans'])
+      expect(await tagsOf('Balkan hike')).toEqual(['source:komoot', 'sport:hike', 'trip:Balkans'])
     })
 
     it('removes over the filter, and takes the type with the last tag of it', async () => {
@@ -545,7 +551,7 @@ describe('the REST surface', () => {
       const response = await post('', { add: ['gear:steel'] })
       expect(response.status).toBe(400)
       expect(await response.json()).toMatchObject({ error: "no tag type 'gear'" })
-      expect(tagsOf('Alps ride')).toEqual(['source:strava', 'sport:bike', 'trip:Alps'])
+      expect(await tagsOf('Alps ride')).toEqual(['source:strava', 'sport:bike', 'trip:Alps'])
     })
 
     it('reports a malformed filter and a malformed body apart', async () => {
@@ -559,8 +565,8 @@ describe('the REST surface', () => {
   })
 
   describe('PUT /api/activities/:id/tags', () => {
-    const idOf = (title: string) =>
-      db.get<{ id: number }>(sql`SELECT id FROM activities WHERE title = ${title}`)!.id
+    const idOf = async (title: string) =>
+      (await db.get<{ id: number }>(sql`SELECT id FROM activities WHERE title = ${title}`))!.id
 
     const put = (id: number, body: unknown) =>
       signedIn(`/api/activities/${id}/tags`, {
@@ -570,7 +576,7 @@ describe('the REST surface', () => {
       })
 
     it('replaces the array wholesale, sorted', async () => {
-      const response = await put(idOf('Home run'), {
+      const response = await put(await idOf('Home run'), {
         tags: ['trip:Alps', 'source:strava', 'sport:run'],
       })
       expect(response.status).toBe(200)
@@ -580,7 +586,7 @@ describe('the REST surface', () => {
     })
 
     it('creates a type alongside the tag that needs it', async () => {
-      const response = await put(idOf('Untyped'), {
+      const response = await put(await idOf('Untyped'), {
         tags: ['source:strava', 'gear:steel'],
         newType: { name: 'gear', label: 'Gear', singleValued: false },
       })
@@ -589,7 +595,7 @@ describe('the REST surface', () => {
 
     it('is a 404 for an activity that is not there, and a 400 for a bad tag', async () => {
       expect((await put(99999, { tags: [] })).status).toBe(404)
-      expect((await put(idOf('Home run'), { tags: ['nonsense'] })).status).toBe(400)
+      expect((await put(await idOf('Home run'), { tags: ['nonsense'] })).status).toBe(400)
     })
   })
 
@@ -635,37 +641,41 @@ describe('the REST surface', () => {
     beforeEach(async () => {
       const them = (await claimed(db, 'stranger@example.com')).id
 
-      db.insert(tagTypes)
+      await db
+        .insert(tagTypes)
         .values({ userId: them, name: 'sport', label: 'Sport', singleValued: true, sort: 1 })
         .run()
 
-      theirId = db
-        .insert(activities)
-        .values({
-          userId: them,
-          source: 'strava',
-          externalId: 'theirs',
-          title: 'Not yours',
-          startedAt: '2024-06-01T08:00:00.000Z',
-          utcOffset: 7200,
-          distanceM: 12000,
-          durationS: 3600,
-          elapsedS: 3600,
-          elevationGainM: 100,
-          polyline: polyline.encode([
-            [48.15, 11.59],
-            [48.16, 11.6],
-          ]),
-          ...boundingBox([
-            { lat: 48.15, lon: 11.59 },
-            { lat: 48.16, lon: 11.6 },
-          ]),
-          tags: JSON.stringify(['source:strava', 'sport:ski']),
-        })
-        .returning({ id: activities.id })
-        .get().id
+      theirId = (
+        await db
+          .insert(activities)
+          .values({
+            userId: them,
+            source: 'strava',
+            externalId: 'theirs',
+            title: 'Not yours',
+            startedAt: '2024-06-01T08:00:00.000Z',
+            utcOffset: 7200,
+            distanceM: 12000,
+            durationS: 3600,
+            elapsedS: 3600,
+            elevationGainM: 100,
+            polyline: polyline.encode([
+              [48.15, 11.59],
+              [48.16, 11.6],
+            ]),
+            ...boundingBox([
+              { lat: 48.15, lon: 11.59 },
+              { lat: 48.16, lon: 11.6 },
+            ]),
+            tags: JSON.stringify(['source:strava', 'sport:ski']),
+          })
+          .returning({ id: activities.id })
+          .get()
+      ).id
 
-      db.insert(trackpoints)
+      await db
+        .insert(trackpoints)
         .values([
           { activityId: theirId, seq: 0, lat: 48.15, lon: 11.59 },
           { activityId: theirId, seq: 1, lat: 48.16, lon: 11.6 },
@@ -702,7 +712,9 @@ describe('the REST surface', () => {
       })
 
       expect(response.status).toBe(404)
-      const after = db.get<{ tags: string }>(sql`SELECT tags FROM activities WHERE id = ${theirId}`)
+      const after = await db.get<{ tags: string }>(
+        sql`SELECT tags FROM activities WHERE id = ${theirId}`,
+      )
       expect(JSON.parse(after!.tags)).toContain('sport:ski')
     })
 
@@ -716,7 +728,9 @@ describe('the REST surface', () => {
 
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ changed: SEED.length })
-      const after = db.get<{ tags: string }>(sql`SELECT tags FROM activities WHERE id = ${theirId}`)
+      const after = await db.get<{ tags: string }>(
+        sql`SELECT tags FROM activities WHERE id = ${theirId}`,
+      )
       expect(JSON.parse(after!.tags)).not.toContain('trip:Mine')
     })
 
@@ -739,7 +753,9 @@ describe('the REST surface', () => {
       const mine = (await (await signedIn('/api/tag-types')).json()) as TagTypesResponse
       expect(mine.tagTypes.map((t) => t.name)).not.toContain('sport')
       expect(
-        db.get<{ n: number }>(sql`SELECT count(*) AS n FROM tag_types WHERE name = 'sport'`)!.n,
+        (await db.get<{ n: number }>(
+          sql`SELECT count(*) AS n FROM tag_types WHERE name = 'sport'`,
+        ))!.n,
       ).toBe(1)
     })
   })
@@ -779,7 +795,8 @@ describe('the REST surface', () => {
         (await app.request('/api/activities', { headers: { cookie: theirCookie } })).status,
       ).toBe(200)
 
-      db.update(users)
+      await db
+        .update(users)
         .set({ passwordHash: await hashPassword('a different one', CHEAP) })
         .where(eq(users.id, userId))
         .run()
@@ -791,7 +808,7 @@ describe('the REST surface', () => {
     })
 
     it('ends them when the password is cleared, which is how an account is handed back', async () => {
-      db.update(users).set({ passwordHash: null }).where(eq(users.id, userId)).run()
+      await db.update(users).set({ passwordHash: null }).where(eq(users.id, userId)).run()
       expect((await signedIn('/api/activities')).status).toBe(401)
     })
 

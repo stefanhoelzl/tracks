@@ -1,6 +1,7 @@
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { openDb } from './db.ts'
 
@@ -36,25 +37,27 @@ describe('the typed-tags migration', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('prefixes bare sport tags and splices in the source, sorted', () => {
-    const path = join(dir, 'test.db')
+  it('prefixes bare sport tags and splices in the source, sorted', async () => {
+    const url = `file:${join(dir, 'test.db')}`
 
-    const before = openDb(path, initialOnly(dir))
-    const insert = before.sqlite.prepare(
-      `insert into activities (source, external_id, started_at, utc_offset, tags)
-       values (?, ?, '2024-10-16T15:57:17Z', 7200, ?)`,
-    )
-    insert.run('komoot', '1', JSON.stringify(['bike']))
-    insert.run('strava', '2', JSON.stringify(['run']))
+    const before = await openDb(url, initialOnly(dir))
+    const insert = (source: string, id: string, tags: string[]) =>
+      before.client.execute({
+        sql: `insert into activities (source, external_id, started_at, utc_offset, tags)
+              values (?, ?, '2024-10-16T15:57:17Z', 7200, ?)`,
+        args: [source, id, JSON.stringify(tags)],
+      })
+    await insert('komoot', '1', ['bike'])
+    await insert('strava', '2', ['run'])
     // The untyped Garmin uploads: no sport at all, and none invented for them.
-    insert.run('strava', '3', JSON.stringify([]))
+    await insert('strava', '3', [])
     before.close()
 
-    const after = openDb(path, MIGRATIONS)
+    const after = await openDb(url, MIGRATIONS)
     try {
-      const rows = after.sqlite
-        .prepare('select external_id, tags from activities order by external_id')
-        .all() as Array<{ external_id: string; tags: string }>
+      const rows = (await after.db.all(
+        sql`select external_id, tags from activities order by external_id`,
+      )) as Array<{ external_id: string; tags: string }>
 
       expect(rows.map((r) => JSON.parse(r.tags))).toEqual([
         ['source:komoot', 'sport:bike'],
@@ -64,7 +67,7 @@ describe('the typed-tags migration', () => {
 
       // `trip` was seeded with the others and nothing ever carried one, so the rule
       // that a type lives only as long as its last tag takes it away here.
-      expect(after.sqlite.prepare('select name from tag_types order by sort').all()).toEqual([
+      expect(await after.db.all(sql`select name from tag_types order by sort`)).toEqual([
         { name: 'sport' },
         { name: 'source' },
       ])
@@ -73,13 +76,13 @@ describe('the typed-tags migration', () => {
     }
   })
 
-  it('leaves a fresh database with no types at all', () => {
-    const handle = openDb(join(dir, 'seed.db'), MIGRATIONS)
+  it('leaves a fresh database with no types at all', async () => {
+    const handle = await openDb(`file:${join(dir, 'seed.db')}`, MIGRATIONS)
     try {
       // Seeding three types into an empty database would put three facets in the
       // sidebar that nothing has ever used. `sport` and `source` come back from their
       // seeds in code the first time an import derives one; the rest you name yourself.
-      expect(handle.sqlite.prepare('select count(*) as n from tag_types').get()).toEqual({ n: 0 })
+      expect(await handle.db.get(sql`select count(*) as n from tag_types`)).toEqual({ n: 0 })
     } finally {
       handle.close()
     }

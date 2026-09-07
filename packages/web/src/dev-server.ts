@@ -9,10 +9,17 @@ import { openDb } from '../../server/src/db.ts'
  * here, so mounting a `dist` that does not exist yet would be the one difference
  * that makes development lie about production.
  */
+/**
+ * A URL rather than a path, because the client behind it takes both: `file:` opens the
+ * embedded libSQL in this process, and an `https:` URL is Bunny Database. Development
+ * points at whichever `TRACKS_DB_URL` names, so the same server code runs against a
+ * local file when offline and against the real thing the rest of the time.
+ */
 const dataDir = process.env.TRACKS_DATA_DIR ?? resolve(import.meta.dirname, '../../../data')
-const { db } = openDb(
-  resolve(dataDir, 'tracks.db'),
+const { db } = await openDb(
+  process.env.TRACKS_DB_URL ?? `file:${resolve(dataDir, 'tracks.db')}`,
   resolve(import.meta.dirname, '../../../migrations'),
+  process.env.TRACKS_DB_TOKEN,
 )
 
 /**

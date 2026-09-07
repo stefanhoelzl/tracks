@@ -23,11 +23,14 @@ if (!email) {
 }
 
 const root = resolve(import.meta.dirname, '../../..')
-const dataDir = process.env.TRACKS_DATA_DIR ?? resolve(root, 'data')
-const { db, close } = openDb(resolve(dataDir, 'tracks.db'), resolve(root, 'migrations'))
+const { db, close } = await openDb(
+  process.env.TRACKS_DB_URL ?? `file:${resolve(root, 'data/tracks.db')}`,
+  resolve(root, 'migrations'),
+  process.env.TRACKS_DB_TOKEN,
+)
 
 try {
-  const account = createAccount(db, email)
+  const account = await createAccount(db, email)
   console.log(`user ${account.id}: ${account.email} — claimed by its first sign-in`)
 } finally {
   close()

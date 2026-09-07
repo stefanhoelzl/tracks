@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "@mapbox/polyline": "^1.2.1",
     "@tracks/core": "workspace:*",
-    "better-sqlite3": "^12.4.1",
     "drizzle-orm": "^0.44.7",
     "hono": "^4.13.4",
     "tz-lookup": "^6.1.25",

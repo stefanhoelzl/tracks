@@ -42,7 +42,7 @@ export function importRoutes(db: Db) {
       if (!body.success) return c.json(badRequest(body.error), 400)
 
       const { source, ids } = body.data
-      return c.json({ wanted: selectWanted(db, c.get('owner'), source, ids) })
+      return c.json({ wanted: await selectWanted(db, c.get('owner'), source, ids) })
     },
 
     /**
@@ -58,7 +58,7 @@ export function importRoutes(db: Db) {
       if (!body.success) return c.json(badRequest(body.error), 400)
 
       try {
-        const result = ingestActivity(db, c.get('owner'), body.data)
+        const result = await ingestActivity(db, c.get('owner'), body.data)
         return c.json(
           importActivityResponseSchema.parse({ rejectedTags: [...result.rejectedTags] }),
         )

@@ -48,14 +48,14 @@ function frame(over: Partial<ImportFrame> = {}): ImportFrame {
 }
 
 let dir: string
-let handle: ReturnType<typeof openDb>
+let handle: Awaited<ReturnType<typeof openDb>>
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'tracks-ingest-'))
-  handle = openDb(join(dir, 'test.db'), MIGRATIONS)
+  handle = await openDb(`file:${join(dir, 'test.db')}`, MIGRATIONS)
 
   hash = await hashPassword('a good long one', CHEAP)
-  const account = handle.db
+  const account = await handle.db
     .insert(users)
     .values({ email: 'rider@example.com', passwordHash: hash })
     .returning({ id: users.id })
@@ -71,14 +71,14 @@ afterEach(() => {
  * What the browser's loop does, in one function: each activity on its own, a failure
  * costing itself, and the run carrying on past it.
  */
-function run(frames: ImportFrame[]) {
+async function run(frames: ImportFrame[]) {
   const written: number[] = []
   const failed: Array<{ externalId: string; error: string }> = []
   const rejectedTags = new Map<string, number>()
 
   for (const frame of frames) {
     try {
-      for (const [tag, n] of ingestActivity(handle.db, owner, frame).rejectedTags) {
+      for (const [tag, n] of (await ingestActivity(handle.db, owner, frame)).rejectedTags) {
         rejectedTags.set(tag, (rejectedTags.get(tag) ?? 0) + n)
       }
       written.push(1)
@@ -94,25 +94,25 @@ function run(frames: ImportFrame[]) {
 }
 
 const rows = () => handle.db.select().from(activities).all()
-const pointCount = () =>
-  handle.db.select({ n: sql<number>`count(*)` }).from(trackpoints).get()?.n ?? 0
+const pointCount = async () =>
+  (await handle.db.select({ n: sql<number>`count(*)` }).from(trackpoints).get())?.n ?? 0
 
 describe('ingest', () => {
   it('writes an activity, its track and its derived tags', async () => {
-    const result = run([frame()])
+    const result = await run([frame()])
     expect(result).toMatchObject({ written: 1, failed: [] })
 
-    const [row] = rows()
+    const [row] = await rows()
     expect(row?.title).toBe('Almenrunde')
     expect(row?.distanceM).toBe(48210)
     // `source:` is the server's derivation, added beside what the source sent.
     expect(JSON.parse(row?.tags ?? '[]')).toEqual(['source:komoot', 'sport:hike'])
-    expect(pointCount()).toBe(4)
+    expect(await pointCount()).toBe(4)
   })
 
   it('widens the wire format back out', async () => {
-    run([frame()])
-    const points = handle.db.select().from(trackpoints).orderBy(trackpoints.seq).all()
+    await run([frame()])
+    const points = await handle.db.select().from(trackpoints).orderBy(trackpoints.seq).all()
 
     expect(points[0]?.lat).toBeCloseTo(46.7812, 6)
     expect(points[0]?.altitudeM).toBe(594.3)
@@ -123,29 +123,29 @@ describe('ingest', () => {
   })
 
   it('keeps a track that carries neither altitude nor timing', async () => {
-    run([frame({ altitudes: null, times: null })])
-    const points = handle.db.select().from(trackpoints).all()
+    await run([frame({ altitudes: null, times: null })])
+    const points = await handle.db.select().from(trackpoints).all()
 
     expect(points).toHaveLength(4)
     expect(points.every((p) => p.altitudeM === null && p.recordedAt === null)).toBe(true)
   })
 
   it('derives the offset from the coordinates, with DST', async () => {
-    run([frame()])
+    await run([frame()])
     // The Julian Alps: Europe/Ljubljana, CEST in August.
-    expect(rows()[0]?.utcOffset).toBe(7200)
+    expect((await rows())[0]?.utcOffset).toBe(7200)
   })
 
   it('stores a simplified polyline beside the full-resolution points', async () => {
-    run([frame()])
-    expect(rows()[0]?.polyline).toBeTruthy()
+    await run([frame()])
+    expect((await rows())[0]?.polyline).toBeTruthy()
     // The stored line is the map's; the trackpoints keep every sample.
-    expect(pointCount()).toBe(4)
+    expect(await pointCount()).toBe(4)
   })
 
   it('caches the bounding box so the viewport filter never reads the points', async () => {
-    run([frame()])
-    const [row] = rows()
+    await run([frame()])
+    const [row] = await rows()
     expect(row?.minLat).toBeCloseTo(46.7812, 4)
     expect(row?.maxLon).toBeCloseTo(14.3458, 4)
   })
@@ -153,7 +153,7 @@ describe('ingest', () => {
 
 describe('when a frame is bad', () => {
   it('costs itself and nothing else', async () => {
-    const result = run([
+    const result = await run([
       frame(),
       frame({ externalId: 'broken', altitudes: [1, 2] }),
       frame({ externalId: 'other' }),
@@ -164,65 +164,65 @@ describe('when a frame is bad', () => {
     expect(result.failed[0]).toMatchObject({ externalId: 'broken' })
     expect(result.failed[0]?.error).toMatch(/2 entries for 4 points/)
     // The good two still committed: a bad file is not a reason to discard a run.
-    expect(rows()).toHaveLength(2)
+    expect(await rows()).toHaveLength(2)
   })
 
   it('creates the types it derives, since a fresh database has none', async () => {
     // The registry is empty until something carries a tag: migrations seed no types,
     // and the ones an importer owns come back from the seeds in code.
-    expect(handle.sqlite.prepare('select count(*) as n from tag_types').get()).toEqual({ n: 0 })
+    expect(await handle.db.get(sql`select count(*) as n from tag_types`)).toEqual({ n: 0 })
 
-    const result = run([frame()])
+    const result = await run([frame()])
     expect(result.rejectedTags.size).toBe(0)
-    expect(JSON.parse(rows()[0]?.tags ?? '[]')).toEqual(['source:komoot', 'sport:hike'])
-    expect(
-      handle.sqlite.prepare('select name, label, sort from tag_types order by sort').all(),
-    ).toEqual([
-      { name: 'sport', label: 'Sport', sort: 1 },
-      { name: 'source', label: 'Source', sort: 2 },
-    ])
+    expect(JSON.parse((await rows())[0]?.tags ?? '[]')).toEqual(['source:komoot', 'sport:hike'])
+    expect(await handle.db.all(sql`select name, label, sort from tag_types order by sort`)).toEqual(
+      [
+        { name: 'sport', label: 'Sport', sort: 1 },
+        { name: 'source', label: 'Source', sort: 2 },
+      ],
+    )
   })
 
   it('drops a derived tag whose type is not one an importer owns', async () => {
-    const result = run([frame({ tags: ['sport:hike', 'gear:gravel'] })])
+    const result = await run([frame({ tags: ['sport:hike', 'gear:gravel'] })])
     expect(result).toMatchObject({ written: 1, failed: [] })
     expect(result.rejectedTags.get('gear:gravel')).toBe(1)
-    expect(JSON.parse(rows()[0]?.tags ?? '[]')).not.toContain('gear:gravel')
+    expect(JSON.parse((await rows())[0]?.tags ?? '[]')).not.toContain('gear:gravel')
   })
 })
 
 describe('stopping half way', () => {
-  it('keeps what landed, and select reports the rest', () => {
+  it('keeps what landed, and select reports the rest', async () => {
     // The promise the dialog now makes. It used to be the opposite — one transaction
     // for the whole run, so cancelling left the database byte for byte as it was — and
     // that could not survive an isolate, where nothing lives between requests.
-    run([frame({ externalId: 'first' })])
+    await run([frame({ externalId: 'first' })])
 
-    expect(rows()).toHaveLength(1)
+    expect(await rows()).toHaveLength(1)
     // Which is only tolerable because resuming was already free: `select` has always
     // answered with what has no track yet, so the next run continues rather than repeats.
-    expect(selectWanted(handle.db, owner, 'komoot', ['first', 'second'])).toEqual(['second'])
+    expect(await selectWanted(handle.db, owner, 'komoot', ['first', 'second'])).toEqual(['second'])
   })
 
-  it('writes an activity and its points together, or neither', () => {
+  it('writes an activity and its points together, or neither', async () => {
     // Atomicity did not go away, it narrowed. A frame that cannot be decoded leaves no
     // half-written activity behind for the next run to find and skip.
-    const result = run([frame({ externalId: 'broken', altitudes: [1, 2] })])
+    const result = await run([frame({ externalId: 'broken', altitudes: [1, 2] })])
 
     expect(result.failed).toHaveLength(1)
-    expect(rows()).toHaveLength(0)
-    expect(pointCount()).toBe(0)
+    expect(await rows()).toHaveLength(0)
+    expect(await pointCount()).toBe(0)
   })
 })
 
 describe('selectWanted', () => {
   it('wants only what has no track yet', async () => {
-    run([frame({ externalId: 'have' })])
-    expect(selectWanted(handle.db, owner, 'komoot', ['have', 'missing'])).toEqual(['missing'])
+    await run([frame({ externalId: 'have' })])
+    expect(await selectWanted(handle.db, owner, 'komoot', ['have', 'missing'])).toEqual(['missing'])
   })
 
   it('wants a row that exists but was never given a track', async () => {
-    handle.db
+    await handle.db
       .insert(activities)
       .values({
         ...owner,
@@ -233,16 +233,16 @@ describe('selectWanted', () => {
       })
       .run()
     // Zero trackpoints means "not imported yet", which is the honest question to ask.
-    expect(selectWanted(handle.db, owner, 'komoot', ['empty'])).toEqual(['empty'])
+    expect(await selectWanted(handle.db, owner, 'komoot', ['empty'])).toEqual(['empty'])
   })
 
   it('does not confuse one source with another', async () => {
-    run([frame({ externalId: 'shared' })])
-    expect(selectWanted(handle.db, owner, 'strava', ['shared'])).toEqual(['shared'])
+    await run([frame({ externalId: 'shared' })])
+    expect(await selectWanted(handle.db, owner, 'strava', ['shared'])).toEqual(['shared'])
   })
 
-  it('answers an empty offer with an empty list', () => {
-    expect(selectWanted(handle.db, owner, 'komoot', [])).toEqual([])
+  it('answers an empty offer with an empty list', async () => {
+    expect(await selectWanted(handle.db, owner, 'komoot', [])).toEqual([])
   })
 })
 
@@ -262,7 +262,7 @@ describe('the routes', () => {
     })
 
   it('selects over HTTP', async () => {
-    run([frame({ externalId: 'have' })])
+    await run([frame({ externalId: 'have' })])
     const response = await post('/api/import/select', {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ source: 'komoot', ids: ['have', 'missing'] }),
@@ -289,7 +289,7 @@ describe('the routes', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ rejectedTags: [['gear:gravel', 1]] })
-    expect(rows()).toHaveLength(1)
+    expect(await rows()).toHaveLength(1)
   })
 
   it('refuses one bad activity with a 400, and writes nothing of it', async () => {
@@ -305,7 +305,7 @@ describe('the routes', () => {
     expect(await response.json()).toMatchObject({
       error: expect.stringMatching(/2 entries for 4 points/),
     })
-    expect(rows()).toHaveLength(0)
+    expect(await rows()).toHaveLength(0)
   })
 
   it('rejects a body that is not a frame with the field that broke', async () => {
@@ -334,7 +334,7 @@ describe('the routes', () => {
     ])
 
     expect([first.status, second.status]).toEqual([200, 200])
-    expect(rows()).toHaveLength(2)
+    expect(await rows()).toHaveLength(2)
   })
 })
 
@@ -353,7 +353,7 @@ describe('the fixtures the browser records', () => {
       t: number
     }>
 
-    run([
+    await run([
       frame({
         geometry: polyline.encode(
           items.map((i) => [i.lat, i.lng] as [number, number]),
@@ -364,8 +364,8 @@ describe('the fixtures the browser records', () => {
       }),
     ])
 
-    expect(pointCount()).toBe(items.length)
-    const first = handle.db.select().from(trackpoints).orderBy(trackpoints.seq).all()[0]
+    expect(await pointCount()).toBe(items.length)
+    const first = (await handle.db.select().from(trackpoints).orderBy(trackpoints.seq).all())[0]
     // Precision 6 is lossless, which is the claim the wire format rests on.
     expect(first?.lon).toBeCloseTo(items[0]!.lng, 6)
   })

@@ -40,13 +40,13 @@ export class TagWriteError extends Error {}
  * use is absent from the registry it holds, and that registry can be one write out of
  * date — two tabs, or a type an import just created.
  */
-function withNewType(
+async function withNewType(
   db: Conn,
   owner: Owner,
   registry: Map<string, TagType>,
   newType: NewType | undefined,
 ) {
-  if (newType && !registry.has(newType.name)) createType(db, owner, registry, newType)
+  if (newType && !registry.has(newType.name)) await createType(db, owner, registry, newType)
 }
 
 function assertValid(registry: TagRegistry, tags: readonly string[]) {
@@ -63,13 +63,13 @@ function assertValid(registry: TagRegistry, tags: readonly string[]) {
  * line can state without lying — applying a tag half the set already carries reports
  * the half that gained it.
  */
-export function writeTags(db: Db, scope: Scope, write: TagWrite): TagWriteResponse {
-  return db.transaction((tx) => {
-    const registry = loadRegistry(tx, scope)
-    withNewType(tx, scope, registry, write.newType)
+export function writeTags(db: Db, scope: Scope, write: TagWrite): Promise<TagWriteResponse> {
+  return db.transaction(async (tx) => {
+    const registry = await loadRegistry(tx, scope)
+    await withNewType(tx, scope, registry, write.newType)
     assertValid(registry, [...write.add, ...write.remove])
 
-    const rows = tx.all<{ id: number; tags: string }>(sql`
+    const rows = await tx.all<{ id: number; tags: string }>(sql`
       SELECT a.id, a.tags FROM activities a WHERE ${whereFor(scope)}`)
 
     let changed = 0
@@ -78,11 +78,11 @@ export function writeTags(db: Db, scope: Scope, write: TagWrite): TagWriteRespon
       const after = JSON.stringify(applyTagEdits(registry, JSON.parse(before) as string[], write))
       if (after === before) continue
 
-      tx.run(sql`UPDATE activities SET tags = ${after} WHERE id = ${row.id}`)
+      await tx.run(sql`UPDATE activities SET tags = ${after} WHERE id = ${row.id}`)
       changed++
     }
 
-    collectTypes(tx, scope)
+    await collectTypes(tx, scope)
     return { changed }
   })
 }
@@ -93,10 +93,10 @@ export function writeActivityTags(
   owner: Owner,
   id: number,
   body: { tags: string[]; newType?: NewType },
-): ActivityTagsResponse | null {
-  return db.transaction((tx) => {
-    const registry = loadRegistry(tx, owner)
-    withNewType(tx, owner, registry, body.newType)
+): Promise<ActivityTagsResponse | null> {
+  return db.transaction(async (tx) => {
+    const registry = await loadRegistry(tx, owner)
+    await withNewType(tx, owner, registry, body.newType)
     assertValid(registry, body.tags)
 
     // Through the same edit function as a bulk write, from an empty array: the sort,
@@ -105,15 +105,15 @@ export function writeActivityTags(
 
     // Someone else's id changes nothing and reports the same nothing an absent one
     // does, which is what the route needs to answer both with one 404.
-    const updated = tx
+    const updated = await tx
       .update(activities)
       .set({ tags: JSON.stringify(tags) })
       .where(sql`id = ${id} AND user_id = ${owner.userId}`)
       .run()
 
-    if (updated.changes === 0) return null
+    if (updated.rowsAffected === 0) return null
 
-    collectTypes(tx, owner)
+    await collectTypes(tx, owner)
     return { tags }
   })
 }

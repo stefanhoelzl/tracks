@@ -178,7 +178,7 @@ export function createApi(db: Db, options: ApiOptions = {}) {
     const claimed = userIdIn(token)
     if (claimed === null) return null
 
-    const account = findCredential(db, claimed)
+    const account = await findCredential(db, claimed)
     if (!account) return null
 
     const userId = await verifySession(account.passwordHash, token)
@@ -207,7 +207,7 @@ export function createApi(db: Db, options: ApiOptions = {}) {
    * is the whole point of the serialization living in core. A malformed URL is a 400
    * naming the field, not a query that quietly matches nothing.
    */
-  const withFilter = (handler: (scope: Scope) => unknown) => (c: Context<Env>) => {
+  const withFilter = (handler: (scope: Scope) => Promise<unknown>) => async (c: Context<Env>) => {
     let filter: Filter
     try {
       filter = parseFilter(new URL(c.req.url).searchParams)
@@ -215,24 +215,26 @@ export function createApi(db: Db, options: ApiOptions = {}) {
       if (error instanceof z.ZodError) return c.json(badRequest(error), 400)
       throw error
     }
-    return c.json(handler(scopeFor(db, c.get('owner'), filter)))
+    return c.json(await handler(await scopeFor(db, c.get('owner'), filter)))
   }
 
   app.get(
     '/api/activities',
-    withFilter((scope) =>
-      activitiesResponseSchema.parse({ activities: listActivities(db, scope) }),
+    withFilter(async (scope) =>
+      activitiesResponseSchema.parse({ activities: await listActivities(db, scope) }),
     ),
   )
 
   app.get(
     '/api/tracks',
-    withFilter((scope) => tracksResponseSchema.parse(listTracks(db, scope))),
+    withFilter(async (scope) => tracksResponseSchema.parse(await listTracks(db, scope))),
   )
 
   app.get(
     '/api/facets',
-    withFilter((scope) => facetsResponseSchema.parse(facets(db, scope, loadRegistry(db, scope)))),
+    withFilter(async (scope) =>
+      facetsResponseSchema.parse(await facets(db, scope, await loadRegistry(db, scope))),
+    ),
   )
 
   /**
@@ -258,7 +260,7 @@ export function createApi(db: Db, options: ApiOptions = {}) {
     try {
       return c.json(
         tagWriteResponseSchema.parse(
-          writeTags(db, scopeFor(db, c.get('owner'), filter), body.data),
+          await writeTags(db, await scopeFor(db, c.get('owner'), filter), body.data),
         ),
       )
     } catch (error) {
@@ -278,7 +280,7 @@ export function createApi(db: Db, options: ApiOptions = {}) {
     if (!body.success) return c.json(badBody(body.error), 400)
 
     try {
-      const written = writeActivityTags(db, c.get('owner'), id, body.data)
+      const written = await writeActivityTags(db, c.get('owner'), id, body.data)
       if (!written) return c.json<ApiError>({ error: `no activity ${id}` }, 404)
 
       return c.json(activityTagsResponseSchema.parse(written))
@@ -288,13 +290,13 @@ export function createApi(db: Db, options: ApiOptions = {}) {
     }
   })
 
-  app.get('/api/activities/:id', (c) => {
+  app.get('/api/activities/:id', async (c) => {
     const id = Number(c.req.param('id'))
     if (!Number.isInteger(id) || id <= 0) {
       return c.json<ApiError>({ error: 'activity id must be a positive integer' }, 400)
     }
 
-    const detail = activityDetail(db, c.get('owner'), id)
+    const detail = await activityDetail(db, c.get('owner'), id)
     if (!detail) return c.json<ApiError>({ error: `no activity ${id}` }, 404)
 
     return c.json(activityDetailSchema.parse(detail))
@@ -304,9 +306,11 @@ export function createApi(db: Db, options: ApiOptions = {}) {
   // every tag written can create a value, and emptying the last one deletes the type.
   // It is what the sidebar renders, what the autocomplete offers and what the colour
   // layout is laid out from.
-  app.get('/api/tag-types', (c) => {
+  app.get('/api/tag-types', async (c) => {
     const owner = c.get('owner')
-    return c.json(tagTypesResponseSchema.parse(tagVocabulary(db, owner, loadRegistry(db, owner))))
+    return c.json(
+      tagTypesResponseSchema.parse(await tagVocabulary(db, owner, await loadRegistry(db, owner))),
+    )
   })
 
   // The browser reads Strava and Komoot; these two write what it read. `select` says

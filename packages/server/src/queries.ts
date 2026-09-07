@@ -13,7 +13,7 @@ import {
   type TracksResponse,
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
-import type { Conn, Db } from './db.ts'
+import { type Conn, type Db, first } from './db.ts'
 import {
   LOCAL_DATE,
   type Owner,
@@ -71,7 +71,7 @@ function toRow(raw: RawRow): ActivityRow {
  * Every route calls this before building any SQL, so the trackpoint query runs once
  * per request no matter how many WHERE clauses the route goes on to build.
  */
-export function scopeFor(db: Conn, owner: Owner, filter: Filter): Scope {
+export async function scopeFor(db: Conn, owner: Owner, filter: Filter): Promise<Scope> {
   const { userId } = owner
   if (filter.bbox === null) return { userId, filter, bboxIds: null }
 
@@ -81,7 +81,7 @@ export function scopeFor(db: Conn, owner: Owner, filter: Filter): Scope {
   // over the few that could possibly match. A box overlapping the viewport is not a track
   // entering it — a ride whose box spans a city it only skirted is eliminated here — so
   // the second stage is what the answer actually rests on.
-  const rows = db.all<{ activity_id: number }>(sql`
+  const rows = await db.all<{ activity_id: number }>(sql`
     SELECT DISTINCT activity_id FROM trackpoints
     WHERE activity_id IN (
       SELECT id FROM activities
@@ -93,8 +93,8 @@ export function scopeFor(db: Conn, owner: Owner, filter: Filter): Scope {
   return { userId, filter, bboxIds: rows.map((row) => row.activity_id) }
 }
 
-export function listActivities(db: Db, scope: Scope): ActivityRow[] {
-  const rows = db.all<RawRow>(sql`
+export async function listActivities(db: Db, scope: Scope): Promise<ActivityRow[]> {
+  const rows = await db.all<RawRow>(sql`
     SELECT ${ROW_COLUMNS} FROM activities a
     WHERE ${whereFor(scope)}
     ORDER BY ${orderFor(scope.filter)}`)
@@ -109,8 +109,13 @@ export function listActivities(db: Db, scope: Scope): ActivityRow[] {
  * `JSON.stringify` alone than the query did. The browser rebuilds every feature anyway to
  * bake in a colour, so the decode goes where that pass already is.
  */
-export function listTracks(db: Db, scope: Scope): TracksResponse {
-  const rows = db.all<{ id: number; polyline: string; local_date: string; tags: string }>(sql`
+export async function listTracks(db: Db, scope: Scope): Promise<TracksResponse> {
+  const rows = await db.all<{
+    id: number
+    polyline: string
+    local_date: string
+    tags: string
+  }>(sql`
     SELECT a.id, a.polyline, ${LOCAL_DATE} AS local_date, a.tags FROM activities a
     WHERE ${whereFor(scope)} AND a.polyline IS NOT NULL
     ORDER BY ${orderFor(scope.filter)}`)
@@ -128,10 +133,16 @@ export function listTracks(db: Db, scope: Scope): TracksResponse {
 /** Lossless for six-decimal trackpoints, unlike the default 5. */
 const DETAIL_PRECISION = 6
 
-export function activityDetail(db: Db, owner: Owner, id: number): ActivityDetailResponse | null {
-  const raw = db.get<RawRow>(sql`
-    SELECT ${ROW_COLUMNS} FROM activities a
-    WHERE a.id = ${id} AND a.user_id = ${owner.userId}`)
+export async function activityDetail(
+  db: Db,
+  owner: Owner,
+  id: number,
+): Promise<ActivityDetailResponse | null> {
+  const raw = await first<RawRow>(
+    db,
+    sql`SELECT ${ROW_COLUMNS} FROM activities a
+        WHERE a.id = ${id} AND a.user_id = ${owner.userId}`,
+  )
   // Not "no such activity" but "not yours, or no such activity" — the route turns both
   // into the same 404, because telling them apart is telling a stranger what exists.
   if (!raw) return null
@@ -139,7 +150,7 @@ export function activityDetail(db: Db, owner: Owner, id: number): ActivityDetail
   // The owner is not repeated here: the row above established that this activity is
   // theirs, and a track is reached only through its activity.
 
-  const points = db.all<{ lat: number; lon: number; altitude_m: number | null }>(sql`
+  const points = await db.all<{ lat: number; lon: number; altitude_m: number | null }>(sql`
     SELECT lat, lon, altitude_m FROM trackpoints
     WHERE activity_id = ${id} ORDER BY seq`)
 
@@ -179,8 +190,8 @@ function bucket(values: number[]): RangeFacet {
   return { min, max, buckets }
 }
 
-function rangeFacet(db: Db, scope: Scope, key: RangeKey): RangeFacet {
-  const rows = db.all<{ v: number }>(sql`
+async function rangeFacet(db: Db, scope: Scope, key: RangeKey): Promise<RangeFacet> {
+  const rows = await db.all<{ v: number }>(sql`
     SELECT ${RANGE_EXPR[key]} AS v FROM activities a
     WHERE ${whereFor(scope, { range: key })} AND ${RANGE_EXPR[key]} IS NOT NULL`)
 
@@ -197,8 +208,12 @@ function rangeFacet(db: Db, scope: Scope, key: RangeKey): RangeFacet {
  * carries, since narrowing to the untagged is how tagging starts — and what the colour
  * layout is built from, which must not depend on where the map is pointed.
  */
-export function tagVocabulary(db: Db, owner: Owner, registry: TagRegistry): TagTypesResponse {
-  const counted = db.all<{ tag: string; n: number }>(sql`
+export async function tagVocabulary(
+  db: Db,
+  owner: Owner,
+  registry: TagRegistry,
+): Promise<TagTypesResponse> {
+  const counted = await db.all<{ tag: string; n: number }>(sql`
     SELECT t.value AS tag, count(*) AS n
     FROM activities a, json_each(a.tags) t
     WHERE a.user_id = ${owner.userId}
@@ -224,38 +239,44 @@ export function tagVocabulary(db: Db, owner: Owner, registry: TagRegistry): TagT
   }
 }
 
-export function facets(db: Db, scope: Scope, registry: TagRegistry): FacetsResponse {
-  const summary = db.get<{ n: number; d: number; e: number; t: number }>(sql`
+export async function facets(db: Db, scope: Scope, registry: TagRegistry): Promise<FacetsResponse> {
+  const summary = (await first<{ n: number; d: number; e: number; t: number }>(
+    db,
+    sql`
     SELECT count(*) AS n,
            coalesce(sum(a.distance_m), 0) AS d,
            coalesce(sum(a.elevation_gain_m), 0) AS e,
            coalesce(sum(a.duration_s), 0) AS t
-    FROM activities a WHERE ${whereFor(scope)}`)!
+    FROM activities a WHERE ${whereFor(scope)}`,
+  ))!
 
   // Bounds over the cached per-activity boxes, with the viewport term dropped — 197 rows
   // of four numbers, so it rides along with the other aggregates for nothing.
-  const box = db.get<{
+  const box = (await first<{
     w: number | null
     s: number | null
     e: number | null
     n: number | null
-  }>(sql`
+  }>(
+    db,
+    sql`
     SELECT min(a.min_lon) AS w, min(a.min_lat) AS s,
            max(a.max_lon) AS e, max(a.max_lat) AS n
-    FROM activities a WHERE ${whereFor(scope, { bbox: true })}`)!
+    FROM activities a WHERE ${whereFor(scope, { bbox: true })}`,
+  ))!
 
   const extent: [number, number, number, number] | null =
     box.w === null || box.s === null || box.e === null || box.n === null
       ? null
       : [box.w, box.s, box.e, box.n]
 
-  const tags = [...registry.values()]
-    .sort((a, b) => a.sort - b.sort)
-    .map((type) => {
+  const tags = []
+  for (const type of [...registry.values()].sort((a, b) => a.sort - b.sort)) {
+    {
       const prefix = `${type.name}:`
       const where = whereFor(scope, { tagType: type.name })
 
-      const counted = db.all<{ v: string; n: number }>(sql`
+      const counted = await db.all<{ v: string; n: number }>(sql`
         SELECT substr(t.value, ${prefix.length + 1}) AS v, count(*) AS n
         FROM activities a, json_each(a.tags) t
         WHERE ${where} AND substr(t.value, 1, ${prefix.length}) = ${prefix}
@@ -268,14 +289,17 @@ export function facets(db: Db, scope: Scope, registry: TagRegistry): FacetsRespo
         .map((r) => ({ value: r.v, count: r.n }))
         .sort((a, b) => b.count - a.count)
 
-      const notSet = db.get<{ n: number }>(sql`
-        SELECT count(*) AS n FROM activities a
-        WHERE ${where} AND NOT EXISTS (
-          SELECT 1 FROM json_each(a.tags) WHERE substr(value, 1, ${prefix.length}) = ${prefix}
-        )`)!
+      const notSet = (await first<{ n: number }>(
+        db,
+        sql`SELECT count(*) AS n FROM activities a
+            WHERE ${where} AND NOT EXISTS (
+              SELECT 1 FROM json_each(a.tags) WHERE substr(value, 1, ${prefix.length}) = ${prefix}
+            )`,
+      ))!
 
-      return { type: type.name, values, notSet: notSet.n }
-    })
+      tags.push({ type: type.name, values, notSet: notSet.n })
+    }
+  }
 
   return {
     summary: {
@@ -287,7 +311,7 @@ export function facets(db: Db, scope: Scope, registry: TagRegistry): FacetsRespo
     extent,
     tags,
     ranges: Object.fromEntries(
-      RANGE_KEYS.map((key) => [key, rangeFacet(db, scope, key)]),
+      await Promise.all(RANGE_KEYS.map(async (key) => [key, await rangeFacet(db, scope, key)])),
     ) as FacetsResponse['ranges'],
   }
 }

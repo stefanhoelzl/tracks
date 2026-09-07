@@ -75,7 +75,7 @@ export function boundingBox(points: ReadonlyArray<{ lat: number; lon: number }>)
  * deleted, and any other unknown type is dropped and reported. Either way the activity
  * itself imports: a taxonomy question never fails an import.
  */
-function acceptDerived(
+async function acceptDerived(
   conn: Conn,
   owner: Owner,
   registry: Map<string, TagType>,
@@ -87,7 +87,7 @@ function acceptDerived(
   for (const raw of derived) {
     const tag = parseTag(raw)
     const seed = tag && !registry.has(tag.type) ? seedFor(tag.type) : undefined
-    if (tag && seed) createType(conn, owner, registry, { name: tag.type, ...seed })
+    if (tag && seed) await createType(conn, owner, registry, { name: tag.type, ...seed })
 
     if (validateTag(registry, raw) !== null) {
       result.rejectedTags.set(raw, (result.rejectedTags.get(raw) ?? 0) + 1)
@@ -142,7 +142,7 @@ function decodePoints(frame: ImportFrame): Point[] {
 }
 
 /** Writes one activity, inside the caller's transaction. */
-function write(
+async function write(
   conn: Conn,
   owner: Owner,
   registry: Map<string, TagType>,
@@ -152,7 +152,7 @@ function write(
   const points = decodePoints(frame)
   const first = points[0]!
 
-  const existing = conn
+  const existing = await conn
     .select({ id: activities.id, tags: activities.tags })
     .from(activities)
     .where(
@@ -183,22 +183,28 @@ function write(
     tags: JSON.stringify(
       mergeDerivedTags(
         existing ? (JSON.parse(existing.tags) as string[]) : [],
-        acceptDerived(conn, owner, registry, [...frame.tags, `source:${frame.source}`], result),
+        await acceptDerived(
+          conn,
+          owner,
+          registry,
+          [...frame.tags, `source:${frame.source}`],
+          result,
+        ),
       ),
     ),
   }
 
   let id = existing?.id
   if (id === undefined) {
-    id = conn.insert(activities).values(row).returning({ id: activities.id }).get().id
+    id = (await conn.insert(activities).values(row).returning({ id: activities.id }).get()).id
   } else {
-    conn.update(activities).set(row).where(eq(activities.id, id)).run()
-    conn.delete(trackpoints).where(eq(trackpoints.activityId, id)).run()
+    await conn.update(activities).set(row).where(eq(activities.id, id)).run()
+    await conn.delete(trackpoints).where(eq(trackpoints.activityId, id)).run()
   }
 
   // Chunked to stay well under SQLite's variable limit on a 25k-point track.
   for (let i = 0; i < points.length; i += 500) {
-    conn
+    await conn
       .insert(trackpoints)
       .values(
         points.slice(i, i + 500).map((p, j) => ({
@@ -223,10 +229,10 @@ function write(
  * every trackpoint under it commit together, and a frame that cannot be written throws
  * before anything of it is visible.
  */
-export function ingestActivity(db: Db, owner: Owner, frame: ImportFrame): IngestResult {
-  return db.transaction((tx) => {
+export function ingestActivity(db: Db, owner: Owner, frame: ImportFrame): Promise<IngestResult> {
+  return db.transaction(async (tx) => {
     const result: IngestResult = { rejectedTags: new Map() }
-    write(tx, owner, loadRegistry(tx, owner), frame, result)
+    await write(tx, owner, await loadRegistry(tx, owner), frame, result)
     return result
   })
 }
@@ -245,20 +251,26 @@ export function ingestActivity(db: Db, owner: Owner, frame: ImportFrame): Ingest
  * Scoped to the asker, so somebody else having ridden the same Komoot tour does not
  * make it one you already have.
  */
-export function selectWanted(db: Db, owner: Owner, source: string, ids: string[]): string[] {
+export async function selectWanted(
+  db: Db,
+  owner: Owner,
+  source: string,
+  ids: string[],
+): Promise<string[]> {
   const known = new Set(
-    db
-      .select({ externalId: activities.externalId })
-      .from(activities)
-      .where(
-        and(
-          eq(activities.userId, owner.userId),
-          eq(activities.source, source),
-          sql`EXISTS (SELECT 1 FROM trackpoints t WHERE t.activity_id = ${activities.id})`,
-        ),
-      )
-      .all()
-      .map((row) => row.externalId),
+    (
+      await db
+        .select({ externalId: activities.externalId })
+        .from(activities)
+        .where(
+          and(
+            eq(activities.userId, owner.userId),
+            eq(activities.source, source),
+            sql`EXISTS (SELECT 1 FROM trackpoints t WHERE t.activity_id = ${activities.id})`,
+          ),
+        )
+        .all()
+    ).map((row) => row.externalId),
   )
 
   return ids.filter((id) => !known.has(id))
