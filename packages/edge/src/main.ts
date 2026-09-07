@@ -18,9 +18,22 @@ import { serveAssets } from './static.ts'
  * The client is made once per isolate rather than per request. It holds no socket — it
  * is HTTP — so an idle one costs nothing, and a warm isolate skips the setup.
  */
-const url = Deno.env.get('TRACKS_DB_URL')
-const authToken = Deno.env.get('TRACKS_DB_TOKEN')
-if (!url) throw new Error('TRACKS_DB_URL is not set')
+/**
+ * The two variables Bunny injects when a database is connected to a script.
+ *
+ * Read through both globals rather than importing `node:process`, which is what the
+ * documented example does: this bundle is built with esbuild's browser platform
+ * precisely so that a stray Node builtin fails the build instead of the first request,
+ * and `Deno.env` is the same value without the import. Whichever the runtime provides
+ * answers; if neither does, the script says so on boot rather than at the first query.
+ */
+const env = (name: string) =>
+  (globalThis as { Deno?: { env: { get(n: string): string | undefined } } }).Deno?.env.get(name) ??
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[name]
+
+const url = env('BUNNY_DATABASE_URL')
+const authToken = env('BUNNY_DATABASE_AUTH_TOKEN')
+if (!url) throw new Error('BUNNY_DATABASE_URL is not set — is the database connected?')
 
 const db = connect(createClient({ url, authToken }))
 

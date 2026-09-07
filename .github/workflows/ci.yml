@@ -61,14 +61,15 @@ jobs:
       # schema this applies, so the reverse order would put a deployment in front of
       # the columns it queries. Migrations run in filename order and carry their own
       # tracking row, so this is a no-op on every deploy that adds none.
-      # The database is selected by a linked manifest or by environment. Which exact
-      # variables the CLI reads is one of the four things the design brief says only a
-      # deploy can settle, so these names are provisional and get confirmed — or
-      # corrected — the first time this runs, rather than guessed at confidently now.
+      # The script gets its database injected, because the two are connected on Bunny's
+      # side. CI does not: it runs on a GitHub runner, so it needs to be told which
+      # database and with what. `BUNNYNET_API_KEY` authenticates the account and may be
+      # enough on its own to resolve it — if it is, the two secrets below can go. That
+      # is one of the things the first run settles rather than something to assert here.
       - name: Apply migrations
         env:
-          BUNNY_DB_URL: ${{ secrets.TRACKS_DB_URL }}
-          BUNNY_DB_TOKEN: ${{ secrets.TRACKS_DB_TOKEN }}
+          BUNNY_DATABASE_URL: ${{ secrets.BUNNY_DATABASE_URL }}
+          BUNNY_DATABASE_AUTH_TOKEN: ${{ secrets.BUNNY_DATABASE_AUTH_TOKEN }}
         run: bunny db migrations apply --yes
 
       - run: pnpm build
