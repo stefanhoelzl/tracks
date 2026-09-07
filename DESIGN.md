@@ -5,19 +5,20 @@ tagged, filtered and counted on your own machine.
 
 | | |
 |---|---|
-| **Deployment** | Local-only, single user |
+| **Deployment** | Local-only; accounts, and a map each |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
 | **Stack** | Node 24 · pnpm · SQLite · React · MapLibre |
-| **Status** | M1–M5 complete; M6 (multi-tenancy) next |
+| **Status** | M1–M6 complete; M7 (bunny.net) next |
 
 ---
 
 ## Scope
 
-One command starts a local server; you open it in a browser. Nothing is hosted, nobody
-signs in, no data leaves the machine except tile requests and the browser's own calls to
-Komoot. The tool imports activities from Strava and Komoot, draws them on a map, lets you
-tag and filter them, and counts them.
+One command starts a local server; you open it in a browser. Nothing is hosted, and no
+data leaves the machine except tile requests and the browser's own calls to Komoot. Since
+M6 you sign in, and an account sees its own activities and nobody else's. The tool imports
+them from Strava and Komoot, draws them on a map, lets you tag and filter them, and counts
+them.
 
 ### Non-goals
 
@@ -205,7 +206,8 @@ Morgen"*.
 
 ## Secrets & auth
 
-There are none.
+**There is no server secret.** Not "the secrets live in a file" — there is nothing to
+configure, nothing to deploy, nothing to lose and nothing to rotate.
 
 Strava needs no credentials — the archive is a file you already have. Komoot needs an email
 and a password, and since M3.5 they are typed into a dialog that calls `api.komoot.de`
@@ -215,8 +217,28 @@ having nowhere to keep them.
 
 That deletes a whole category of thing to get right. No environment variables, no
 proton-env, no OAuth flow, no token file, no rotation, and no process holding a session
-token it might log. The one secret in the system lives in a form field in your browser for
-the length of one import.
+token it might log.
+
+Since M6 there is one credential the tool does keep, and it is yours. An account is an
+address and a PBKDF2 hash; a session is an HMAC-signed cookie carrying a user id and its
+own expiry, checked server-side rather than trusted from the cookie's `Expires`. The key
+that signs it is **derived from that account's own stored hash**, which is what leaves the
+system secretless — and what makes a password change a revocation: every cookie already
+issued was signed with a key that no longer exists. Per person, at once, with no sessions
+table to sweep and nothing to remember to sweep it.
+
+It is paid for twice. Verifying a cookie means knowing whose it is, so the user's row is
+read *before* the signature is checked — free against a local file, one round trip when the
+database is elsewhere. And a secret kept outside the database is a second wall: it means a
+stolen database cannot mint sessions. This one can. A stolen copy of this database is
+already the end of the story that wall was protecting.
+
+Accounts are made by hand — `pnpm user:add <email>` — and carry no password until the first
+sign-in sets one. No signup route exists, so nothing public writes to `users`, and there is
+no reset flow because there is no mail sender: a forgotten password is the hash cleared by
+the same script and the account claimed again. Until it is claimed, whoever signs in first
+owns it — which is the whole reason the identifier is an address nobody guesses rather than
+a name somebody would.
 
 Everything the tool *produces* is now a single file: `data/tracks.db`.
 
@@ -232,8 +254,15 @@ costs a second writer-hostile store. The schema started at six tables and every
 cut below was justified by something being derivable, archived, or speculative.
 
 ```sql
+users (
+  id            INTEGER PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE,       -- the identifier; nothing is ever sent to it
+  password_hash TEXT                        -- null until the first sign-in claims it
+);
+
 activities (
   id           INTEGER PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   source       TEXT NOT NULL,               -- 'strava' | 'komoot'
   external_id  TEXT NOT NULL,
   title        TEXT,
@@ -249,14 +278,17 @@ activities (
   max_lat      REAL,
   min_lon      REAL,
   max_lon      REAL,
-  UNIQUE (source, external_id)
+  UNIQUE (user_id, source, external_id)  -- two people may each import the same ride
 );
 
 tag_types (
-  name          TEXT PRIMARY KEY,           -- 'sport', 'trip', 'source'
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,              -- 'sport', 'trip', 'source'
   label         TEXT NOT NULL,              -- 'Sport'
   single_valued INTEGER NOT NULL,           -- one radio, or many checkboxes
-  sort          INTEGER NOT NULL UNIQUE     -- sidebar order
+  sort          INTEGER NOT NULL,           -- sidebar order
+  PRIMARY KEY (user_id, name),
+  UNIQUE (user_id, sort)                    -- unique within one sidebar, not across all
 );
 
 trackpoints (
@@ -273,6 +305,25 @@ trackpoints (
 `WITHOUT ROWID` because the primary key *is* how a track is read — `WHERE activity_id = ?
 ORDER BY seq` walks the table itself. On a rowid table that key would be a second copy of
 itself: a 15.7MB unique index sitting beside a hidden rowid nothing refers to.
+
+### Whose rows
+
+An owner column on two tables, and one type that carries it. `Scope` was built in M3 to
+make facets cheap — a filter plus the activities its bounding box selects, resolved once so
+eleven `WHERE` clauses share one trackpoint query. M6 made it the security boundary as
+well: it gained a `userId`, `whereFor` emits `a.user_id = ?` first and unconditionally, and
+the `Exclusion` that lets a facet drop its own terms may never drop that one.
+
+Every function in the data layer takes a `Scope`, or an `Owner` where there is no filter to
+carry — so a query that does not say whose rows it means will not compile. That is the
+point, because the filtered reads were never the exposure: they all went through one funnel
+already. The exposure was the three that did not. `activityDetail` and `writeActivityTags`
+took an id and nothing else, and the import's `selectWanted` matched on source and external
+id. Those are the routes where one person would have reached another's ride, and they are
+exactly the ones a rule written down in a comment keeps missing.
+
+A "not yours" and a "no such activity" answer identically — same status, same sentence —
+because telling them apart tells a stranger what exists.
 
 There is no index on `lat`/`lon`. One existed and cost 35MB — better than a third of the
 database — to range-scan a latitude band and then test longitude row by row, because a B-tree
@@ -853,8 +904,88 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover and a viewport-derived filter are both things a declarative wrapper would be in the way of. |
 | **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file — except the two sets no CSS rule can read, the *colour by* palette and the chart colours, which are mirrored in `lib/colour.ts` and `lib/chart-theme.ts` beside their only consumers. |
 | **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
-| **Testing** | Vitest in two projects. `node` covers core, the query layer and ingestion — including that an aborted import leaves the database byte-identical — and stays offline and under a second. `web` (jsdom) covers the components, mounts the whole app against a mocked API, and now owns the sources too, with the msw-replayed Komoot fixtures and a zip built at test time from plain-text fixtures. Browser code is tested where a DOM is. jsdom lacks three things the sources need — `dialog.showModal`, a `Blob` undici will read, and an `AbortSignal` it will accept — so `test-setup.ts` adapts them and says why. `--project node` keeps the fast lane. Map styles are checked against `@maplibre/maplibre-gl-style-spec` — validated *and* evaluated against the features each layer will actually meet, because the expression bugs that matter are legal ones that meet the wrong data. |
+| **Testing** | Vitest in two projects. `node` covers core, the query layer and ingestion — including that an aborted import leaves the database byte-identical — and stays offline. No longer under a second: signing in really does 600k PBKDF2 rounds, and
+the handful of tests that go through `POST /api/session` pay for it on purpose, because a
+cheap hash there would prove the wrong thing about the one route that has to be right. `web` (jsdom) covers the components, mounts the whole app against a mocked API, and now owns the sources too, with the msw-replayed Komoot fixtures and a zip built at test time from plain-text fixtures. Browser code is tested where a DOM is. jsdom lacks three things the sources need — `dialog.showModal`, a `Blob` undici will read, and an `AbortSignal` it will accept — so `test-setup.ts` adapts them and says why. `--project node` keeps the fast lane. Map styles are checked against `@maplibre/maplibre-gl-style-spec` — validated *and* evaluated against the features each layer will actually meet, because the expression bugs that matter are legal ones that meet the wrong data. |
 | **CLI** | **Retired in M3.5.** `tracks import` was the only way to add activities until the Import button existed, and `tracks serve` the only way to look at them until `pnpm dev` was the single entry point. Both are gone, along with commander. Anything a person does, they now do in the app. |
+
+---
+
+## Going online
+
+> **Designed, not built.** This section is M7. Everything above it describes what runs
+> today, on your own machine.
+
+| | |
+|---|---|
+| **Database** | Bunny Database — managed libSQL, one primary in Frankfurt, no replicas |
+| **Runtime** | One Edge Scripting script (Deno) serving the browser bundle *and* `/api/*` |
+| **Hostname** | `tracks.stho.net`, TLS from Bunny; the zone is already on Bunny DNS |
+| **Deploys** | GitHub Actions on push to `main`; migrations first, then the script |
+| **Cost** | ~$1/month — the account minimum, not usage |
+
+**Not a container.** Magic Containers would run the Node server and `better-sqlite3`
+unchanged, and its persistent volumes would even hold the file. They are per-region and
+per-pod, unbacked-up, and the documentation warns a rescaled pod may land on a node without
+the volume it had. Renting a machine to keep a file alive is the shape this project spent
+M3.5 getting away from.
+
+**One script, not two things.** The 2.9MB of `dist` is inlined into the bundle at build
+time, inside a 10MB cap. One artifact and one atomic deploy, so `index.html` can never name
+a hash that is not in the same bundle — and no second origin, no CORS, and no change to
+`lib/api.ts`, which is same-origin already. Cache headers are hand-rolled: hashed assets
+immutable, `index.html` never.
+
+**The driver, and the async that comes with it.** `better-sqlite3` is a native addon and
+cannot follow. `@libsql/client` replaces it and is async, so the data layer — queries,
+tagging, registry, ingest, and their tests — converts throughout. The unit suites stay on
+the embedded client against `:memory:`, parallel and offline; `pnpm dev` points at the
+production database over HTTP, which makes every development session the integration test
+and leaves no container to run. The risk that buys is stated plainly: a bulk tag write
+while experimenting is a real edit to real activities.
+
+**The import stops being one request.** The run-long transaction assumed one long-lived
+process, and the one-import-at-a-time lock was a module-level variable — neither survives
+an isolate. The browser drives the loop instead: one activity per request, written as a
+single `batch()`, which is one round trip and one transaction. "All or nothing" narrows
+from the run to the activity, and resume was already free because `selectWanted` asks what
+is missing before every run. It deletes the NDJSON progress stream, the second connection
+and the lock. An activity of 34,626 points exceeds SQLite's ~32k bind variables, so it
+splits into several `INSERT`s *inside* the one batch.
+
+**The limits that shape all of it.**
+
+| | |
+|---|---|
+| **CPU** | 30s per request |
+| **Memory** | 128MB |
+| **Subrequests** | **50** — the one that decides the import's shape |
+| **Script size** | 10MB, against 2.9MB of assets |
+| **Database** | 1GB in public preview — ~25M trackpoints, against 1.02M today |
+
+**Knowing who you are costs a round trip.** M6's per-user signing key means the middleware
+reads the user's row before it can check a signature. Locally that is microseconds; at the
+edge it is a second round trip in front of the query the request actually wanted. Accepted
+as it stands. Two ways out stay in reserve if a measurement ever argues for them: send the
+credential read in the same `batch()` as the query it guards, or cache verified tokens in
+isolate memory — the second trades away the immediacy of revocation, which is the property
+the read was bought for.
+
+**The cut-over.** The Bunny CLI applies `migrations/` in CI and tracks them in
+`__bunny_migrations`; `drizzle-kit generate` stays the authoring step and drizzle's own
+migrator survives only for embedded dev and test databases. A one-off script copies
+`data/tracks.db` into Bunny — `users` is not copied, so activities land on the account
+migration 0004 seeds, which is then renamed and claimed by hand. The DNS record is created
+**last**: until it exists there is no hostname on which a passwordless seeded account could
+be claimed by anyone else. Afterwards the local file is deleted; a partial pull — activities
+older than a cutoff — recreates a local copy when working offline.
+
+**What is deliberately absent.** No read replica: read-your-writes is only guaranteed on
+the primary, and tagging refetches immediately — the objection is correctness, and a replica
+costs $0.004/month. No backup job: Bunny snapshots hourly and on idle, and an hour of
+granularity is accepted. No rate limiting on the door: the identifier is unguessable and
+PBKDF2 costs an attacker a round trip and the server 300ms, with Bunny Shield available
+later as a per-IP rule that needs no code.
 
 ---
 
@@ -898,10 +1029,19 @@ will otherwise propose all of these again.
 | A hand-rolled modal | `<dialog showModal>` gives the focus trap, the inert background and the top layer over the map canvas for free. Its Escape is a preventable event, which is all that stood in the way. |
 | Keeping `tracks serve` | With the sources in the browser and `pnpm dev` running both halves, a second entry point existed only to serve a `dist` that nothing else needed. |
 | DuckDB | Columnar storage earns nothing at this scale, and it is single-writer — hostile to interactive tagging. |
+| UUIDs for activity ids | `trackpoints.activity_id` sits in a WITHOUT ROWID primary key across 1.02M rows — 98% of the database, at ~42 bytes a row. A TEXT uuid there adds ~37MB and roughly doubles the file, to buy nothing an integer was failing at. |
+| `tag_types` as JSON on `users` | Tempting: a registry belongs to a user, array order replaces `sort`, and deleting a user takes it along. It would move three invariants out of the schema and into code — the type GC from one atomic `DELETE` to a `json_group_array` rebuild, uniqueness to something the code must not get wrong, and a browsable table to one opaque cell. |
+| Users as credentials only | One shared dataset with several logins was the cheaper half-step: no owner column, no scope on any query. Rejected because the moment a second person has an account they have their own map, and retrofitting an owner column onto a populated database is the migration you least want to write twice. |
+| A global session secret | The obvious design, and one round trip cheaper: sign every cookie with one server secret and never read the user. Rejected for what a per-user key gives instead — a password change revoking that person's sessions and nobody else's, immediately, with no sessions table. The price is a read per request and a database leak becoming sufficient to forge a cookie. |
+| A sessions table | Instant revocation and "sign out everywhere", at one round trip on every single request rather than the one the per-user key already costs. |
+| Batching the auth read into each handler | libSQL's `batch()` would carry the credential read in the same round trip as the query it guards, for free. It moves auth out of one middleware and into every handler, and runs a scoped query for the user a cookie *claims* to be before the signature is checked. Kept in reserve, not taken up front. |
+| A signup route | Invite codes, first-run bootstrap, invite links — all of them are a public write path to rate-limit and a token lifecycle to get right, for a tool whose accounts are counted on one hand. `pnpm user:add` is the whole of it. |
+| Magic Containers | Would run the Node server and `better-sqlite3` unchanged. Its persistent volumes are per-region and per-pod, unbacked-up, and may not reattach after a rescale — renting a machine to keep a file alive, which is what M3.5 got away from. |
+| A read replica | Read-your-writes is only guaranteed on the primary and tagging refetches immediately, so a replica would occasionally show the tags you just changed away from. It costs $0.004/month; the objection was never price. |
 | Strava API (Standard tier) | Requires a paid Strava subscription since June 2026. The free bulk archive gives the same data for a personal tool. |
 | FIT parser (`@garmin/fitsdk`) | A real archive contains zero FIT files — only GPX and TCX. Add one if a future export needs it. |
 | CSV as sport fallback | Its sport vocabulary is localized to the account language. Two untyped rides are tagged by hand instead. |
-| Deno 2 | drizzle-kit has an open bug with `node:sqlite`; the workaround is a third-party patch on core tooling. |
+| Deno 2 | drizzle-kit has an open bug with `node:sqlite`; the workaround is a third-party patch on core tooling. Unchanged by M7: `drizzle-kit generate` still runs under Node, and Deno only runs the deployed script, which talks to libSQL over HTTP and never sees `node:sqlite`. |
 | H3 cell precompute | Deferred with the heatmap. The trackpoint table supports it and every alternative. |
 | Point objects on the detail route | 34k `{lat, lon, altitudeM, recordedAt}` objects is 2.65MB for one activity — JSON overhead, not resolution. The same points encoded at precision 6 are lossless and 0.07MB; with altitude alongside, 0.30MB. Timestamps went with it: nothing had ever read them, and they are still in the database. |
 | Decoding polylines server-side | Kept the browser codec-free, but meant ~50k JSON coordinate arrays per response: 1.14 MB, and more time in `JSON.stringify` and Zod than in the query. The browser already rebuilt every feature to paint it, so the decode joined a pass that existed. 28.3 ms to 2.6 ms. |
@@ -959,26 +1099,32 @@ will otherwise propose all of these again.
 
 ## Still undecided
 
-**Running the backend somewhere else** — M3.5 was shaped so the server never holds more
-than one activity and never writes a temp file, which is most of what an edge runtime would
-need. It is still blocked by three things this milestone deliberately kept: `better-sqlite3`
-is a native addon, the whole-run transaction assumes one long-lived process, and the
-one-import-at-a-time lock is a module-level variable. Moving the sources into the browser
-was the large half of that work; the database is the other, and it is its own decision.
+**Four things about Bunny that only a deploy can answer** — whether a standalone Edge
+Script sits behind a Pull Zone, which decides both the DNS record type and whether Shield's
+rate limiting is even available to fall back on; what Edge Scripting's request body limit
+is, against a largest activity of 1.7MB of JSON; whether the Bunny CLI splits drizzle's
+`--> statement-breakpoint` comments, which matters most for 0004, the one migration that
+must land right the first time; and whether "rows read" means rows scanned or rows
+returned, which is the only line item in the bill with any upside.
 
 **Komoot's CORS headers** — the design now depends on an undocumented API's incidental
 response headers. If `Access-Control-Allow-Origin: *` ever goes away, Komoot import stops
 working in the browser and the answer is a thin server-side relay — the credentials would
-then transit the server again, though nothing would need to store them.
+then transit the server again, though nothing would need to store them. At the edge that
+relay has 50 subrequests to spend per request, so it could not pull an account's tours in
+one call: it would be one request per tour, driven by the tab, like the import already is.
 
 **Heatmap implementation** *(unscheduled)* — Two live candidates. An on-the-fly SQL grid —
 `GROUP BY round(lat,4), round(lon,4)` — needs no dependency, no precompute, and respects the
 active filter for free. Precomputed H3 cells give equal-area hexagons and instant
 set-difference queries for "was this new terrain?", at the cost of an import step that is
-filter-blind. Nothing in the schema forecloses either.
+filter-blind. Nothing in the schema forecloses either — but the on-the-fly grid scans
+`trackpoints`, which is 98% of the database, and once the database is billed per row read
+that stops being free. Whether Bunny counts rows scanned or rows returned decides it.
 
-**Backfilling a new derived type** *(M2.5)* — `importSource` skips any activity that already
-has trackpoints, which is what makes re-import cheap. So a type added to the registry later
-does not reach existing rows by re-running the import; it needs a one-off rewrite. Not a
-problem yet — `source:` is handled by M2.5's own migration — but the second auto-derived type
-will have to answer it.
+**Backfilling a new derived type** *(M2.5)* — `selectWanted` reports any activity that
+already has trackpoints as one the browser need not fetch, which is what makes re-import
+cheap. So a type added to the registry later does not reach existing rows by re-running the
+import; it needs a one-off rewrite — and since M6 a registry belongs to a user, so that
+rewrite is one per person, scoped by `user_id`. Not a problem yet: `source:` is handled by
+M2.5's own migration.
