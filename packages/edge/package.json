@@ -7,6 +7,7 @@
     "build": "node --experimental-strip-types scripts/build.ts"
   },
   "dependencies": {
+    "@bunny.net/edgescript-sdk": "^0.12.1",
     "@libsql/client": "^0.18.0",
     "@tracks/core": "workspace:*",
     "@tracks/server": "workspace:*",

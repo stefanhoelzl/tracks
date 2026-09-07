@@ -1,3 +1,4 @@
+import * as BunnySDK from '@bunny.net/edgescript-sdk'
 import { createClient } from '@libsql/client/web'
 import { createApi, type Env } from '@tracks/server/api.ts'
 import { connect } from '@tracks/server/connect.ts'
@@ -54,4 +55,15 @@ const app: Hono<Env> = url
       c.json({ error: 'no database: BUNNY_DATABASE_URL is not set on this script' }, 503),
     )
 
-export default serveAssets(app, assets)
+/**
+ * `serve`, not a default export.
+ *
+ * The default-export-with-`fetch` shape is what Cloudflare and Deno Deploy take, and it
+ * is wrong here in the quietest possible way: the module loads, registers no handler,
+ * answers nothing, and Bunny falls back to something that points at itself — so every
+ * request, for any path, is a 508 Loop Detected with nothing in it about why. A script
+ * with no imports at all failed identically, which is what finally ruled out the code.
+ */
+const server = serveAssets(app, assets)
+
+BunnySDK.net.http.serve((request: Request) => server.fetch(request))
