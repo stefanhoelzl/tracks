@@ -992,6 +992,7 @@ written down as unknowable from here, and shipping settled three.
 | Is a standalone script behind a Pull Zone? | Yes, zone 6500335 — so Shield's per-IP rate limiting stays available as the fallback for the sign-in route. |
 | Request body limit? | Still unknown. A 1.7MB activity has not been posted to it yet. |
 | Rows scanned, or rows returned? | Still unknown, and still the only line in the bill with any upside. |
+| Does an interactive transaction survive the HTTP client? | Yes. The plan assumed batch-only until proven, and kept `db.transaction()` in the three write paths so that the fallback would be `batch()` in three functions rather than a redesign. It was not needed: a tag write holds a Hrana stream open across `BEGIN`, the `UPDATE`, the type GC and `COMMIT`, against Bunny, in production. |
 
 **Three things that were not in the plan and cost an afternoon.** All of them the same
 shape: a default that is right for a CDN and wrong for an application.
@@ -1138,11 +1139,6 @@ body limit is, against a largest activity of 1.7MB of JSON, and whether "rows re
 rows scanned or rows returned, which is the only line in the bill with any upside. The
 other two were settled by shipping and are recorded above.
 
-**Whether an interactive transaction survives the HTTP client.** The three write paths
-still use `db.transaction()`, which is certainly right against the embedded client and
-unproven against Bunny's. If it turns out not to hold, the fix is `batch()` in those three
-functions rather than a redesign — which is why the transactions live in the data layer
-and not in the routes.
 
 **Komoot's CORS headers** — the design depends on an undocumented API's incidental
 response headers. If `Access-Control-Allow-Origin: *` ever goes away, Komoot import stops
