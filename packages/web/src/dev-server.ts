@@ -11,13 +11,25 @@ import { openDb } from '../../server/src/db.ts'
  */
 /**
  * A URL rather than a path, because the client behind it takes both: `file:` opens the
- * embedded libSQL in this process, and an `https:` URL is Bunny Database. Development
- * points at whichever `TRACKS_DB_URL` names, so the same server code runs against a
- * local file when offline and against the real thing the rest of the time.
+ * embedded libSQL in this process, and an `https:` URL is Bunny Database.
+ *
+ * Required, with no fallback. It used to default to `data/tracks.db`, which was right
+ * while that file was the truth and became a trap the moment it was not: with the file
+ * deleted, `openDb` would create and migrate an empty one, and development would come
+ * up working and empty rather than pointing at the database that has the activities in
+ * it. Saying which database you mean is one line in a shell; guessing wrong is an
+ * afternoon of wondering where 203 activities went.
  */
-const dataDir = process.env.TRACKS_DATA_DIR ?? resolve(import.meta.dirname, '../../../data')
+const url = process.env.TRACKS_DB_URL
+if (!url) {
+  throw new Error(
+    'TRACKS_DB_URL is not set. Point it at the deployed database, or at a local file ' +
+      "for offline work: TRACKS_DB_URL='file:data/tracks.db' pnpm dev",
+  )
+}
+
 const { db } = await openDb(
-  process.env.TRACKS_DB_URL ?? `file:${resolve(dataDir, 'tracks.db')}`,
+  url,
   resolve(import.meta.dirname, '../../../migrations'),
   process.env.TRACKS_DB_TOKEN,
 )
