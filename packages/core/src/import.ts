@@ -77,31 +77,17 @@ export const importFailureSchema = z.object({
 export type ImportFailure = z.infer<typeof importFailureSchema>
 
 /**
- * A line of the response stream.
+ * What one activity's write answers with.
  *
- * NDJSON rather than SSE framing: `EventSource` is GET-only and could carry neither
- * the credentials nor the payload, so the stream was never going to be one. What is
- * left is a body of JSON lines, which needs no framing to explain.
+ * There is no progress stream any more, because there is no run to report progress
+ * about: the browser sends one activity per request and the response *is* the progress.
+ * A 200 means it landed; a 400 carries the reason it did not, and costs that activity
+ * and nothing else — the run carries on, and `selectWanted` makes the next attempt skip
+ * everything that did land.
  */
-export const importProgressSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('progress'),
-    written: z.number().int(),
-    /** The activity being written, for the line under the bar. */
-    title: z.string().nullable(),
-  }),
-  z.object({
-    type: z.literal('done'),
-    written: z.number().int(),
-    failed: z.array(importFailureSchema),
-    /** Derived tags no registry type could accept, counted by tag. */
-    rejectedTags: z.array(z.tuple([z.string(), z.number().int()])),
-  }),
-  /**
-   * The run died after the response had already begun, so there is no status code
-   * left to say it with. The transaction is rolled back before this is sent.
-   */
-  z.object({ type: z.literal('error'), message: z.string() }),
-])
+export const importActivityResponseSchema = z.object({
+  /** Derived tags no registry type could accept, counted by tag. */
+  rejectedTags: z.array(z.tuple([z.string(), z.number().int()])),
+})
 
-export type ImportProgress = z.infer<typeof importProgressSchema>
+export type ImportActivityResponse = z.infer<typeof importActivityResponseSchema>

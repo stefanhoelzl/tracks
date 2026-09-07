@@ -8,7 +8,7 @@ import styles from './ImportDialog.module.css'
 import { Modal } from './ui/Modal.tsx'
 
 /**
- * One dialog per source, in four states: the form, reading, writing, and the summary.
+ * One dialog per source, in three states: the form, the import, and the summary.
  *
  * Nothing closes on its own. A run with failures is a thing to read, and a dialog that
  * dismissed itself would report it to an empty screen — so the last state is a summary
@@ -215,8 +215,7 @@ function Form({
 
 const PHASES = {
   listing: 'Finding activities…',
-  reading: 'Reading',
-  writing: 'Writing to the database',
+  importing: 'Importing',
 } as const
 
 function Progress({ state, onCancel }: { state: ImportState; onCancel: () => void }) {
@@ -244,10 +243,10 @@ function Progress({ state, onCancel }: { state: ImportState; onCancel: () => voi
 
       <p className={styles.current}>{state.title ?? ' '}</p>
 
-      {state.phase === 'writing' ? (
+      {state.phase === 'importing' ? (
         <p className={styles.note}>
-          Nothing is saved until this finishes — cancelling now leaves the database exactly as it
-          was.
+          Each activity is saved as it arrives. Cancelling stops here and keeps what has already
+          landed; starting again picks up the rest.
         </p>
       ) : null}
 

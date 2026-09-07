@@ -1,7 +1,6 @@
 import polyline from '@mapbox/polyline'
 import {
   IMPORT_PRECISION,
-  type ImportFailure,
   type ImportFrame,
   mergeDerivedTags,
   parseTag,
@@ -9,7 +8,7 @@ import {
   validateTag,
 } from '@tracks/core'
 import { and, eq, sql } from 'drizzle-orm'
-import type { Db, Writer } from './db.ts'
+import type { Conn, Db } from './db.ts'
 import { simplify } from './polyline.ts'
 import type { Owner } from './query.ts'
 import { createType, loadRegistry, seedFor } from './registry.ts'
@@ -24,16 +23,19 @@ import { utcOffsetAt } from './timezone.ts'
  * What it does own is everything the browser cannot: the timezone dataset, the
  * simplifier, the bounding box and the tag registry.
  *
- * The whole run is one transaction. That is what makes cancelling free: a dropped
- * connection rolls back instead of leaving a partial import behind. The price is that
- * a crash loses the run rather than leaving rows for the next one to fill — the old
- * pipeline's emergent resumability, traded for an undo that does not need writing.
+ * **One activity is one transaction.** It used to be one run — a single `BEGIN
+ * IMMEDIATE` from the first activity to the last, on a connection of its own, so that
+ * cancelling was a `ROLLBACK` rather than an undo log. That assumed one long-lived
+ * process, which is exactly what an isolate is not, so the unit of atomicity narrows
+ * from the run to the activity.
+ *
+ * Nothing is lost that the design was not already relying on: `selectWanted` has always
+ * reported what has no track yet, so a run that stops half way is resumed by starting it
+ * again, and a re-import fetches nothing it already has. What changes is the promise the
+ * dialog makes — from "nothing is saved until this finishes" to "what has landed stays".
  */
 
 export interface IngestResult {
-  written: number
-  /** Activities that failed. One bad frame costs itself and nothing else. */
-  failed: ImportFailure[]
   /** Derived tags no registry type could accept, counted by tag. */
   rejectedTags: Map<string, number>
 }
@@ -74,7 +76,7 @@ export function boundingBox(points: ReadonlyArray<{ lat: number; lon: number }>)
  * itself imports: a taxonomy question never fails an import.
  */
 function acceptDerived(
-  writer: Writer,
+  conn: Conn,
   owner: Owner,
   registry: Map<string, TagType>,
   derived: string[],
@@ -85,7 +87,7 @@ function acceptDerived(
   for (const raw of derived) {
     const tag = parseTag(raw)
     const seed = tag && !registry.has(tag.type) ? seedFor(tag.type) : undefined
-    if (tag && seed) createType(writer.db, owner, registry, { name: tag.type, ...seed })
+    if (tag && seed) createType(conn, owner, registry, { name: tag.type, ...seed })
 
     if (validateTag(registry, raw) !== null) {
       result.rejectedTags.set(raw, (result.rejectedTags.get(raw) ?? 0) + 1)
@@ -141,7 +143,7 @@ function decodePoints(frame: ImportFrame): Point[] {
 
 /** Writes one activity, inside the caller's transaction. */
 function write(
-  writer: Writer,
+  conn: Conn,
   owner: Owner,
   registry: Map<string, TagType>,
   frame: ImportFrame,
@@ -150,7 +152,7 @@ function write(
   const points = decodePoints(frame)
   const first = points[0]!
 
-  const existing = writer.db
+  const existing = conn
     .select({ id: activities.id, tags: activities.tags })
     .from(activities)
     .where(
@@ -181,22 +183,22 @@ function write(
     tags: JSON.stringify(
       mergeDerivedTags(
         existing ? (JSON.parse(existing.tags) as string[]) : [],
-        acceptDerived(writer, owner, registry, [...frame.tags, `source:${frame.source}`], result),
+        acceptDerived(conn, owner, registry, [...frame.tags, `source:${frame.source}`], result),
       ),
     ),
   }
 
   let id = existing?.id
   if (id === undefined) {
-    id = writer.db.insert(activities).values(row).returning({ id: activities.id }).get().id
+    id = conn.insert(activities).values(row).returning({ id: activities.id }).get().id
   } else {
-    writer.db.update(activities).set(row).where(eq(activities.id, id)).run()
-    writer.db.delete(trackpoints).where(eq(trackpoints.activityId, id)).run()
+    conn.update(activities).set(row).where(eq(activities.id, id)).run()
+    conn.delete(trackpoints).where(eq(trackpoints.activityId, id)).run()
   }
 
   // Chunked to stay well under SQLite's variable limit on a 25k-point track.
   for (let i = 0; i < points.length; i += 500) {
-    writer.db
+    conn
       .insert(trackpoints)
       .values(
         points.slice(i, i + 500).map((p, j) => ({
@@ -213,56 +215,20 @@ function write(
 }
 
 /**
- * Consumes frames, writing them all or writing none.
+ * Writes one activity, all of it or none of it.
  *
- * `BEGIN IMMEDIATE` rather than a deferred transaction: the write lock is taken up
- * front, so a second importer is refused at the start instead of part-way through.
- * Aborting — which is what a dropped connection means — rolls back.
+ * The transaction is drizzle's rather than a hand-written `BEGIN IMMEDIATE`, because
+ * there is no longer a lock to take up front: nothing runs for minutes, so nothing needs
+ * to refuse a second writer at the start rather than part-way through. An activity and
+ * every trackpoint under it commit together, and a frame that cannot be written throws
+ * before anything of it is visible.
  */
-export async function ingest(
-  writer: Writer,
-  owner: Owner,
-  frames: AsyncIterable<ImportFrame>,
-  onWritten: (written: number, title: string | null) => void,
-  signal: AbortSignal,
-): Promise<IngestResult> {
-  const result: IngestResult = {
-    written: 0,
-    failed: [],
-    rejectedTags: new Map(),
-  }
-
-  const registry = loadRegistry(writer.db, owner)
-  writer.sqlite.exec('BEGIN IMMEDIATE')
-
-  try {
-    for await (const frame of frames) {
-      signal.throwIfAborted()
-
-      try {
-        write(writer, owner, registry, frame, result)
-        result.written++
-        onWritten(result.written, frame.title)
-      } catch (error) {
-        result.failed.push({
-          externalId: frame.externalId,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-
-      // better-sqlite3 is synchronous, so a run of frames inside one body chunk would
-      // hold the event loop and the cancellation could not be noticed until it ended.
-      await new Promise((resolve) => setImmediate(resolve))
-    }
-
-    signal.throwIfAborted()
-    writer.sqlite.exec('COMMIT')
-  } catch (error) {
-    writer.sqlite.exec('ROLLBACK')
-    throw error
-  }
-
-  return result
+export function ingestActivity(db: Db, owner: Owner, frame: ImportFrame): IngestResult {
+  return db.transaction((tx) => {
+    const result: IngestResult = { rejectedTags: new Map() }
+    write(tx, owner, loadRegistry(tx, owner), frame, result)
+    return result
+  })
 }
 
 /**

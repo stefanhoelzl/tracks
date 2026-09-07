@@ -7,8 +7,8 @@ import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApi } from './api.ts'
 import { hashPassword, signSession } from './auth.ts'
-import { openDb, openWriter } from './db.ts'
-import { ingest, selectWanted } from './ingest.ts'
+import { openDb } from './db.ts'
+import { ingestActivity, selectWanted } from './ingest.ts'
 import type { Owner } from './query.ts'
 import { activities, trackpoints, users } from './schema.ts'
 
@@ -67,17 +67,30 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-async function run(frames: ImportFrame[], signal = new AbortController().signal) {
-  const writer = openWriter(handle.path)
-  try {
-    return await ingest(writer, owner, iterate(frames), () => {}, signal)
-  } finally {
-    writer.close()
-  }
-}
+/**
+ * What the browser's loop does, in one function: each activity on its own, a failure
+ * costing itself, and the run carrying on past it.
+ */
+function run(frames: ImportFrame[]) {
+  const written: number[] = []
+  const failed: Array<{ externalId: string; error: string }> = []
+  const rejectedTags = new Map<string, number>()
 
-async function* iterate<T>(items: T[]): AsyncIterable<T> {
-  for (const item of items) yield item
+  for (const frame of frames) {
+    try {
+      for (const [tag, n] of ingestActivity(handle.db, owner, frame).rejectedTags) {
+        rejectedTags.set(tag, (rejectedTags.get(tag) ?? 0) + n)
+      }
+      written.push(1)
+    } catch (error) {
+      failed.push({
+        externalId: frame.externalId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  return { written: written.length, failed, rejectedTags }
 }
 
 const rows = () => handle.db.select().from(activities).all()
@@ -86,7 +99,7 @@ const pointCount = () =>
 
 describe('ingest', () => {
   it('writes an activity, its track and its derived tags', async () => {
-    const result = await run([frame()])
+    const result = run([frame()])
     expect(result).toMatchObject({ written: 1, failed: [] })
 
     const [row] = rows()
@@ -98,7 +111,7 @@ describe('ingest', () => {
   })
 
   it('widens the wire format back out', async () => {
-    await run([frame()])
+    run([frame()])
     const points = handle.db.select().from(trackpoints).orderBy(trackpoints.seq).all()
 
     expect(points[0]?.lat).toBeCloseTo(46.7812, 6)
@@ -110,7 +123,7 @@ describe('ingest', () => {
   })
 
   it('keeps a track that carries neither altitude nor timing', async () => {
-    await run([frame({ altitudes: null, times: null })])
+    run([frame({ altitudes: null, times: null })])
     const points = handle.db.select().from(trackpoints).all()
 
     expect(points).toHaveLength(4)
@@ -118,20 +131,20 @@ describe('ingest', () => {
   })
 
   it('derives the offset from the coordinates, with DST', async () => {
-    await run([frame()])
+    run([frame()])
     // The Julian Alps: Europe/Ljubljana, CEST in August.
     expect(rows()[0]?.utcOffset).toBe(7200)
   })
 
   it('stores a simplified polyline beside the full-resolution points', async () => {
-    await run([frame()])
+    run([frame()])
     expect(rows()[0]?.polyline).toBeTruthy()
     // The stored line is the map's; the trackpoints keep every sample.
     expect(pointCount()).toBe(4)
   })
 
   it('caches the bounding box so the viewport filter never reads the points', async () => {
-    await run([frame()])
+    run([frame()])
     const [row] = rows()
     expect(row?.minLat).toBeCloseTo(46.7812, 4)
     expect(row?.maxLon).toBeCloseTo(14.3458, 4)
@@ -140,7 +153,7 @@ describe('ingest', () => {
 
 describe('when a frame is bad', () => {
   it('costs itself and nothing else', async () => {
-    const result = await run([
+    const result = run([
       frame(),
       frame({ externalId: 'broken', altitudes: [1, 2] }),
       frame({ externalId: 'other' }),
@@ -159,7 +172,7 @@ describe('when a frame is bad', () => {
     // and the ones an importer owns come back from the seeds in code.
     expect(handle.sqlite.prepare('select count(*) as n from tag_types').get()).toEqual({ n: 0 })
 
-    const result = await run([frame()])
+    const result = run([frame()])
     expect(result.rejectedTags.size).toBe(0)
     expect(JSON.parse(rows()[0]?.tags ?? '[]')).toEqual(['source:komoot', 'sport:hike'])
     expect(
@@ -171,70 +184,40 @@ describe('when a frame is bad', () => {
   })
 
   it('drops a derived tag whose type is not one an importer owns', async () => {
-    const result = await run([frame({ tags: ['sport:hike', 'gear:gravel'] })])
+    const result = run([frame({ tags: ['sport:hike', 'gear:gravel'] })])
     expect(result).toMatchObject({ written: 1, failed: [] })
     expect(result.rejectedTags.get('gear:gravel')).toBe(1)
     expect(JSON.parse(rows()[0]?.tags ?? '[]')).not.toContain('gear:gravel')
   })
 })
 
-describe('cancelling', () => {
-  it('leaves the database exactly as it was', async () => {
-    await run([frame({ externalId: 'first' })])
-    const before = handle.sqlite.prepare('select * from activities').all()
-    expect(before).toHaveLength(1)
+describe('stopping half way', () => {
+  it('keeps what landed, and select reports the rest', () => {
+    // The promise the dialog now makes. It used to be the opposite — one transaction
+    // for the whole run, so cancelling left the database byte for byte as it was — and
+    // that could not survive an isolate, where nothing lives between requests.
+    run([frame({ externalId: 'first' })])
 
-    const controller = new AbortController()
-    const writer = openWriter(handle.path)
-    try {
-      await expect(
-        ingest(
-          writer,
-          owner,
-          iterate([frame({ externalId: 'second' }), frame({ externalId: 'third' })]),
-          () => controller.abort(), // cancel the moment the first one lands
-          controller.signal,
-        ),
-      ).rejects.toThrow()
-    } finally {
-      writer.close()
-    }
-
-    // Not "one fewer than it would have been" — byte for byte what it was before.
-    expect(handle.sqlite.prepare('select * from activities').all()).toEqual(before)
-    expect(pointCount()).toBe(4)
+    expect(rows()).toHaveLength(1)
+    // Which is only tolerable because resuming was already free: `select` has always
+    // answered with what has no track yet, so the next run continues rather than repeats.
+    expect(selectWanted(handle.db, owner, 'komoot', ['first', 'second'])).toEqual(['second'])
   })
 
-  it('keeps the reader on the pre-import snapshot until the writer commits', async () => {
-    const writer = openWriter(handle.path)
-    try {
-      writer.sqlite.exec('BEGIN IMMEDIATE')
-      writer.db
-        .insert(activities)
-        .values({
-          ...owner,
-          source: 'komoot',
-          externalId: 'x',
-          startedAt: '2026-01-01',
-          utcOffset: 0,
-        })
-        .run()
+  it('writes an activity and its points together, or neither', () => {
+    // Atomicity did not go away, it narrowed. A frame that cannot be decoded leaves no
+    // half-written activity behind for the next run to find and skip.
+    const result = run([frame({ externalId: 'broken', altitudes: [1, 2] })])
 
-      // This is the whole reason the import runs on its own connection: an uncommitted
-      // activity must not reach the map, or a rollback would yank it back out again.
-      expect(rows()).toHaveLength(0)
-
-      writer.sqlite.exec('COMMIT')
-      expect(rows()).toHaveLength(1)
-    } finally {
-      writer.close()
-    }
+    expect(result.failed).toHaveLength(1)
+    expect(rows()).toHaveLength(0)
+    expect(pointCount()).toBe(0)
   })
 })
 
 describe('selectWanted', () => {
   it('wants only what has no track yet', async () => {
-    await run([frame({ externalId: 'have' })])
+    run([frame({ externalId: 'have' })])
     expect(selectWanted(handle.db, owner, 'komoot', ['have', 'missing'])).toEqual(['missing'])
   })
 
@@ -254,7 +237,7 @@ describe('selectWanted', () => {
   })
 
   it('does not confuse one source with another', async () => {
-    await run([frame({ externalId: 'shared' })])
+    run([frame({ externalId: 'shared' })])
     expect(selectWanted(handle.db, owner, 'strava', ['shared'])).toEqual(['shared'])
   })
 
@@ -264,8 +247,7 @@ describe('selectWanted', () => {
 })
 
 describe('the routes', () => {
-  const api = () => createApi(handle.db, handle.path)
-  const body = (frames: ImportFrame[]) => frames.map((f) => `${JSON.stringify(f)}\n`).join('')
+  const api = () => createApi(handle.db)
 
   // The routes are behind the cookie like everything else under /api, so the import
   // tests carry one — signed rather than earned, for the reason api.test.ts gives.
@@ -280,7 +262,7 @@ describe('the routes', () => {
     })
 
   it('selects over HTTP', async () => {
-    await run([frame({ externalId: 'have' })])
+    run([frame({ externalId: 'have' })])
     const response = await post('/api/import/select', {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ source: 'komoot', ids: ['have', 'missing'] }),
@@ -299,69 +281,60 @@ describe('the routes', () => {
     expect(await response.json()).toMatchObject({ error: 'invalid request' })
   })
 
-  it('streams progress and finishes with a summary', async () => {
-    const response = await post('/api/import/komoot', {
-      headers: { 'content-type': 'application/x-ndjson' },
-      body: body([frame({ externalId: 'a' }), frame({ externalId: 'b' })]),
+  it('writes one activity and answers with what it could not tag', async () => {
+    const response = await post('/api/import', {
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(frame({ tags: ['sport:hike', 'gear:gravel'] })),
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-type')).toMatch(/x-ndjson/)
-
-    const lines = (await response.text())
-      .trim()
-      .split('\n')
-      .map((l) => JSON.parse(l))
-
-    expect(lines.filter((l) => l.type === 'progress')).toHaveLength(2)
-    expect(lines.at(-1)).toMatchObject({ type: 'done', written: 2, failed: [] })
-    expect(rows()).toHaveLength(2)
+    expect(await response.json()).toEqual({ rejectedTags: [['gear:gravel', 1]] })
+    expect(rows()).toHaveLength(1)
   })
 
-  it('reports a malformed frame in the stream, having rolled back', async () => {
-    const response = await post('/api/import/komoot', {
-      headers: { 'content-type': 'application/x-ndjson' },
-      body: `${body([frame()])}{"source":"komoot"}\n`,
+  it('refuses one bad activity with a 400, and writes nothing of it', async () => {
+    const response = await post('/api/import', {
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(frame({ altitudes: [1, 2] })),
     })
 
-    const lines = (await response.text())
-      .trim()
-      .split('\n')
-      .map((l) => JSON.parse(l))
-    expect(lines.at(-1)).toMatchObject({ type: 'error' })
-    expect(lines.at(-1).message).toMatch(/malformed frame/)
-    // The 200 was already sent, so the failure arrives as a line — and nothing landed.
+    // The browser records this against that activity and moves to the next one; there
+    // is no run left for it to fail. Where the old route had to report a bad frame as a
+    // line in a stream it had already committed to, this is just a status code.
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: expect.stringMatching(/2 entries for 4 points/),
+    })
     expect(rows()).toHaveLength(0)
   })
 
-  it('refuses a second import while one is running', async () => {
-    // Hold the first one open by never ending its body, so the lock is genuinely taken.
-    let release: () => void = () => {}
-    const held = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(body([frame()])))
-        release = () => controller.close()
-      },
+  it('rejects a body that is not a frame with the field that broke', async () => {
+    const response = await post('/api/import', {
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ source: 'komoot' }),
     })
 
-    const first = post('/api/import/komoot', {
-      headers: { 'content-type': 'application/x-ndjson' },
-      body: held,
-      duplex: 'half',
-    } as RequestInit)
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: 'invalid request' })
+  })
 
-    // Let the first request reach the route and claim the slot.
-    await new Promise((r) => setTimeout(r, 50))
+  it('takes two imports at once, because there is nothing left to serialise', async () => {
+    // The module-level lock is gone with the transaction it guarded. Two tabs importing
+    // is wasteful, not corrupting: the writes are idempotent and the unique key refuses
+    // a duplicate.
+    const [first, second] = await Promise.all([
+      post('/api/import', {
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(frame({ externalId: 'a' })),
+      }),
+      post('/api/import', {
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(frame({ externalId: 'b' })),
+      }),
+    ])
 
-    const second = await post('/api/import/strava', {
-      headers: { 'content-type': 'application/x-ndjson' },
-      body: body([frame()]),
-    })
-    expect(second.status).toBe(409)
-    expect(((await second.json()) as { error: string }).error).toMatch(/komoot is already running/)
-
-    release()
-    await (await first).text()
+    expect([first.status, second.status]).toEqual([200, 200])
+    expect(rows()).toHaveLength(2)
   })
 })
 
@@ -380,7 +353,7 @@ describe('the fixtures the browser records', () => {
       t: number
     }>
 
-    await run([
+    run([
       frame({
         geometry: polyline.encode(
           items.map((i) => [i.lat, i.lng] as [number, number]),

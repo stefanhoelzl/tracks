@@ -125,7 +125,6 @@ async function titles(signedIn: SignedIn, query: string): Promise<string[]> {
 describe('the REST surface', () => {
   let dir: string
   let db: Db
-  let path: string
   let close: () => void
   let app: ReturnType<typeof createApi>
   let signedIn: SignedIn
@@ -134,7 +133,7 @@ describe('the REST surface', () => {
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'tracks-api-'))
-    ;({ db, path, close } = openDb(join(dir, 'test.db'), MIGRATIONS))
+    ;({ db, close } = openDb(join(dir, 'test.db'), MIGRATIONS))
 
     const account = await claimed(db, 'rider@example.com')
     userId = account.id
@@ -195,7 +194,7 @@ describe('the REST surface', () => {
         .run()
     }
 
-    app = createApi(db, path)
+    app = createApi(db)
 
     const cookie = `tracks_session=${await signSession(hash, userId, Date.now() + 60_000)}`
     signedIn = async (target, init) =>
@@ -841,7 +840,7 @@ describe('the REST surface', () => {
 
       // What the dev server sets so the Simple Browser, which frames the page, keeps
       // it at all. `None` without `Secure` is a cookie no browser stores.
-      const framed = createApi(db, path, { crossSite: true })
+      const framed = createApi(db, { crossSite: true })
       const response = await framed.request('/api/session', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -862,7 +861,7 @@ describe('the REST surface', () => {
       // A framed page rejects any Set-Cookie that is not `None; Secure` — the one that
       // ends the session included. Sent as Lax, sign-out returns 204 and changes
       // nothing, which is the most confusing shape a bug can take.
-      const framed = createApi(db, path, { crossSite: true })
+      const framed = createApi(db, { crossSite: true })
       const response = await framed.request('/api/session', { method: 'DELETE' })
 
       const cookie = response.headers.get('set-cookie')!

@@ -47,8 +47,7 @@ import { authenticate, findCredential } from './users.ts'
  * three frames later.
  *
  * The import routes are the exception to the read-only shape, and the only place the
- * database is written. They need the file's path as well as the open handle, because an
- * import runs its transaction on a second connection — see `openWriter`.
+ * database is written, one activity at a time.
  *
  * Everything under `/api` except `/api/session` is behind the cookie, and every handler
  * behind it reads its `Owner` from the context rather than being told one. That is the
@@ -102,9 +101,9 @@ function badBody(error: z.ZodError): ApiError {
   return { error: 'invalid request', issues: issuesOf(error) }
 }
 
-export function createApi(db: Db, dbPath: string, options: ApiOptions = {}) {
+export function createApi(db: Db, options: ApiOptions = {}) {
   const app = new Hono<Env>()
-  const imports = importRoutes(db, dbPath)
+  const imports = importRoutes(db)
 
   /**
    * Sign in, and claim the account if it has never been signed into.
@@ -311,10 +310,11 @@ export function createApi(db: Db, dbPath: string, options: ApiOptions = {}) {
   })
 
   // The browser reads Strava and Komoot; these two write what it read. `select` says
-  // what is missing so nothing is fetched twice, and the run streams its progress back
-  // over a request that owns the import for as long as it is connected.
+  // what is missing so nothing is fetched twice, and the other takes one activity —
+  // the frame names its own source, so the route does not repeat it and the two can
+  // never disagree.
   app.post('/api/import/select', imports.select)
-  app.post('/api/import/:source', imports.run)
+  app.post('/api/import', imports.run)
 
   return app
 }

@@ -4,29 +4,31 @@ import {
   IMPORT_PRECISION,
   type ImportFailure,
   type ImportFrame,
-  importProgressSchema,
+  importActivityResponseSchema,
   importSelectResponseSchema,
 } from '@tracks/core'
 import type { ActivitySource, SourceActivity, Track } from '../sources/source.ts'
 import { ApiFailure } from './api.ts'
 
 /**
- * The import, driven from the browser in two phases.
+ * The import, driven from the browser.
  *
- * Phase A reads: it lists the source, asks the server which activities it is missing,
- * and pulls only those. Phase B writes: everything read goes up as one NDJSON body and
- * the server streams back what it did with it.
+ * It lists the source, asks the server which activities are missing, and then reads and
+ * sends them one at a time. The read and the write used to be separate phases: a request
+ * body cannot be streamed without `duplex: 'half'`, which only Chromium ships, so every
+ * frame was buffered — ~25 MB on a first import of a full account — and posted as one
+ * NDJSON body that the server wrote inside one transaction.
  *
- * Two phases rather than one continuous stream because streaming a request body needs
- * `duplex: 'half'`, which only Chromium ships. Buffering between them costs the browser
- * ~25 MB on a first import of a full account and nothing on any import after that — and
- * all-or-nothing is what the server's single transaction does anyway.
+ * One request per activity removes the reason for both. Nothing is buffered, because a
+ * track is sent the moment it is read and dropped the moment it is sent; and there is no
+ * second phase to be in, so the bar counts activities rather than phases.
  *
- * Cancelling in phase A has sent nothing, so there is nothing to undo. Cancelling in
- * phase B aborts the request, which the server answers by rolling back.
+ * Cancelling stops the loop. What has already been written stays, which is the honest
+ * thing to say about it — and costs nothing, because `select` reports what is missing at
+ * the start of every run, so the next attempt continues where this one stopped.
  */
 
-export type ImportPhase = 'listing' | 'reading' | 'writing' | 'done'
+export type ImportPhase = 'listing' | 'importing' | 'done'
 
 export interface ImportState {
   phase: ImportPhase
@@ -37,7 +39,7 @@ export interface ImportState {
   title: string | null
   /** Activities the browser could not read — a bad file, a tour that kept failing. */
   readFailures: ImportFailure[]
-  /** Activities the server refused — a tag whose type is not in the registry. */
+  /** Activities the server refused — an unreadable geometry, a date it cannot parse. */
   writeFailures: ImportFailure[]
   written: number
   /** Enum values a source derived that the registry had lost, and got back. */
@@ -117,8 +119,8 @@ export async function runImport(
   const state = initial()
   const emit = () => onState({ ...state })
 
-  // Phase A, step one: what does the source have? Indeterminate — Komoot's page count
-  // is not known until the last page says there is no next one.
+  // Step one: what does the source have? Indeterminate — Komoot's page count is not
+  // known until the last page says there is no next one.
   emit()
   const listed: SourceActivity[] = []
   for await (const activity of source.listActivities()) {
@@ -133,13 +135,12 @@ export async function runImport(
   )
 
   const missing = listed.filter((a) => wanted.has(a.externalId))
-  state.phase = 'reading'
+  state.phase = 'importing'
   state.total = missing.length
   emit()
 
-  // Phase A, step two: pull only what is missing. Each frame is serialized as it is
-  // read so the points can be dropped, rather than holding every track at once.
-  const lines: string[] = []
+  const rejected = new Map<string, number>()
+
   for (const activity of missing) {
     signal.throwIfAborted()
     state.title = activity.title
@@ -148,91 +149,45 @@ export async function runImport(
     try {
       const track = await source.fetchTrack(activity.externalId)
       if (track && track.points.length > 0) {
-        lines.push(`${JSON.stringify(toFrame(source.name, activity, track))}\n`)
+        // Read and sent in the same breath, so the points are collectable immediately
+        // afterwards rather than held until every other track has been read too.
+        const written = await send(toFrame(source.name, activity, track), signal)
+        for (const [tag, count] of written.rejectedTags) {
+          rejected.set(tag, (rejected.get(tag) ?? 0) + count)
+        }
+        state.written++
       }
     } catch (error) {
-      state.readFailures.push({
+      if (signal.aborted) throw error
+
+      const failure = {
         externalId: activity.externalId,
         error: error instanceof Error ? error.message : String(error),
-      })
+      }
+      // Which half failed is worth keeping apart: one is a source that would not give
+      // up a track, the other is this activity being refused after it arrived.
+      if (error instanceof ApiFailure) state.writeFailures.push(failure)
+      else state.readFailures.push(failure)
     }
 
     state.done++
     emit()
   }
 
-  if (lines.length === 0) {
-    state.phase = 'done'
-    state.title = null
-    emit()
-    return state
-  }
-
-  // Phase B: one request, which owns the transaction. Aborting it rolls back.
-  state.phase = 'writing'
-  state.done = 0
-  state.total = lines.length
+  state.rejectedTags = [...rejected]
+  state.phase = 'done'
   state.title = null
   emit()
-
-  const response = await fetch(`/api/import/${encodeURIComponent(source.name)}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-ndjson' },
-    body: new Blob(lines),
-    signal,
-  })
-
-  if (!response.ok || !response.body) {
-    const body = apiErrorSchema.safeParse(await response.json().catch(() => null))
-    throw new ApiFailure(body.success ? body.data.error : response.statusText, response.status)
-  }
-
-  for await (const line of ndjson(response.body)) {
-    const progress = importProgressSchema.parse(JSON.parse(line))
-
-    if (progress.type === 'progress') {
-      // The total is the client's: it counted the frames before it sent them, and the
-      // server is reading a stream whose length it does not know.
-      state.done = progress.written
-      state.written = progress.written
-      state.title = progress.title
-    } else if (progress.type === 'done') {
-      state.written = progress.written
-      state.writeFailures = progress.failed
-      state.rejectedTags = progress.rejectedTags
-      state.phase = 'done'
-      state.title = null
-    } else {
-      throw new Error(progress.message)
-    }
-    emit()
-  }
-
-  // A stream that ends without a `done` line means the connection dropped mid-write,
-  // which the server treats as a cancellation — so nothing landed.
-  if (state.phase !== 'done') throw new Error('the import ended before it finished')
   return state
 }
 
-/** Splits a byte stream into lines, holding one partial line at a time. */
-async function* ndjson(body: ReadableStream<Uint8Array>): AsyncIterable<string> {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-
-    let newline = buffer.indexOf('\n')
-    while (newline >= 0) {
-      const line = buffer.slice(0, newline).trim()
-      buffer = buffer.slice(newline + 1)
-      if (line) yield line
-      newline = buffer.indexOf('\n')
-    }
-  }
-
-  if (buffer.trim()) yield buffer.trim()
+/** One activity, written or refused. A refusal costs that activity and nothing else. */
+async function send(frame: ImportFrame, signal: AbortSignal) {
+  const response = await fetch('/api/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(frame),
+    signal,
+  })
+  return readJson(response, importActivityResponseSchema)
 }

@@ -10,7 +10,7 @@ import { openDb } from '../../server/src/db.ts'
  * that makes development lie about production.
  */
 const dataDir = process.env.TRACKS_DATA_DIR ?? resolve(import.meta.dirname, '../../../data')
-const { db, path } = openDb(
+const { db } = openDb(
   resolve(dataDir, 'tracks.db'),
   resolve(import.meta.dirname, '../../../migrations'),
 )
@@ -25,4 +25,4 @@ const { db, path } = openDb(
  * written down rather than inferred: production is `Lax`, and nothing sets this but
  * this file.
  */
-export default createApi(db, path, { crossSite: true })
+export default createApi(db, { crossSite: true })

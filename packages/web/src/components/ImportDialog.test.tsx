@@ -36,8 +36,10 @@ const tour = (id: string) => ({
 
 /** What the server says it wants, and what it reports writing. Set per test. */
 let wanted: string[] = []
-let ndjson: string[] = []
-let posted: string[] = []
+/** externalId -> the reason the server refuses it, for the tests that want a refusal. */
+const refusals = new Map<string, string>()
+/** One entry per activity that reached the wire, in the order they were sent. */
+let posted: Array<Record<string, unknown>> = []
 
 const server = setupServer(
   http.get('https://api.komoot.de/v006/account/email/:email/', () =>
@@ -50,11 +52,14 @@ const server = setupServer(
     HttpResponse.json(tour(String(params.id))),
   ),
   http.post('*/api/import/select', () => HttpResponse.json({ wanted })),
-  http.post('*/api/import/:source', async ({ request }) => {
-    posted.push(await request.text())
-    return new HttpResponse(ndjson.join(''), {
-      headers: { 'content-type': 'application/x-ndjson' },
-    })
+  http.post('*/api/import', async ({ request }) => {
+    const frame = (await request.json()) as Record<string, unknown>
+    posted.push(frame)
+
+    const refusal = refusals.get(String(frame.externalId))
+    if (refusal) return HttpResponse.json({ error: refusal }, { status: 400 })
+
+    return HttpResponse.json({ rejectedTags: [] })
   }),
 )
 
@@ -62,7 +67,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   wanted = []
-  ndjson = []
+  refusals.clear()
   posted = []
 })
 afterAll(() => server.close())
@@ -82,11 +87,6 @@ async function signIn(user: ReturnType<typeof userEvent.setup>) {
 describe('the import dialog', () => {
   it('goes form -> progress -> summary, and reports what landed', async () => {
     wanted = ['a', 'b']
-    ndjson = [
-      '{"type":"progress","written":1,"title":"Tour a"}\n',
-      '{"type":"progress","written":2,"title":"Tour b"}\n',
-      '{"type":"done","written":2,"failed":[],"readdedValues":[],"rejectedTags":[]}\n',
-    ]
 
     const user = userEvent.setup()
     const { onImported } = open()
@@ -95,16 +95,12 @@ describe('the import dialog', () => {
     expect(await screen.findByText('2 activities imported')).toBeTruthy()
     expect(onImported).toHaveBeenCalledTimes(1)
 
-    // Both tours were read in the browser and sent as one NDJSON body.
-    expect(posted).toHaveLength(1)
-    const frames = posted[0]!
-      .trim()
-      .split('\n')
-      .map((l) => JSON.parse(l))
-    expect(frames.map((f) => f.externalId)).toEqual(['a', 'b'])
+    // One request per activity, in order, each sent as it was read rather than held
+    // until the last one had been.
+    expect(posted.map((f) => f.externalId)).toEqual(['a', 'b'])
     // Geometry is encoded, and `source:` is left for the server to derive.
-    expect(frames[0].geometry).toBeTruthy()
-    expect(frames[0].tags).toEqual(['sport:hike'])
+    expect(posted[0]!.geometry).toBeTruthy()
+    expect(posted[0]!.tags).toEqual(['sport:hike'])
   })
 
   it('sends nothing when the server wants nothing', async () => {
@@ -159,9 +155,7 @@ describe('the import dialog', () => {
           : HttpResponse.json(tour('a')),
       ),
     )
-    ndjson = [
-      '{"type":"done","written":0,"failed":[{"externalId":"a","error":"no tag type \'sport\'"}],"readdedValues":[],"rejectedTags":[]}\n',
-    ]
+    refusals.set('a', "no tag type 'sport'")
 
     const user = userEvent.setup()
     open()
@@ -169,44 +163,33 @@ describe('the import dialog', () => {
 
     expect(await screen.findByText('1 could not be read')).toBeTruthy()
     expect(screen.getByText('1 could not be written')).toBeTruthy()
-    // The one that failed to read never reached the wire.
-    expect(posted[0]!.trim().split('\n')).toHaveLength(1)
+    // The one that failed to read never reached the wire; the other did and was refused.
+    expect(posted.map((f) => f.externalId)).toEqual(['a'])
   })
 
-  it('surfaces an error the server could only report mid-stream', async () => {
+  it('carries on past one refusal and still reports what landed', async () => {
+    // A refused activity is that activity's failure, not the run's. There is no stream
+    // left for a mid-run error to arrive in, and no transaction for it to discard.
     wanted = ['a', 'b']
-    ndjson = ['{"type":"error","message":"malformed frame: source too small"}\n']
+    refusals.set('a', 'malformed frame: source too small')
 
     const user = userEvent.setup()
     const { onImported } = open()
     await signIn(user)
 
-    expect(await screen.findByText(/malformed frame/)).toBeTruthy()
-    expect(onImported).not.toHaveBeenCalled()
-  })
-
-  it('reports a refusal when another import already holds the slot', async () => {
-    wanted = ['a', 'b']
-    server.use(
-      http.post('*/api/import/komoot', () =>
-        HttpResponse.json({ error: 'an import from strava is already running' }, { status: 409 }),
-      ),
-    )
-
-    const user = userEvent.setup()
-    open()
-    await signIn(user)
-
-    expect(await screen.findByText(/strava is already running/)).toBeTruthy()
+    expect(await screen.findByText('1 activity imported')).toBeTruthy()
+    expect(screen.getByText('1 could not be written')).toBeTruthy()
+    expect(posted.map((f) => f.externalId)).toEqual(['a', 'b'])
+    expect(onImported).toHaveBeenCalledTimes(1)
   })
 
   it('cancelling closes it and reports nothing as imported', async () => {
     wanted = ['a', 'b']
-    // A request that never answers, so the dialog stays in its writing state.
+    // A request that never answers, so the dialog stays mid-import.
     server.use(
-      http.post('*/api/import/komoot', async () => {
+      http.post('*/api/import', async () => {
         await delay('infinite')
-        return HttpResponse.text('')
+        return HttpResponse.json({ rejectedTags: [] })
       }),
     )
 
@@ -215,7 +198,7 @@ describe('the import dialog', () => {
     await signIn(user)
 
     const cancel = await screen.findByRole('button', { name: 'Cancel' })
-    await waitFor(() => expect(screen.getByText('Writing to the database')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Importing')).toBeTruthy())
     await user.click(cancel)
 
     expect(onClose).toHaveBeenCalled()
