@@ -5,20 +5,26 @@ tagged, filtered and counted on your own machine.
 
 | | |
 |---|---|
-| **Deployment** | Local-only; accounts, and a map each |
+| **Deployment** | One Edge Script at [tracks.stho.net](https://tracks.stho.net), over Bunny Database |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
-| **Stack** | Node 24 · pnpm · SQLite · React · MapLibre |
-| **Status** | M1–M6 complete; M7 (bunny.net) next |
+| **Stack** | Node 24 · pnpm · libSQL · React · MapLibre · Deno at the edge |
+| **Status** | M1–M7 complete |
 
 ---
 
 ## Scope
 
-One command starts a local server; you open it in a browser. Nothing is hosted, and no
-data leaves the machine except tile requests and the browser's own calls to Komoot. Since
-M6 you sign in, and an account sees its own activities and nobody else's. The tool imports
-them from Strava and Komoot, draws them on a map, lets you tag and filter them, and counts
-them.
+You open it in a browser and sign in, and an account sees its own activities and nobody
+else's. The tool imports them from Strava and Komoot, draws them on a map, lets you tag
+and filter them, and counts them.
+
+It was local-only for six milestones and is not any more: it lives at `tracks.stho.net`,
+as one Edge Script over a database in Frankfurt. What survived the move is the shape of
+the thing — the browser still reads Strava and Komoot itself, so a Komoot password still
+goes from the tab to Komoot and nowhere near the server, and a Strava export is still
+never uploaded whole. What changed is where the rows live, which is no longer "your
+machine" and is now "a database only you have an account on". `pnpm dev` runs the same
+server against the same database, so there is no local copy to drift.
 
 ### Non-goals
 
@@ -894,12 +900,12 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | | |
 |---|---|
 | **Language** | TypeScript end to end. Every heavy-geo case that would have justified Python — FIT parsing, segment matching, performance analysis — is an explicit non-goal, and a shared filter package is worth more than a stronger geo ecosystem. |
-| **Driver** | `better-sqlite3`. Required by drizzle-kit, which does not support `node:sqlite`, and hardened besides. |
+| **Driver** | `@libsql/client`, one client for two destinations: `file:` opens the embedded libSQL in-process, an `https:` URL is Bunny Database. It replaced `better-sqlite3` in M7 because a native addon cannot follow the app to an edge runtime — and because keeping both would have meant two code paths that could not share a line, one being synchronous and the other not. |
 | **Query layer** | Drizzle for schema, migrations and CRUD; hand-written SQL for spatial queries and aggregations, where query builders are worse than the SQL they generate. |
 | **Migrations** | Always generated with an explicit name: `pnpm db:generate --name add-elapsed`. Without `--name`, drizzle-kit invents one like `0000_sharp_lily_hollister`, which tells a future reader nothing. |
-| **Not Deno** | Better DX and a genuinely useful permissions model, but drizzle-kit + `node:sqlite` is an open bug needing a community patch — a patched migration toolchain is the wrong place to spend novelty. |
+| **Node, and Deno** | The toolchain is Node: drizzle-kit + `node:sqlite` is an open bug needing a community patch, and a patched migration toolchain is the wrong place to spend novelty. The *deployment* is Deno, because Edge Scripting is — but it never meets that bug, since `drizzle-kit generate` runs here and the script talks to libSQL over HTTP. |
 | **Validation** | Zod, in core, for the filter and every response shape — parsed on the way in *and* on the way out. |
-| **Web build** | Vite, and **only** Vite. `pnpm dev` runs the Hono app inside it via `@hono/vite-dev-server`, so one command HMRs both sides. There is no production server: `tracks serve`, the static mount and the `build` script went with the CLI, because a local single-user tool that is always run from its own checkout had two ways to start and needed one. |
+| **Web build** | Vite for the browser, esbuild for the deployment. `pnpm dev` runs the Hono app inside Vite via `@hono/vite-dev-server`, so one command HMRs both sides; `pnpm build` produces `dist/`, inlines it into `packages/edge`, and bundles the two into one file. There is one production server and it is that file — a second entry point existed briefly as `tracks serve`, was deleted in M3.5 for serving a `dist` nothing needed, and came back in M7 when there was somewhere to serve it *to*. |
 | **Web state** | No router — the app is one page, and core already parses the query string. A `useFilterState` hook over `useSyncExternalStore` is the whole of it. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover and a viewport-derived filter are both things a declarative wrapper would be in the way of. |
 | **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file — except the two sets no CSS rule can read, the *colour by* palette and the chart colours, which are mirrored in `lib/colour.ts` and `lib/chart-theme.ts` beside their only consumers. |
@@ -912,9 +918,6 @@ cheap hash there would prove the wrong thing about the one route that has to be 
 ---
 
 ## Going online
-
-> **Designed, not built.** This section is M7. Everything above it describes what runs
-> today, on your own machine.
 
 | | |
 |---|---|
@@ -980,6 +983,37 @@ migration 0004 seeds, which is then renamed and claimed by hand. The DNS record 
 be claimed by anyone else. Afterwards the local file is deleted; a partial pull — activities
 older than a cutoff — recreates a local copy when working offline.
 
+**What the deploy taught, which no amount of reading had.** Four things about Bunny were
+written down as unknowable from here, and shipping settled three.
+
+| | |
+|---|---|
+| Does the CLI split drizzle's `--> statement-breakpoint`? | Yes. `0004_users.sql (17 statements)`, `0002 (10 statements)` — the one that mattered most, since 0004 is the migration that must land right the first time. |
+| Is a standalone script behind a Pull Zone? | Yes, zone 6500335 — so Shield's per-IP rate limiting stays available as the fallback for the sign-in route. |
+| Request body limit? | Still unknown. A 1.7MB activity has not been posted to it yet. |
+| Rows scanned, or rows returned? | Still unknown, and still the only line in the bill with any upside. |
+
+**Three things that were not in the plan and cost an afternoon.** All of them the same
+shape: a default that is right for a CDN and wrong for an application.
+
+*A standalone script registers its handler with `BunnySDK.net.http.serve(...)`.* The
+default-export-with-`fetch` shape that Cloudflare and Deno Deploy take is not wrong here
+so much as inert: the module loads, registers nothing, answers nothing, and Bunny falls
+back to something that points at itself — so every request, for every path, is a 508 Loop
+Detected that says nothing about why. What found it was deploying a script with no
+imports at all and watching it fail identically.
+
+*The pull zone stripped `Set-Cookie`.* `DisableCookies` defaults on, because a response
+that carries a cookie is a response a CDN cannot share. Signing in worked and could not
+prove it had: the confirming request arrived anonymous, which the sign-in form reports as
+the browser having refused the cookie. It had not.
+
+*Nothing under `/api` may be cached, and the app says so itself* rather than trusting a
+zone setting, because the failure is not a stale sidebar: every response there is scoped
+to whoever asked, so a cache keyed on the URL would hand one person's activities to the
+next. Bunny rewrites `no-store` to `no-cache` on the way out, which is its opinion and
+still forbids serving one without revalidating.
+
 **What is deliberately absent.** No read replica: read-your-writes is only guaranteed on
 the primary, and tagging refetches immediately — the objection is correctness, and a replica
 costs $0.004/month. No backup job: Bunny snapshots hourly and on idle, and an hour of
@@ -1019,15 +1053,15 @@ will otherwise propose all of these again.
 |---|---|
 | Uploading the Strava zip | The importer opens `activities.csv` and the files it names; photos and comments are most of the archive and none of the tracks. Reading it in the browser sends tens of megabytes instead of hundreds — and nothing at all on a re-import. |
 | Keeping Komoot server-side | Its API sends `Access-Control-Allow-Origin: *` and allows `Authorization` on preflight, so the tab can call it. Leaving it on the server would have meant a password crossing a boundary for no reason, and two wire formats where one does. |
-| An import job with an id | Nothing outlives the request, so there is nothing to address. A job id needs a route to discover it after a reload, and a rule for what a job with no watcher means. |
-| SSE for progress | `EventSource` is GET-only, so it could carry neither the credentials nor the payload. The stream had to be a POST response, and once it is, NDJSON needs no framing to explain. |
-| A streamed request body | `duplex: 'half'` is Chromium-only. Reading everything first and posting one Blob works in every browser and matches the all-or-nothing transaction anyway. |
-| Multipart frames | Needs a streaming multipart parser to avoid buffering the whole body, for a field nobody has asked for. NDJSON lines are the same idea with no parser. |
+| An import job with an id | Nothing outlives the request, so there is nothing to address. A job id needs a route to discover it after a reload, and a rule for what a job with no watcher means. Still true in M7, for a stronger reason: an isolate does not outlive the request either. |
+| SSE for progress | `EventSource` is GET-only, so it could carry neither the credentials nor the payload. The stream had to be a POST response, and once it is, NDJSON needs no framing to explain. **Moot since M7**: there is no progress stream, because there is no run to report on — one request per activity, and the response is the progress. |
+| A streamed request body | `duplex: 'half'` is Chromium-only, so the browser buffered every frame — ~25MB on a first import — and posted one Blob. **Moot since M7**: one request per activity needs no streaming at all, and nothing is buffered, because a track is sent as it is read and dropped as it is sent. |
+| Multipart frames | Needs a streaming multipart parser to avoid buffering the whole body, for a field nobody has asked for. NDJSON lines were the same idea with no parser; since M7 the body is one activity of plain JSON, and there is nothing to frame. |
 | Publishing every known id | `GET .../known` would have the server hand out its whole id set for the client to diff. Inverting it — the client offers, the server picks — puts the selection in one place and does not grow with the database. |
 | Rolling back a bad *file* | One unreadable GPX would discard ninety good imports. Rollback is for cancel and crash; a bad frame costs itself and is named in the summary. |
-| An undo log | Recording each insert and each row's pre-image to replay backwards, to keep resumability. Bespoke undo machinery that must be exactly right about updates, tag merges and re-added enum values — against `ROLLBACK`, which already is. |
+| An undo log | Recording each insert and each row's pre-image to replay backwards, to keep resumability. Bespoke undo machinery that must be exactly right about updates, tag merges and re-added enum values — against `ROLLBACK`, which already is. M7 kept the `ROLLBACK` and shrank what it covers: one activity rather than one run, which is what an isolate can promise. |
 | A hand-rolled modal | `<dialog showModal>` gives the focus trap, the inert background and the top layer over the map canvas for free. Its Escape is a preventable event, which is all that stood in the way. |
-| Keeping `tracks serve` | With the sources in the browser and `pnpm dev` running both halves, a second entry point existed only to serve a `dist` that nothing else needed. |
+| Keeping `tracks serve` | With the sources in the browser and `pnpm dev` running both halves, a second entry point existed only to serve a `dist` that nothing else needed. It was right to delete and right to rebuild three milestones later: `packages/edge` serves a `dist` that something finally needs, which is the internet. |
 | DuckDB | Columnar storage earns nothing at this scale, and it is single-writer — hostile to interactive tagging. |
 | UUIDs for activity ids | `trackpoints.activity_id` sits in a WITHOUT ROWID primary key across 1.02M rows — 98% of the database, at ~42 bytes a row. A TEXT uuid there adds ~37MB and roughly doubles the file, to buy nothing an integer was failing at. |
 | `tag_types` as JSON on `users` | Tempting: a registry belongs to a user, array order replaces `sort`, and deleting a user takes it along. It would move three invariants out of the schema and into code — the type GC from one atomic `DELETE` to a `json_group_array` rebuild, uniqueness to something the code must not get wrong, and a browsable table to one opaque cell. |
@@ -1099,15 +1133,18 @@ will otherwise propose all of these again.
 
 ## Still undecided
 
-**Four things about Bunny that only a deploy can answer** — whether a standalone Edge
-Script sits behind a Pull Zone, which decides both the DNS record type and whether Shield's
-rate limiting is even available to fall back on; what Edge Scripting's request body limit
-is, against a largest activity of 1.7MB of JSON; whether the Bunny CLI splits drizzle's
-`--> statement-breakpoint` comments, which matters most for 0004, the one migration that
-must land right the first time; and whether "rows read" means rows scanned or rows
-returned, which is the only line item in the bill with any upside.
+**Two things about Bunny a deploy has not answered yet** — what Edge Scripting's request
+body limit is, against a largest activity of 1.7MB of JSON, and whether "rows read" means
+rows scanned or rows returned, which is the only line in the bill with any upside. The
+other two were settled by shipping and are recorded above.
 
-**Komoot's CORS headers** — the design now depends on an undocumented API's incidental
+**Whether an interactive transaction survives the HTTP client.** The three write paths
+still use `db.transaction()`, which is certainly right against the embedded client and
+unproven against Bunny's. If it turns out not to hold, the fix is `batch()` in those three
+functions rather than a redesign — which is why the transactions live in the data layer
+and not in the routes.
+
+**Komoot's CORS headers** — the design depends on an undocumented API's incidental
 response headers. If `Access-Control-Allow-Origin: *` ever goes away, Komoot import stops
 working in the browser and the answer is a thin server-side relay — the credentials would
 then transit the server again, though nothing would need to store them. At the edge that
