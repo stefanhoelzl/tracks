@@ -24,13 +24,18 @@ import { openDb } from '../../server/src/db.ts'
 /**
  * Three ways to develop, one variable that picks between them.
  *
- *   pnpm dev         the deployed database, from `.env`
+ *   pnpm dev         the deployed database, through proton-env
  *   pnpm dev:local   `data/dev.db`, filled by `pnpm db:seed` or `pnpm db:pull`
  *
- * `.env` is read here rather than by Vite, which loads env files for the browser bundle
- * and not for the process this runs in. It is gitignored and holds the deployed
- * database's token, so it is the one file in the repository that must never be
- * committed — hence read explicitly, from one place, rather than by a dependency.
+ * `pnpm dev` wraps itself in `proton-env`, which reads `.proton.yaml` — a map from
+ * variable names to items in a password manager — and injects them for the child
+ * process. So the credential is never in the repository, never in a dotfile, and never
+ * in shell history; what is in the repository is the *name* of where to find it, and
+ * that is gitignored too because naming somebody's vault items is still telling.
+ *
+ * `.env` remains as the fallback for a machine without proton-env, read here rather
+ * than by Vite, which loads env files for the browser bundle and not for the process
+ * this runs in.
  */
 const env = resolve(import.meta.dirname, '../../../.env')
 if (existsSync(env)) process.loadEnvFile(env)
@@ -52,8 +57,8 @@ if (!url) {
   throw new Error(
     'TRACKS_DB_URL is not set.\n' +
       '  pnpm dev:local    against data/dev.db — fill it with `pnpm db:seed` or `pnpm db:pull`\n' +
-      '  pnpm dev          against the deployed database — put TRACKS_DB_URL and\n' +
-      '                    TRACKS_DB_TOKEN in .env, which is gitignored',
+      '  pnpm dev          against the deployed database, through proton-env\n' +
+      '                    (or TRACKS_DB_URL and TRACKS_DB_TOKEN in a gitignored .env)',
   )
 }
 

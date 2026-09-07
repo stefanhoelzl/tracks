@@ -4,8 +4,10 @@
 # of your manual tags.
 data/
 
-# Credentials for the deployed database, read by `pnpm dev`. Never committed —
-# the repository is public.
+# How to reach the deployed database. `.proton.yaml` holds no secrets — it names
+# items in a password manager — but it names them, and this repository is public.
+# `.env` holds the real thing, for a machine without proton-env.
+.proton.yaml
 .env
 
 node_modules/

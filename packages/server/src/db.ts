@@ -23,19 +23,25 @@ export async function openDb(
   migrationsFolder = resolve('migrations'),
   token?: string,
 ) {
-  if (url.startsWith('file:')) {
-    mkdirSync(dirname(resolve(url.slice('file:'.length))), { recursive: true })
-  }
+  const local = url.startsWith('file:')
+  if (local) mkdirSync(dirname(resolve(url.slice('file:'.length))), { recursive: true })
 
   const client = createClient({ url, authToken: token })
   const db = connect(client)
 
-  // OFF by default in SQLite, so the trackpoints -> activities cascade would silently
-  // not apply without it. Bunny's own connections enforce it; this is for the embedded
-  // client, where the pragma is ours to set.
-  if (url.startsWith('file:')) await client.execute('PRAGMA foreign_keys = ON')
+  if (local) {
+    // OFF by default in SQLite, so the trackpoints -> activities cascade would silently
+    // not apply without it. Bunny's own connections enforce it; this is for the embedded
+    // client, where the pragma is ours to set.
+    await client.execute('PRAGMA foreign_keys = ON')
 
-  await migrate(db, { migrationsFolder })
+    // Only ever local. A deployed database's schema belongs to the Bunny CLI, which
+    // tracks what it has applied in `__bunny_migrations`; drizzle's migrator looks for a
+    // table of its own, finds none, and tries to create `activities` a second time —
+    // which is what pointing `pnpm dev` at production used to do, on the first request.
+    // Two migrators, one schema, and only one of them may own it.
+    await migrate(db, { migrationsFolder })
+  }
 
   return { db, client, url, close: () => client.close() }
 }

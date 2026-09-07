@@ -7,8 +7,8 @@
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "pnpm --filter @tracks/web dev",
-    "dev:local": "TRACKS_DB_URL=file:data/dev.db pnpm dev",
+    "dev": "proton-env -- pnpm --filter @tracks/web dev",
+    "dev:local": "TRACKS_DB_URL=file:data/dev.db pnpm --filter @tracks/web dev",
     "build": "pnpm --filter @tracks/web build && pnpm --filter @tracks/edge build",
     "test": "vitest run",
     "check": "biome check . && pnpm typecheck",
@@ -16,7 +16,7 @@
     "fix": "biome check --write .",
     "db:generate": "drizzle-kit generate",
     "db:seed": "node --experimental-strip-types packages/server/src/seed-dev.ts",
-    "db:pull": "node --experimental-strip-types packages/server/src/pull-dev.ts",
+    "db:pull": "proton-env -- node --experimental-strip-types packages/server/src/pull-dev.ts",
     "user:add": "node --experimental-strip-types packages/server/src/add-user.ts"
   },
   "devDependencies": {
