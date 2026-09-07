@@ -57,25 +57,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: npm install -g @bunny.net/cli
 
-      # Schema first, always. The script that goes out below is written against the
-      # schema this applies, so the reverse order would put a deployment in front of
-      # the columns it queries. Migrations run in filename order and carry their own
+      # Schema first, always. The script deployed below is written against the schema
+      # this applies, so the reverse order would put a deployment in front of the
+      # columns it queries. Migrations run in filename order and carry their own
       # tracking row, so this is a no-op on every deploy that adds none.
-      # The script gets its database injected, because the two are connected on Bunny's
-      # side. CI does not — it runs on a GitHub runner — so it names the database by id.
-      # That is all it needs: the API key looks the database up and mints a token for
-      # the run, so no database credential is stored here at all. The id is a variable
-      # rather than a secret because it identifies, it does not authorise.
-      # Named by id, positionally. The CLI does auto-detect one from
-      # `BUNNY_DATABASE_URL`, but from a `.env` file rather than the environment — a CI
-      # runner has neither, and it answered "No database selected".
       #
-      # The id is *not* the ULID in the database's hostname. Those two are minted in the
-      # same instant and share their first ten characters, which is the ULID timestamp,
-      # then differ — plausible enough to try, and wrong. It comes from `bunny db list`.
+      # The script gets its database injected, because the two are connected on Bunny's
+      # side; a GitHub runner is not the script, so it names the database by id. The id
+      # is *not* the ULID in the database's hostname — those are minted in the same
+      # instant and share their first ten characters, the ULID timestamp, then differ,
+      # which is plausible enough to derive and wrong. `bunny db list` has the real one.
       #
       # It identifies rather than authorises: the API key looks the database up and
-      # mints the token for the run, so no database credential is stored here at all.
+      # mints a token for the run, so no database credential is stored here at all.
       - name: Apply migrations
         run: bunny db migrations apply ${{ vars.BUNNY_DATABASE_ID }} --force
 
@@ -86,19 +80,4 @@ jobs:
       # shell and the JavaScript it names disagree.
       - name: Deploy the script
         run: bunny scripts deploy packages/edge/dist/script.js ${{ vars.BUNNY_SCRIPT_ID }}
-
-      # TEMPORARY: the `tracks` record is gone from the zone — it resolved before
-      # `scripts domains add` ran and not after. Put it back, by name rather than by
-      # guessing a numeric enum against a zone that hosts other things.
-      - name: Point tracks.stho.net back at the script
-        run: |
-          bunny dns --help 2>&1 | head -20 || true
-          echo "--- add ---"
-          bunny dns records add stho.net tracks Script --script ${{ vars.BUNNY_SCRIPT_ID }} \
-            || bunny dns records add stho.net tracks PullZone --pull-zone 6500335 \
-            || bunny dns records add stho.net tracks CNAME tracks-q8oo2.b-cdn.net \
-            || true
-          echo "--- after ---"
-          bunny api GET /dnszone/817890 2>/dev/null \
-            | jq '[.Records[] | select(.Name=="tracks") | {Id, Type, Name, Value, Disabled}]' || true
 
