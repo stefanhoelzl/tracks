@@ -3,10 +3,15 @@ import { defineConfig } from 'vitest/config'
 /**
  * Two lanes, on purpose.
  *
- * `node` is the import and query work: no jsdom, no browser, and it stays offline
- * and under a second — `vitest --project node` is the loop to run while changing a
- * parser or a filter. `web` is the components, which need a DOM and cost what a DOM
- * costs. Keeping them apart is what stops the fast lane quietly becoming the slow one.
+ * `node` is the import, query and account work: no jsdom, no browser, and it stays
+ * offline — `vitest --project node` is the loop to run while changing a parser or a
+ * filter. It is no longer under a second: signing in really does 600k PBKDF2 rounds,
+ * and the handful of tests that go through `POST /api/session` pay for it on purpose,
+ * because a cheap hash in the tests would prove the wrong thing about the one route
+ * that must be right. Everything not about hashing passes a low cost instead.
+ *
+ * `web` is the components, which need a DOM and cost what a DOM costs. Keeping them
+ * apart is what stops the fast lane quietly becoming the slow one.
  */
 export default defineConfig({
   test: {

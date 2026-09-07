@@ -247,6 +247,29 @@ export const activityTagsResponseSchema = z.object({
 
 export type ActivityTagsResponse = z.infer<typeof activityTagsResponseSchema>
 
+/**
+ * Signing in.
+ *
+ * The same request whether the account has a password or not: an account with no hash
+ * is claimed by the first sign-in, and this is that sign-in. There is no separate
+ * registration shape because there is no registration.
+ */
+export const signInSchema = z.object({
+  email: z.string().min(1).max(320),
+  // Long enough to be worth having, and bounded because PBKDF2 will hash whatever it
+  // is handed and a megabyte of it is a way to spend the server's time.
+  password: z.string().min(8).max(1024),
+})
+
+export type SignIn = z.infer<typeof signInSchema>
+
+/** Who you are. The only thing the browser is told about an account. */
+export const sessionSchema = z.object({
+  email: z.string(),
+})
+
+export type Session = z.infer<typeof sessionSchema>
+
 /** What a 4xx carries. One shape, so the browser has one thing to render. */
 export const apiErrorSchema = z.object({
   error: z.string(),

@@ -52,6 +52,18 @@ export interface Exclusion {
 }
 
 /**
+ * Whose rows a statement is about.
+ *
+ * The unit of authority, and the reason multi-tenancy is not a rule anybody has to
+ * remember: nothing in this package takes a bare `Db` and an id any more. A read or a
+ * write is addressed to an `Owner`, or to a `Scope`, which is an owner with a filter —
+ * so a query that does not say whose data it means does not compile.
+ */
+export interface Owner {
+  readonly userId: number
+}
+
+/**
  * A filter together with the activities its bounding box selects.
  *
  * The bbox is the one predicate that cannot be answered from `activities` alone, and
@@ -62,7 +74,7 @@ export interface Exclusion {
  * `null` means no bbox filter. An empty array means a bbox that selects nothing, which
  * is a different statement and must not collapse into the first.
  */
-export interface Scope {
+export interface Scope extends Owner {
   readonly filter: Filter
   readonly bboxIds: readonly number[] | null
 }
@@ -110,12 +122,15 @@ function tagTypeCondition(terms: TagTerm[]): SQL | null {
 /**
  * The WHERE body for a filter, as a fragment expecting `activities a` in scope.
  *
- * Always returns something truthy so callers can interpolate it unconditionally —
- * an empty filter is `1 = 1`, not a hole in the statement.
+ * Never empty: an unfiltered read still says whose rows it wants, so callers can
+ * interpolate it unconditionally and the owner is in every statement by construction.
  */
 export function whereFor(scope: Scope, exclude: Exclusion = {}): SQL {
   const { filter, bboxIds } = scope
-  const parts: SQL[] = []
+  // First and unconditional. `Exclusion` drops a facet's own terms so the sidebar can
+  // count what selecting a value would give you; there is no such question about the
+  // owner, and nothing may ever exclude it.
+  const parts: SQL[] = [sql`a.user_id = ${scope.userId}`]
 
   const byType = new Map<string, TagTerm[]>()
   for (const term of filter.tags) {
@@ -169,7 +184,6 @@ export function whereFor(scope: Scope, exclude: Exclusion = {}): SQL {
     if (max !== null) parts.push(sql`${RANGE_EXPR[key]} <= ${max}`)
   }
 
-  if (parts.length === 0) return sql`1 = 1`
   return sql.join(parts, sql` AND `)
 }
 

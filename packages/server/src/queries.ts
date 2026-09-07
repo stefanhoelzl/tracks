@@ -14,7 +14,15 @@ import {
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
 import type { Conn, Db } from './db.ts'
-import { LOCAL_DATE, orderFor, RANGE_EXPR, type Scope, SPEED, whereFor } from './query.ts'
+import {
+  LOCAL_DATE,
+  type Owner,
+  orderFor,
+  RANGE_EXPR,
+  type Scope,
+  SPEED,
+  whereFor,
+} from './query.ts'
 
 /** Enough bars to show a distribution, few enough to stay legible at 300 px wide. */
 const BUCKET_COUNT = 24
@@ -63,8 +71,9 @@ function toRow(raw: RawRow): ActivityRow {
  * Every route calls this before building any SQL, so the trackpoint query runs once
  * per request no matter how many WHERE clauses the route goes on to build.
  */
-export function scopeFor(db: Conn, filter: Filter): Scope {
-  if (filter.bbox === null) return { filter, bboxIds: null }
+export function scopeFor(db: Conn, owner: Owner, filter: Filter): Scope {
+  const { userId } = owner
+  if (filter.bbox === null) return { userId, filter, bboxIds: null }
 
   const [west, south, east, north] = filter.bbox
   // Two stages, and the first is what makes the second cheap: the cached bounding boxes
@@ -76,18 +85,19 @@ export function scopeFor(db: Conn, filter: Filter): Scope {
     SELECT DISTINCT activity_id FROM trackpoints
     WHERE activity_id IN (
       SELECT id FROM activities
-      WHERE min_lat <= ${north} AND max_lat >= ${south}
+      WHERE user_id = ${userId}
+        AND min_lat <= ${north} AND max_lat >= ${south}
         AND min_lon <= ${east} AND max_lon >= ${west})
       AND lat BETWEEN ${south} AND ${north} AND lon BETWEEN ${west} AND ${east}`)
 
-  return { filter, bboxIds: rows.map((row) => row.activity_id) }
+  return { userId, filter, bboxIds: rows.map((row) => row.activity_id) }
 }
 
-export function listActivities(db: Db, filter: Filter): ActivityRow[] {
+export function listActivities(db: Db, scope: Scope): ActivityRow[] {
   const rows = db.all<RawRow>(sql`
     SELECT ${ROW_COLUMNS} FROM activities a
-    WHERE ${whereFor(scopeFor(db, filter))}
-    ORDER BY ${orderFor(filter)}`)
+    WHERE ${whereFor(scope)}
+    ORDER BY ${orderFor(scope.filter)}`)
 
   return rows.map(toRow)
 }
@@ -99,11 +109,11 @@ export function listActivities(db: Db, filter: Filter): ActivityRow[] {
  * `JSON.stringify` alone than the query did. The browser rebuilds every feature anyway to
  * bake in a colour, so the decode goes where that pass already is.
  */
-export function listTracks(db: Db, filter: Filter): TracksResponse {
+export function listTracks(db: Db, scope: Scope): TracksResponse {
   const rows = db.all<{ id: number; polyline: string; local_date: string; tags: string }>(sql`
     SELECT a.id, a.polyline, ${LOCAL_DATE} AS local_date, a.tags FROM activities a
-    WHERE ${whereFor(scopeFor(db, filter))} AND a.polyline IS NOT NULL
-    ORDER BY ${orderFor(filter)}`)
+    WHERE ${whereFor(scope)} AND a.polyline IS NOT NULL
+    ORDER BY ${orderFor(scope.filter)}`)
 
   return {
     tracks: rows.map((row) => ({
@@ -118,10 +128,16 @@ export function listTracks(db: Db, filter: Filter): TracksResponse {
 /** Lossless for six-decimal trackpoints, unlike the default 5. */
 const DETAIL_PRECISION = 6
 
-export function activityDetail(db: Db, id: number): ActivityDetailResponse | null {
+export function activityDetail(db: Db, owner: Owner, id: number): ActivityDetailResponse | null {
   const raw = db.get<RawRow>(sql`
-    SELECT ${ROW_COLUMNS} FROM activities a WHERE a.id = ${id}`)
+    SELECT ${ROW_COLUMNS} FROM activities a
+    WHERE a.id = ${id} AND a.user_id = ${owner.userId}`)
+  // Not "no such activity" but "not yours, or no such activity" — the route turns both
+  // into the same 404, because telling them apart is telling a stranger what exists.
   if (!raw) return null
+
+  // The owner is not repeated here: the row above established that this activity is
+  // theirs, and a track is reached only through its activity.
 
   const points = db.all<{ lat: number; lon: number; altitude_m: number | null }>(sql`
     SELECT lat, lon, altitude_m FROM trackpoints
@@ -172,17 +188,20 @@ function rangeFacet(db: Db, scope: Scope, key: RangeKey): RangeFacet {
 }
 
 /**
- * The registry, with each type's values in use counted over every activity.
+ * The registry, with each type's values in use counted over every activity of theirs.
  *
- * Deliberately unfiltered, unlike every other count in the app. It is what the
+ * Deliberately unfiltered, unlike every other count in the app — unfiltered, not
+ * unscoped: it takes an `Owner` rather than a `Scope` precisely because the one thing
+ * it must not ignore is whose activities it is counting. It is what the
  * autocomplete offers — which must include the values nothing currently matching
  * carries, since narrowing to the untagged is how tagging starts — and what the colour
  * layout is built from, which must not depend on where the map is pointed.
  */
-export function tagVocabulary(db: Db, registry: TagRegistry): TagTypesResponse {
+export function tagVocabulary(db: Db, owner: Owner, registry: TagRegistry): TagTypesResponse {
   const counted = db.all<{ tag: string; n: number }>(sql`
     SELECT t.value AS tag, count(*) AS n
     FROM activities a, json_each(a.tags) t
+    WHERE a.user_id = ${owner.userId}
     GROUP BY t.value`)
 
   const byType = new Map<string, Array<{ value: string; count: number }>>()
@@ -205,8 +224,7 @@ export function tagVocabulary(db: Db, registry: TagRegistry): TagTypesResponse {
   }
 }
 
-export function facets(db: Db, filter: Filter, registry: TagRegistry): FacetsResponse {
-  const scope = scopeFor(db, filter)
+export function facets(db: Db, scope: Scope, registry: TagRegistry): FacetsResponse {
   const summary = db.get<{ n: number; d: number; e: number; t: number }>(sql`
     SELECT count(*) AS n,
            coalesce(sum(a.distance_m), 0) AS d,

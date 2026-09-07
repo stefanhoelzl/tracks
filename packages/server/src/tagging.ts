@@ -1,7 +1,6 @@
 import {
   type ActivityTagsResponse,
   applyTagEdits,
-  type Filter,
   type NewType,
   type TagRegistry,
   type TagType,
@@ -11,7 +10,7 @@ import {
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
 import type { Conn, Db } from './db.ts'
-import { scopeFor } from './queries.ts'
+import type { Owner, Scope } from './query.ts'
 import { whereFor } from './query.ts'
 import { collectTypes, createType, loadRegistry } from './registry.ts'
 import { activities } from './schema.ts'
@@ -22,7 +21,8 @@ import { activities } from './schema.ts'
  * Two of them, and they share everything that matters: the registry is read once, a
  * new type is created inside the same transaction as the tag that needs it, the
  * arrays are rebuilt by the same `applyTagEdits`, and the type GC runs last. What
- * differs is only which activities are addressed — a filter, or an id.
+ * differs is only which activities are addressed — a filter, or an id — and both are
+ * addressed within one owner, which neither of them may widen.
  *
  * Rebuilt in JavaScript rather than with a `json_*` UPDATE: the rules being applied
  * are the single-valued replacement and the sort order, both of which already exist
@@ -40,8 +40,13 @@ export class TagWriteError extends Error {}
  * use is absent from the registry it holds, and that registry can be one write out of
  * date — two tabs, or a type an import just created.
  */
-function withNewType(db: Conn, registry: Map<string, TagType>, newType: NewType | undefined) {
-  if (newType && !registry.has(newType.name)) createType(db, registry, newType)
+function withNewType(
+  db: Conn,
+  owner: Owner,
+  registry: Map<string, TagType>,
+  newType: NewType | undefined,
+) {
+  if (newType && !registry.has(newType.name)) createType(db, owner, registry, newType)
 }
 
 function assertValid(registry: TagRegistry, tags: readonly string[]) {
@@ -58,14 +63,14 @@ function assertValid(registry: TagRegistry, tags: readonly string[]) {
  * line can state without lying — applying a tag half the set already carries reports
  * the half that gained it.
  */
-export function writeTags(db: Db, filter: Filter, write: TagWrite): TagWriteResponse {
+export function writeTags(db: Db, scope: Scope, write: TagWrite): TagWriteResponse {
   return db.transaction((tx) => {
-    const registry = loadRegistry(tx)
-    withNewType(tx, registry, write.newType)
+    const registry = loadRegistry(tx, scope)
+    withNewType(tx, scope, registry, write.newType)
     assertValid(registry, [...write.add, ...write.remove])
 
     const rows = tx.all<{ id: number; tags: string }>(sql`
-      SELECT a.id, a.tags FROM activities a WHERE ${whereFor(scopeFor(tx, filter))}`)
+      SELECT a.id, a.tags FROM activities a WHERE ${whereFor(scope)}`)
 
     let changed = 0
     for (const row of rows) {
@@ -77,7 +82,7 @@ export function writeTags(db: Db, filter: Filter, write: TagWrite): TagWriteResp
       changed++
     }
 
-    collectTypes(tx)
+    collectTypes(tx, scope)
     return { changed }
   })
 }
@@ -85,27 +90,30 @@ export function writeTags(db: Db, filter: Filter, write: TagWrite): TagWriteResp
 /** One activity's tags, as they should now read. */
 export function writeActivityTags(
   db: Db,
+  owner: Owner,
   id: number,
   body: { tags: string[]; newType?: NewType },
 ): ActivityTagsResponse | null {
   return db.transaction((tx) => {
-    const registry = loadRegistry(tx)
-    withNewType(tx, registry, body.newType)
+    const registry = loadRegistry(tx, owner)
+    withNewType(tx, owner, registry, body.newType)
     assertValid(registry, body.tags)
 
     // Through the same edit function as a bulk write, from an empty array: the sort,
     // the deduplication and the single-valued rule are stated once.
     const tags = applyTagEdits(registry, [], { add: body.tags })
 
+    // Someone else's id changes nothing and reports the same nothing an absent one
+    // does, which is what the route needs to answer both with one 404.
     const updated = tx
       .update(activities)
       .set({ tags: JSON.stringify(tags) })
-      .where(sql`id = ${id}`)
+      .where(sql`id = ${id} AND user_id = ${owner.userId}`)
       .run()
 
     if (updated.changes === 0) return null
 
-    collectTypes(tx)
+    collectTypes(tx, owner)
     return { tags }
   })
 }

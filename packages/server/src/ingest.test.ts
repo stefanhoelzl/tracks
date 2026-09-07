@@ -6,11 +6,20 @@ import { IMPORT_PRECISION, type ImportFrame } from '@tracks/core'
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApi } from './api.ts'
+import { hashPassword, signSession } from './auth.ts'
 import { openDb, openWriter } from './db.ts'
 import { ingest, selectWanted } from './ingest.ts'
-import { activities, trackpoints } from './schema.ts'
+import type { Owner } from './query.ts'
+import { activities, trackpoints, users } from './schema.ts'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../migrations')
+
+/** Cheap on purpose — nothing here is about how long hashing takes. */
+const CHEAP = 1_000
+
+/** Whose import this is. One account, made fresh with the database, already claimed. */
+let owner: Owner
+let hash: string
 
 /** A track in the Julian Alps, so the derived offset is a real one. */
 const POINTS: Array<[number, number]> = [
@@ -41,9 +50,17 @@ function frame(over: Partial<ImportFrame> = {}): ImportFrame {
 let dir: string
 let handle: ReturnType<typeof openDb>
 
-beforeEach(() => {
+beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'tracks-ingest-'))
   handle = openDb(join(dir, 'test.db'), MIGRATIONS)
+
+  hash = await hashPassword('a good long one', CHEAP)
+  const account = handle.db
+    .insert(users)
+    .values({ email: 'rider@example.com', passwordHash: hash })
+    .returning({ id: users.id })
+    .get()
+  owner = { userId: account.id }
 })
 afterEach(() => {
   handle.close()
@@ -53,7 +70,7 @@ afterEach(() => {
 async function run(frames: ImportFrame[], signal = new AbortController().signal) {
   const writer = openWriter(handle.path)
   try {
-    return await ingest(writer, iterate(frames), () => {}, signal)
+    return await ingest(writer, owner, iterate(frames), () => {}, signal)
   } finally {
     writer.close()
   }
@@ -173,6 +190,7 @@ describe('cancelling', () => {
       await expect(
         ingest(
           writer,
+          owner,
           iterate([frame({ externalId: 'second' }), frame({ externalId: 'third' })]),
           () => controller.abort(), // cancel the moment the first one lands
           controller.signal,
@@ -193,7 +211,13 @@ describe('cancelling', () => {
       writer.sqlite.exec('BEGIN IMMEDIATE')
       writer.db
         .insert(activities)
-        .values({ source: 'komoot', externalId: 'x', startedAt: '2026-01-01', utcOffset: 0 })
+        .values({
+          ...owner,
+          source: 'komoot',
+          externalId: 'x',
+          startedAt: '2026-01-01',
+          utcOffset: 0,
+        })
         .run()
 
       // This is the whole reason the import runs on its own connection: an uncommitted
@@ -211,25 +235,31 @@ describe('cancelling', () => {
 describe('selectWanted', () => {
   it('wants only what has no track yet', async () => {
     await run([frame({ externalId: 'have' })])
-    expect(selectWanted(handle.db, 'komoot', ['have', 'missing'])).toEqual(['missing'])
+    expect(selectWanted(handle.db, owner, 'komoot', ['have', 'missing'])).toEqual(['missing'])
   })
 
   it('wants a row that exists but was never given a track', async () => {
     handle.db
       .insert(activities)
-      .values({ source: 'komoot', externalId: 'empty', startedAt: '2026-01-01', utcOffset: 0 })
+      .values({
+        ...owner,
+        source: 'komoot',
+        externalId: 'empty',
+        startedAt: '2026-01-01',
+        utcOffset: 0,
+      })
       .run()
     // Zero trackpoints means "not imported yet", which is the honest question to ask.
-    expect(selectWanted(handle.db, 'komoot', ['empty'])).toEqual(['empty'])
+    expect(selectWanted(handle.db, owner, 'komoot', ['empty'])).toEqual(['empty'])
   })
 
   it('does not confuse one source with another', async () => {
     await run([frame({ externalId: 'shared' })])
-    expect(selectWanted(handle.db, 'strava', ['shared'])).toEqual(['shared'])
+    expect(selectWanted(handle.db, owner, 'strava', ['shared'])).toEqual(['shared'])
   })
 
   it('answers an empty offer with an empty list', () => {
-    expect(selectWanted(handle.db, 'komoot', [])).toEqual([])
+    expect(selectWanted(handle.db, owner, 'komoot', [])).toEqual([])
   })
 })
 
@@ -237,7 +267,17 @@ describe('the routes', () => {
   const api = () => createApi(handle.db, handle.path)
   const body = (frames: ImportFrame[]) => frames.map((f) => `${JSON.stringify(f)}\n`).join('')
 
-  const post = (path: string, init: RequestInit) => api().request(path, { method: 'POST', ...init })
+  // The routes are behind the cookie like everything else under /api, so the import
+  // tests carry one — signed rather than earned, for the reason api.test.ts gives.
+  const post = async (path: string, init: RequestInit) =>
+    api().request(path, {
+      method: 'POST',
+      ...init,
+      headers: {
+        ...init.headers,
+        cookie: `tracks_session=${await signSession(hash, owner.userId, Date.now() + 60_000)}`,
+      },
+    })
 
   it('selects over HTTP', async () => {
     await run([frame({ externalId: 'have' })])

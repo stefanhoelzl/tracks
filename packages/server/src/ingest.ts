@@ -11,6 +11,7 @@ import {
 import { and, eq, sql } from 'drizzle-orm'
 import type { Db, Writer } from './db.ts'
 import { simplify } from './polyline.ts'
+import type { Owner } from './query.ts'
 import { createType, loadRegistry, seedFor } from './registry.ts'
 import { activities, trackpoints } from './schema.ts'
 import { utcOffsetAt } from './timezone.ts'
@@ -74,6 +75,7 @@ export function boundingBox(points: ReadonlyArray<{ lat: number; lon: number }>)
  */
 function acceptDerived(
   writer: Writer,
+  owner: Owner,
   registry: Map<string, TagType>,
   derived: string[],
   result: IngestResult,
@@ -83,7 +85,7 @@ function acceptDerived(
   for (const raw of derived) {
     const tag = parseTag(raw)
     const seed = tag && !registry.has(tag.type) ? seedFor(tag.type) : undefined
-    if (tag && seed) createType(writer.db, registry, { name: tag.type, ...seed })
+    if (tag && seed) createType(writer.db, owner, registry, { name: tag.type, ...seed })
 
     if (validateTag(registry, raw) !== null) {
       result.rejectedTags.set(raw, (result.rejectedTags.get(raw) ?? 0) + 1)
@@ -140,6 +142,7 @@ function decodePoints(frame: ImportFrame): Point[] {
 /** Writes one activity, inside the caller's transaction. */
 function write(
   writer: Writer,
+  owner: Owner,
   registry: Map<string, TagType>,
   frame: ImportFrame,
   result: IngestResult,
@@ -150,10 +153,17 @@ function write(
   const existing = writer.db
     .select({ id: activities.id, tags: activities.tags })
     .from(activities)
-    .where(and(eq(activities.source, frame.source), eq(activities.externalId, frame.externalId)))
+    .where(
+      and(
+        eq(activities.userId, owner.userId),
+        eq(activities.source, frame.source),
+        eq(activities.externalId, frame.externalId),
+      ),
+    )
     .get()
 
   const row = {
+    userId: owner.userId,
     source: frame.source,
     externalId: frame.externalId,
     title: frame.title,
@@ -171,7 +181,7 @@ function write(
     tags: JSON.stringify(
       mergeDerivedTags(
         existing ? (JSON.parse(existing.tags) as string[]) : [],
-        acceptDerived(writer, registry, [...frame.tags, `source:${frame.source}`], result),
+        acceptDerived(writer, owner, registry, [...frame.tags, `source:${frame.source}`], result),
       ),
     ),
   }
@@ -211,6 +221,7 @@ function write(
  */
 export async function ingest(
   writer: Writer,
+  owner: Owner,
   frames: AsyncIterable<ImportFrame>,
   onWritten: (written: number, title: string | null) => void,
   signal: AbortSignal,
@@ -221,7 +232,7 @@ export async function ingest(
     rejectedTags: new Map(),
   }
 
-  const registry = loadRegistry(writer.db)
+  const registry = loadRegistry(writer.db, owner)
   writer.sqlite.exec('BEGIN IMMEDIATE')
 
   try {
@@ -229,7 +240,7 @@ export async function ingest(
       signal.throwIfAborted()
 
       try {
-        write(writer, registry, frame, result)
+        write(writer, owner, registry, frame, result)
         result.written++
         onWritten(result.written, frame.title)
       } catch (error) {
@@ -264,14 +275,18 @@ export async function ingest(
  *
  * "Has a track", not "exists": zero trackpoints means not imported yet, which is what
  * kept the old pipeline resumable and is still the honest question to ask.
+ *
+ * Scoped to the asker, so somebody else having ridden the same Komoot tour does not
+ * make it one you already have.
  */
-export function selectWanted(db: Db, source: string, ids: string[]): string[] {
+export function selectWanted(db: Db, owner: Owner, source: string, ids: string[]): string[] {
   const known = new Set(
     db
       .select({ externalId: activities.externalId })
       .from(activities)
       .where(
         and(
+          eq(activities.userId, owner.userId),
           eq(activities.source, source),
           sql`EXISTS (SELECT 1 FROM trackpoints t WHERE t.activity_id = ${activities.id})`,
         ),

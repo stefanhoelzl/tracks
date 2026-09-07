@@ -7,6 +7,7 @@ import {
 } from '@tracks/core'
 import type { Context } from 'hono'
 import type { z } from 'zod'
+import type { Env } from './api.ts'
 import { type Db, openWriter, type Writer } from './db.ts'
 import { ingest, selectWanted } from './ingest.ts'
 
@@ -21,6 +22,9 @@ import { ingest, selectWanted } from './ingest.ts'
  * it goes away — the tab closed, the dialog cancelled, the page reloaded — the run is
  * abandoned and the transaction rolls back. That is why there is no job id and no route
  * to poll. There is nothing to address, because nothing outlives the connection.
+ *
+ * Both are addressed to whoever is signed in: what is already imported is asked of their
+ * activities, and what arrives is written as theirs.
  */
 
 /** One import at a time. A module-level singleton, like the process it lives in. */
@@ -32,15 +36,15 @@ const line = (progress: ImportProgress) => encoder.encode(`${JSON.stringify(prog
 export function importRoutes(db: Db, dbPath: string) {
   return {
     /** Pure query: takes no lock, writes nothing, and is safe to ask twice. */
-    async select(c: Context) {
+    async select(c: Context<Env>) {
       const body = importSelectRequestSchema.safeParse(await c.req.json().catch(() => null))
       if (!body.success) return c.json(badRequest(body.error), 400)
 
       const { source, ids } = body.data
-      return c.json({ wanted: selectWanted(db, source, ids) })
+      return c.json({ wanted: selectWanted(db, c.get('owner'), source, ids) })
     },
 
-    async run(c: Context) {
+    async run(c: Context<Env>) {
       const source = c.req.param('source')
       if (!source) return c.json<ApiError>({ error: 'no source named' }, 400)
 
@@ -50,6 +54,7 @@ export function importRoutes(db: Db, dbPath: string) {
       if (!c.req.raw.body) return c.json<ApiError>({ error: 'no frames in the body' }, 400)
 
       running = source
+      const owner = c.get('owner')
 
       // Aborted by whichever comes first: the client dropping the request, or the
       // response stream being cancelled because nobody is reading it any more. The
@@ -83,6 +88,7 @@ export function importRoutes(db: Db, dbPath: string) {
           try {
             const result = await ingest(
               writer,
+              owner,
               frames(body, abort.signal),
               (written, title) => send({ type: 'progress', written, title }),
               abort.signal,
