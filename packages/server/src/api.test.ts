@@ -769,6 +769,23 @@ describe('the REST surface', () => {
         body: JSON.stringify(body),
       })
 
+    it('forbids caching anywhere under /api, whatever answers', async () => {
+      // Not staleness — safety. These responses are scoped to whoever asked, so a
+      // cache keyed on the URL would serve one person's activities to the next.
+      for (const [route, init] of [
+        ['/api/activities', undefined],
+        ['/api/tag-types', undefined],
+        ['/api/session', undefined],
+        ['/api/session', { method: 'DELETE' }],
+      ] as const) {
+        const response = await signedIn(route, init)
+        expect(response.headers.get('cache-control')).toBe('no-store')
+      }
+
+      // Including the ones nobody is signed in for.
+      expect((await app.request('/api/activities')).headers.get('cache-control')).toBe('no-store')
+    })
+
     it('refuses every route without a cookie', async () => {
       for (const route of [
         '/api/activities',

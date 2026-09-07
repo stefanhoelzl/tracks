@@ -106,6 +106,20 @@ export function createApi(db: Db, options: ApiOptions = {}) {
   const imports = importRoutes(db)
 
   /**
+   * Nothing under `/api` may be cached, by anything, ever.
+   *
+   * Said here rather than left to a CDN's defaults, because the failure it prevents is
+   * not a stale sidebar: every response under `/api` is scoped to whoever asked for it,
+   * so a cache in front of this that keyed on the URL alone would hand one person's
+   * activities to the next. The assets are the opposite case and say so themselves —
+   * hashed, immutable, cacheable for a year.
+   */
+  app.use('/api/*', async (c, next) => {
+    await next()
+    c.header('cache-control', 'no-store')
+  })
+
+  /**
    * Sign in, and claim the account if it has never been signed into.
    *
    * One message for every failure — a wrong password, an unknown address, a malformed

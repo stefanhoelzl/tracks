@@ -87,15 +87,12 @@ jobs:
       - name: Deploy the script
         run: bunny scripts deploy packages/edge/dist/script.js ${{ vars.BUNNY_SCRIPT_ID }}
 
-      # TEMPORARY: the script sets a session cookie and the browser never sees one —
-      # `DELETE /api/session` comes back 204 with no Set-Cookie at all. Pull zones can
-      # strip response cookies to keep responses cacheable, which is exactly what an
-      # app with a login cannot have.
-      - name: Does the zone strip cookies
+      # TEMPORARY: tracks.stho.net resolved before `domains add` and does not now, at
+      # Bunny's own nameservers. This asks the DNS zone what it holds for `tracks`.
+      - name: What does DNS hold
         run: |
-          echo "--- before ---"
-          bunny api GET /pullzone/6500335 2>/dev/null | jq '{DisableCookies}' || true
-          bunny api POST /pullzone/6500335 --body '{"DisableCookies": false}' || true
-          echo "--- after ---"
-          bunny api GET /pullzone/6500335 2>/dev/null | jq '{DisableCookies}' || true
+          ZONE=$(bunny api GET /dnszone 2>/dev/null | jq -r '.Items[] | select(.Domain=="stho.net") | .Id')
+          echo "zone: $ZONE"
+          bunny api GET /dnszone/$ZONE 2>/dev/null \
+            | jq '[.Records[] | select(.Name=="tracks") | {Id, Type, Name, Value, Disabled}]' || true
 
