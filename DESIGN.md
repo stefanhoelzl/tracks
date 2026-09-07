@@ -8,7 +8,7 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | Local-only, single user |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
 | **Stack** | Node 24 · pnpm · SQLite · React · MapLibre |
-| **Status** | M1–M5 complete; M6 (heatmap and coverage) next |
+| **Status** | M1–M5 complete; M6 (multi-tenancy) next |
 
 ---
 
@@ -874,7 +874,8 @@ inspected through a SQLite browser.
 | **M3.5** | Import from the UI | The Import dropdown, and with it the end of the CLI. Both sources move into the browser, so Komoot credentials never reach the server and a Strava export is never uploaded; the server becomes a source-agnostic writer whose whole run is one rollback-able transaction. Three commits — the sources, the ingest route, the UI. |
 | **M4** | Tagging | Writes, at last — and the milestone that took things away. The registry loses its vocabulary and its colours and stops being administered at all; tagging becomes two controls in the sidebar over the current filter, plus editable chips in the detail panel; title search lands beside them, because finding the untagged by name is where the flow starts. Four commits — the registry, search, the routes, the UI. |
 | **M5** | Analytics | The three filter-scoped ECharts views, in a slide-over over the map, and the route that was going to serve them deleted before it was written — the rows the client already holds are the input. Three commits — the aggregations, the panel and its trend, the calendar and the distributions. |
-| **M6** | Heatmap and coverage | "Everywhere I've been", percentage of terrain covered, new-versus-repeated per activity. |
+| **M6** | Multi-tenancy | A `users` table, and an owner for every row that has one. `activities` and `tag_types` gain a `user_id`; `Scope` stops being the object that made facets cheap and becomes the boundary that keeps users apart, so a query that forgets whose data it is does not compile — including the by-id routes, which until now took an id and nothing else. Accounts are made by hand and carry no password until a first login sets one, and the identifier is an email address because an unguessable name is what makes that safe, not because anything is ever sent to it. Ids stay integers: a UUID in the trackpoint primary key would double the database to buy nothing. |
+| **M7** | Hosted on bunny.net | The move off the laptop. Bunny Database — managed libSQL — as one Frankfurt primary, and one Edge Script serving both the browser bundle and the API at `tracks.stho.net`, applied and deployed from CI. `better-sqlite3` goes, and with it the synchronous data layer; the import becomes one activity per request, one `batch()`, one transaction, which is what finally retires the run-long transaction and the module-level lock that guarded it. |
 
 ---
 
@@ -970,7 +971,7 @@ response headers. If `Access-Control-Allow-Origin: *` ever goes away, Komoot imp
 working in the browser and the answer is a thin server-side relay — the credentials would
 then transit the server again, though nothing would need to store them.
 
-**Heatmap implementation** *(M6)* — Two live candidates. An on-the-fly SQL grid —
+**Heatmap implementation** *(unscheduled)* — Two live candidates. An on-the-fly SQL grid —
 `GROUP BY round(lat,4), round(lon,4)` — needs no dependency, no precompute, and respects the
 active filter for free. Precomputed H3 cells give equal-area hexagons and instant
 set-difference queries for "was this new terrain?", at the cost of an import step that is
