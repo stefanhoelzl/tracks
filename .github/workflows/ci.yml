@@ -68,17 +68,14 @@ jobs:
       # rather than a secret because it identifies, it does not authorise.
       # Named by id, positionally. The CLI does auto-detect one from
       # `BUNNY_DATABASE_URL`, but from a `.env` file rather than the environment — a CI
-      # runner has neither, and it answered "No database selected". The id is the ULID
-      # in the database's hostname, and identifies rather than authorises: the API key
-      # looks it up and mints the token for the run, so no database credential is
-      # stored here at all.
-      # TEMPORARY: read the account's databases, because the id derived from the
-      # hostname does not resolve and there is no local CLI to ask.
-      - name: What databases are there
-        run: |
-          bunny db list || true
-          bunny db list --output json || true
-
+      # runner has neither, and it answered "No database selected".
+      #
+      # The id is *not* the ULID in the database's hostname. Those two are minted in the
+      # same instant and share their first ten characters, which is the ULID timestamp,
+      # then differ — plausible enough to try, and wrong. It comes from `bunny db list`.
+      #
+      # It identifies rather than authorises: the API key looks the database up and
+      # mints the token for the run, so no database credential is stored here at all.
       - name: Apply migrations
         run: bunny db migrations apply ${{ vars.BUNNY_DATABASE_ID }} --force
 
