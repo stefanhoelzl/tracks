@@ -13,5 +13,12 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": ["packages/core/src/**/*.ts", "packages/server/src/**/*.ts", "types/**/*.d.ts", "*.ts"]
+  "include": [
+    "packages/core/src/**/*.ts",
+    "packages/server/src/**/*.ts",
+    "packages/edge/src/**/*.ts",
+    "packages/edge/scripts/**/*.ts",
+    "types/**/*.d.ts",
+    "*.ts"
+  ]
 }

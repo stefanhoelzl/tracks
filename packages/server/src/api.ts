@@ -18,7 +18,7 @@ import { type Context, Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { z } from 'zod'
 import { signSession, userIdIn, verifySession } from './auth.ts'
-import type { Db } from './db.ts'
+import type { Db } from './connect.ts'
 import { importRoutes } from './import-route.ts'
 import {
   activityDetail,

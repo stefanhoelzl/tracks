@@ -1,6 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import { hashPassword, verifyPassword } from './auth.ts'
-import type { Db } from './db.ts'
+import type { Db } from './connect.ts'
 import { users } from './schema.ts'
 
 /**

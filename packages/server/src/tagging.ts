@@ -9,7 +9,7 @@ import {
   validateTag,
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
-import type { Conn, Db } from './db.ts'
+import type { Conn, Db } from './connect.ts'
 import type { Owner, Scope } from './query.ts'
 import { whereFor } from './query.ts'
 import { collectTypes, createType, loadRegistry } from './registry.ts'

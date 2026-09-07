@@ -8,7 +8,7 @@ import {
   validateTag,
 } from '@tracks/core'
 import { and, eq, sql } from 'drizzle-orm'
-import type { Conn, Db } from './db.ts'
+import type { Conn, Db } from './connect.ts'
 import { simplify } from './polyline.ts'
 import type { Owner } from './query.ts'
 import { createType, loadRegistry, seedFor } from './registry.ts'

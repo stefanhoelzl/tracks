@@ -36,6 +36,25 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
 
+  packages/edge:
+    dependencies:
+      '@libsql/client':
+        specifier: ^0.18.0
+        version: 0.18.0
+      '@tracks/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tracks/server':
+        specifier: workspace:*
+        version: link:../server
+      hono:
+        specifier: ^4.13.4
+        version: 4.13.4
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+
   packages/server:
     dependencies:
       '@libsql/client':

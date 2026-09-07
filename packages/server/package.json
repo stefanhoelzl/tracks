@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
   "dependencies": {
     "@libsql/client": "^0.18.0",
     "@mapbox/polyline": "^1.2.1",

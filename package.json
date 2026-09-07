@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @tracks/web dev",
+    "build": "pnpm --filter @tracks/web build && pnpm --filter @tracks/edge build",
     "test": "vitest run",
     "check": "biome check . && pnpm typecheck",
     "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web",

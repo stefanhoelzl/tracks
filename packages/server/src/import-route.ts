@@ -7,7 +7,7 @@ import {
 import type { Context } from 'hono'
 import type { z } from 'zod'
 import type { Env } from './api.ts'
-import type { Db } from './db.ts'
+import type { Db } from './connect.ts'
 import { ingestActivity, selectWanted } from './ingest.ts'
 
 /**

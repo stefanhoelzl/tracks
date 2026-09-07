@@ -1,6 +1,6 @@
 import type { TagType } from '@tracks/core'
 import { eq, sql } from 'drizzle-orm'
-import { type Conn, first } from './db.ts'
+import { type Conn, first } from './connect.ts'
 import type { Owner } from './query.ts'
 import { tagTypes } from './schema.ts'
 

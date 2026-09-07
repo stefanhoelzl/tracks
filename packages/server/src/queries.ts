@@ -13,7 +13,7 @@ import {
   type TracksResponse,
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
-import { type Conn, type Db, first } from './db.ts'
+import { type Conn, type Db, first } from './connect.ts'
 import {
   LOCAL_DATE,
   type Owner,
