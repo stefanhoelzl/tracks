@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createApi } from '../../server/src/api.ts'
 import { openDb } from '../../server/src/db.ts'
@@ -20,19 +21,43 @@ import { openDb } from '../../server/src/db.ts'
  * it. Saying which database you mean is one line in a shell; guessing wrong is an
  * afternoon of wondering where 203 activities went.
  */
-const url = process.env.TRACKS_DB_URL
+/**
+ * Three ways to develop, one variable that picks between them.
+ *
+ *   pnpm dev         the deployed database, from `.env`
+ *   pnpm dev:local   `data/dev.db`, filled by `pnpm db:seed` or `pnpm db:pull`
+ *
+ * `.env` is read here rather than by Vite, which loads env files for the browser bundle
+ * and not for the process this runs in. It is gitignored and holds the deployed
+ * database's token, so it is the one file in the repository that must never be
+ * committed — hence read explicitly, from one place, rather than by a dependency.
+ */
+const env = resolve(import.meta.dirname, '../../../.env')
+if (existsSync(env)) process.loadEnvFile(env)
+
+/**
+ * A relative `file:` URL means relative to the repository, not to whatever directory
+ * the dev server happens to start in — which is `packages/web`, because `pnpm dev`
+ * filters into it. Left alone, `file:data/dev.db` quietly creates a second, empty
+ * database one directory down, and the app comes up signed in with nothing on the map.
+ */
+const root = resolve(import.meta.dirname, '../../..')
+const raw = process.env.TRACKS_DB_URL
+const url =
+  raw?.startsWith('file:') && !raw.startsWith('file:/')
+    ? `file:${resolve(root, raw.slice('file:'.length))}`
+    : raw
+
 if (!url) {
   throw new Error(
-    'TRACKS_DB_URL is not set. Point it at the deployed database, or at a local file ' +
-      "for offline work: TRACKS_DB_URL='file:data/tracks.db' pnpm dev",
+    'TRACKS_DB_URL is not set.\n' +
+      '  pnpm dev:local    against data/dev.db — fill it with `pnpm db:seed` or `pnpm db:pull`\n' +
+      '  pnpm dev          against the deployed database — put TRACKS_DB_URL and\n' +
+      '                    TRACKS_DB_TOKEN in .env, which is gitignored',
   )
 }
 
-const { db } = await openDb(
-  url,
-  resolve(import.meta.dirname, '../../../migrations'),
-  process.env.TRACKS_DB_TOKEN,
-)
+const { db } = await openDb(url, resolve(root, 'migrations'), process.env.TRACKS_DB_TOKEN)
 
 /**
  * `crossSite` because the app is looked at through VS Code's Simple Browser, which

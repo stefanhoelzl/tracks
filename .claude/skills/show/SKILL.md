@@ -5,7 +5,8 @@ description: Start the Tracks dev server and open the app in CodeHydra's Simple 
 
 # show
 
-Starts `pnpm dev` and opens the running app in the Simple Browser beside the terminal.
+Starts the dev server against the local database and opens the running app in the Simple
+Browser beside the terminal.
 
 It is a launcher and nothing else. It does not read the diff, summarise changes, drive the
 app, or judge what it sees — you look, it just gets the window open.
@@ -53,8 +54,13 @@ untouched.
 A Bash tool call with `run_in_background: true`:
 
 ```bash
-ch bg pnpm dev
+ch bg pnpm dev:local
 ```
+
+`dev:local` rather than `dev`: it points at `data/dev.db`, which needs no credentials and
+cannot be written to by accident from a half-finished change. `pnpm dev` is the same server
+against the deployed database, which is a poor place to try out a bulk tag write — use it
+deliberately, not by default.
 
 Both halves earn their place. `ch bg` keeps the workspace from being marked busy for as long
 as the server runs. Backgrounding the *tool call* is what makes the harness hold it as a
@@ -110,12 +116,21 @@ There is no `/show stop`. The dev server dies with its background task, so stopp
 `/tasks` in the terminal, or a `TaskStop` on that task id. Otherwise it lives until the
 workspace closes, which is the intended behaviour — `ch bg` exists so it can.
 
-## Expect an empty map
+## Fill the database first
 
-A fresh worktree has no `data/`. `openDb` creates and migrates an empty database, so the app
-comes up working but with zero activities. That is correct and not worth reporting as a
-problem: the skill deliberately sets no `TRACKS_DATA_DIR` and copies nothing, so getting data
-in is a separate, deliberate act.
+A fresh worktree has no `data/`, and the server no longer invents one — it says which
+variable is missing and stops, rather than coming up serving an empty database that looks
+like a bug in the app.
+
+```bash
+pnpm db:seed
+```
+
+Sixty generated activities across three years, five places and three sports, deterministic
+so the same command gives the same map. `pnpm db:pull` is the other filling: real
+activities older than a cutoff, copied down from the deployed database, which needs
+`.env`. Sign in with any password — the seeded account has none, and the first one typed
+becomes it.
 
 ## Expect one failed task per restart
 

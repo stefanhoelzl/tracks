@@ -4,6 +4,10 @@
 # of your manual tags.
 data/
 
+# Credentials for the deployed database, read by `pnpm dev`. Never committed —
+# the repository is public.
+.env
+
 node_modules/
 dist/
 *.log
