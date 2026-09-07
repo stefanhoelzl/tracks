@@ -86,3 +86,12 @@ jobs:
       # shell and the JavaScript it names disagree.
       - name: Deploy the script
         run: bunny scripts deploy packages/edge/dist/script.js ${{ vars.BUNNY_SCRIPT_ID }}
+
+      # TEMPORARY: both hostnames answer 508 Loop Detected, so the script is not
+      # answering and something falls back to itself. Names only, never values — a
+      # public log is no place for the database token.
+      - name: What does the script have
+        run: |
+          bunny scripts show ${{ vars.BUNNY_SCRIPT_ID }} || true
+          echo "--- env var names ---"
+          bunny scripts env list ${{ vars.BUNNY_SCRIPT_ID }} 2>/dev/null | awk '{print $1}' || true
