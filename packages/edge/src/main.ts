@@ -1,6 +1,7 @@
 import { createClient } from '@libsql/client/web'
-import { createApi } from '@tracks/server/api.ts'
+import { type Env, createApi } from '@tracks/server/api.ts'
 import { connect } from '@tracks/server/connect.ts'
+import { Hono } from 'hono'
 import { assets } from './assets.data.ts'
 import { serveAssets } from './static.ts'
 
@@ -33,12 +34,24 @@ const env = (name: string) =>
 
 const url = env('BUNNY_DATABASE_URL')
 const authToken = env('BUNNY_DATABASE_AUTH_TOKEN')
-if (!url) throw new Error('BUNNY_DATABASE_URL is not set — is the database connected?')
 
-const db = connect(createClient({ url, authToken }))
-
-// `crossSite` is deliberately not passed. It exists for the Simple Browser, which
-// frames the dev server; a deployment is visited at its own origin and keeps `Lax`.
-const app = createApi(db)
+/**
+ * A missing database is a broken API, not a broken site.
+ *
+ * This used to throw at module scope, which is the tidiest-looking way to fail and the
+ * worst-behaved: a script that does not finish initialising never answers, and what
+ * answers instead is a 508 Loop Detected with nothing in it about why. The shell still
+ * serves without a database, so it serves, and the routes that need one say what is
+ * missing in the one place someone is already looking.
+ *
+ * `crossSite` is deliberately not passed to `createApi`. It exists for the Simple
+ * Browser, which frames the dev server; a deployment is visited at its own origin and
+ * keeps `SameSite=Lax`.
+ */
+const app: Hono<Env> = url
+  ? createApi(connect(createClient({ url, authToken })))
+  : new Hono<Env>().all('/api/*', (c) =>
+      c.json({ error: 'no database: BUNNY_DATABASE_URL is not set on this script' }, 503),
+    )
 
 export default serveAssets(app, assets)
