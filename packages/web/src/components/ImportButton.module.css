@@ -5,25 +5,6 @@
   margin-left: auto;
 }
 
-.button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 11px;
-  border-radius: var(--radius-pill);
-  background: var(--sunk);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-.button:hover {
-  background: var(--line);
-  color: var(--ink);
-}
-
 .option {
   display: flex;
   flex-direction: column;

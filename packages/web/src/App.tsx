@@ -25,6 +25,7 @@ import {
 } from './lib/api.ts'
 import { buildScale, type ColourGroup, TYPE_GROUP } from './lib/colour.ts'
 import { setBbox } from './lib/filter-ops.ts'
+import { useSignOut } from './lib/session.ts'
 import { useUrlState } from './lib/url.ts'
 
 /** Kept in step with the token file, which the map needs as numbers for its padding. */
@@ -38,8 +39,9 @@ function message(error: unknown): string | null {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function App() {
+export function App({ email }: { email: string }) {
   const { filter, view, error: urlError, setFilter, setView, reset } = useUrlState()
+  const signOut = useSignOut()
 
   // Transient by design: which panels are folded and what the pointer is over say
   // nothing about what you are looking at, so they have no business in a bookmark.
@@ -203,10 +205,12 @@ export function App() {
           tagTypes={tagTypes.data?.tagTypes ?? []}
           scale={scale}
           analytics={view.analytics}
+          email={email}
           onChange={setFilter}
           onClear={reset}
           onImport={setImporting}
           onAnalytics={(analytics) => setView({ ...view, analytics })}
+          onSignOut={() => signOut.mutate()}
         />
       </div>
 

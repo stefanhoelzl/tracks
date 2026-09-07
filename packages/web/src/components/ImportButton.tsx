@@ -1,7 +1,8 @@
-import { ChevronDown, Download } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { useState } from 'react'
 import styles from './ImportButton.module.css'
 import type { ImportSource } from './ImportDialog.tsx'
+import { IconButton } from './ui/IconButton.tsx'
 import { Popover } from './ui/Popover.tsx'
 
 /**
@@ -9,6 +10,9 @@ import { Popover } from './ui/Popover.tsx'
  *
  * A dropdown rather than two buttons, because the two sources are one intent asked
  * twice — and because the space is shared: the analytics switch lands beside it at M5.
+ *
+ * The icon carries it alone. No chevron beside it: a second glyph to say "this opens"
+ * is what `aria-haspopup` says already, and the popover itself says the rest.
  */
 
 const SOURCES: Array<{ value: ImportSource; label: string; detail: string }> = [
@@ -21,17 +25,7 @@ export function ImportButton({ onPick }: { onPick: (source: ImportSource) => voi
 
   return (
     <div className={styles.anchor}>
-      <button
-        type="button"
-        className={styles.button}
-        onClick={() => setOpen(!open)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        <Download size={14} strokeWidth={2.2} />
-        Import
-        <ChevronDown size={13} strokeWidth={2.2} />
-      </button>
+      <IconButton icon={Download} label="Import" expanded={open} onClick={() => setOpen(!open)} />
 
       <Popover open={open} onClose={() => setOpen(false)} width={196}>
         {SOURCES.map((source) => (

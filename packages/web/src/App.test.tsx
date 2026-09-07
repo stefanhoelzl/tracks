@@ -105,7 +105,7 @@ async function renderApp() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <App />
+      <App email="rider@example.com" />
     </QueryClientProvider>,
   )
 }

@@ -1,11 +1,12 @@
 import type { FacetsResponse, Filter, TagType } from '@tracks/core'
-import { Activity, ChartColumn, List } from 'lucide-react'
+import { Activity, ChartColumn, List, LogOut } from 'lucide-react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, km, metres } from '../lib/format.ts'
 import { FilterChips } from './FilterChips.tsx'
 import { ImportButton } from './ImportButton.tsx'
 import type { ImportSource } from './ImportDialog.tsx'
 import styles from './TopBar.module.css'
+import { IconButton } from './ui/IconButton.tsx'
 import { Panel } from './ui/Panel.tsx'
 
 /**
@@ -22,6 +23,10 @@ import { Panel } from './ui/Panel.tsx'
  * Beside it is the analytics switch — two segments rather than a button, because the
  * panel it opens covers the list, so what you are choosing between is which of the two
  * you are reading. It is view state, so the choice survives a link.
+ *
+ * The account sits at the far end, and is one address and one way out. There is nothing
+ * to administer: an account has no name, no picture and no settings, so what would be a
+ * menu is the address itself and one button, wearing what Import wears.
  */
 export function TopBar({
   summary,
@@ -29,20 +34,24 @@ export function TopBar({
   tagTypes,
   scale,
   analytics,
+  email,
   onChange,
   onClear,
   onImport,
   onAnalytics,
+  onSignOut,
 }: {
   summary: FacetsResponse['summary'] | undefined
   filter: Filter
   tagTypes: TagType[]
   scale: ColourScale
   analytics: boolean
+  email: string
   onChange: (next: Filter) => void
   onClear: () => void
   onImport: (source: ImportSource) => void
   onAnalytics: (open: boolean) => void
+  onSignOut: () => void
 }) {
   return (
     <Panel className={styles.bar}>
@@ -99,6 +108,11 @@ export function TopBar({
       </div>
 
       <ImportButton onPick={onImport} />
+
+      <div className={styles.account}>
+        <span className={styles.email}>{email}</span>
+        <IconButton icon={LogOut} label="Sign out" onClick={onSignOut} />
+      </div>
     </Panel>
   )
 }
