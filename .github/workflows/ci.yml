@@ -66,14 +66,14 @@ jobs:
       # That is all it needs: the API key looks the database up and mints a token for
       # the run, so no database credential is stored here at all. The id is a variable
       # rather than a secret because it identifies, it does not authorise.
-      # The database is named by its URL, which the CLI turns into an id itself — one
-      # less thing to hand-derive and get subtly wrong. It is an address rather than a
-      # credential: reaching it still needs a token, which the API key mints for the
-      # run, so no database credential is stored here.
+      # Named by id, positionally. The CLI does auto-detect one from
+      # `BUNNY_DATABASE_URL`, but from a `.env` file rather than the environment — a CI
+      # runner has neither, and it answered "No database selected". The id is the ULID
+      # in the database's hostname, and identifies rather than authorises: the API key
+      # looks it up and mints the token for the run, so no database credential is
+      # stored here at all.
       - name: Apply migrations
-        env:
-          BUNNY_DATABASE_URL: ${{ secrets.BUNNY_DATABASE_URL }}
-        run: bunny db migrations apply --force
+        run: bunny db migrations apply ${{ vars.BUNNY_DATABASE_ID }} --force
 
       - run: pnpm build
 
