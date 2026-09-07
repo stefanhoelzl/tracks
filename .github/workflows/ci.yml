@@ -87,3 +87,13 @@ jobs:
       - name: Deploy the script
         run: bunny scripts deploy packages/edge/dist/script.js ${{ vars.BUNNY_SCRIPT_ID }}
 
+      # TEMPORARY: one-off. DNS already points tracks.stho.net at the script, but Bunny
+      # answers 403 "not configured" over http and has no certificate over https,
+      # because a hostname has to be registered on the zone as well as resolved to it.
+      - name: Claim the hostname
+        run: |
+          bunny scripts domains add ${{ vars.BUNNY_SCRIPT_ID }} tracks.stho.net --ssl \
+            || bunny scripts domains add tracks.stho.net --ssl --script ${{ vars.BUNNY_SCRIPT_ID }} \
+            || true
+          bunny scripts domains list ${{ vars.BUNNY_SCRIPT_ID }} || true
+
