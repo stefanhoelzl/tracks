@@ -93,7 +93,9 @@ jobs:
       # app with a login cannot have.
       - name: Does the zone strip cookies
         run: |
-          bunny api --help 2>&1 | head -30 || true
           echo "--- before ---"
-          bunny api GET /pullzone/6500335 2>/dev/null | jq '{DisableCookies, EnableCookieVary, CacheControlMaxAgeOverride, IgnoreQueryStrings}' || true
+          bunny api GET /pullzone/6500335 2>/dev/null | jq '{DisableCookies}' || true
+          bunny api POST /pullzone/6500335 --body '{"DisableCookies": false}' || true
+          echo "--- after ---"
+          bunny api GET /pullzone/6500335 2>/dev/null | jq '{DisableCookies}' || true
 
