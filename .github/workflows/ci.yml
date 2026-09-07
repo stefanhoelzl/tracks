@@ -87,11 +87,13 @@ jobs:
       - name: Deploy the script
         run: bunny scripts deploy packages/edge/dist/script.js ${{ vars.BUNNY_SCRIPT_ID }}
 
-      # TEMPORARY: one-off. DNS already points tracks.stho.net at the script, but Bunny
-      # answers 403 "not configured" over http and has no certificate over https,
-      # because a hostname has to be registered on the zone as well as resolved to it.
-      - name: Claim the hostname
+      # TEMPORARY: the script sets a session cookie and the browser never sees one —
+      # `DELETE /api/session` comes back 204 with no Set-Cookie at all. Pull zones can
+      # strip response cookies to keep responses cacheable, which is exactly what an
+      # app with a login cannot have.
+      - name: Does the zone strip cookies
         run: |
-          bunny scripts domains add tracks.stho.net ${{ vars.BUNNY_SCRIPT_ID }} --ssl || true
-          bunny scripts domains list ${{ vars.BUNNY_SCRIPT_ID }} || true
+          bunny api --help 2>&1 | head -30 || true
+          echo "--- before ---"
+          bunny api GET /pullzone/6500335 2>/dev/null | jq '{DisableCookies, EnableCookieVary, CacheControlMaxAgeOverride, IgnoreQueryStrings}' || true
 
