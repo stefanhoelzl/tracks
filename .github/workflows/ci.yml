@@ -1,0 +1,80 @@
+# Tests on everything, deploys on main.
+#
+# The repository is public, so the split is not tidiness: the test job holds no
+# secrets at all and runs on pull requests, including a stranger's fork, while the
+# deploy job is gated on a push to main. GitHub withholds secrets from workflows a
+# fork triggers, so the credentials cannot leave by that door even if this file
+# invited them to.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One deploy at a time. Two pushes in quick succession would otherwise race each
+# other to apply migrations, and the loser would be applying them to a database the
+# winner had already moved on.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # `check` is biome and both typecheck passes; `test` is the whole suite, both
+      # lanes. Neither touches a network.
+      - run: pnpm check
+      - run: pnpm test
+
+      # Built here as well as in the deploy job, so a pull request finds out that the
+      # bundle no longer fits inside 10MB — which is a review comment, not a failed
+      # deploy after the fact.
+      - run: pnpm build
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      BUNNYNET_API_KEY: ${{ secrets.BUNNYNET_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npm install -g @bunny.net/cli
+
+      # Schema first, always. The script that goes out below is written against the
+      # schema this applies, so the reverse order would put a deployment in front of
+      # the columns it queries. Migrations run in filename order and carry their own
+      # tracking row, so this is a no-op on every deploy that adds none.
+      # The database is selected by a linked manifest or by environment. Which exact
+      # variables the CLI reads is one of the four things the design brief says only a
+      # deploy can settle, so these names are provisional and get confirmed — or
+      # corrected — the first time this runs, rather than guessed at confidently now.
+      - name: Apply migrations
+        env:
+          BUNNY_DB_URL: ${{ secrets.TRACKS_DB_URL }}
+          BUNNY_DB_TOKEN: ${{ secrets.TRACKS_DB_TOKEN }}
+        run: bunny db migrations apply --yes
+
+      - run: pnpm build
+
+      # `dist/script.js` carries the browser bundle inside it, so this one file is the
+      # whole deployment: no assets to upload separately and no window in which the
+      # shell and the JavaScript it names disagree.
+      - name: Deploy the script
+        run: bunny scripts deploy packages/edge/dist/script.js ${{ vars.BUNNY_SCRIPT_ID }}
