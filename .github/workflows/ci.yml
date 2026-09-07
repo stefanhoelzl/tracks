@@ -87,3 +87,15 @@ jobs:
       - name: Deploy the script
         run: bunny scripts deploy packages/edge/dist/script.js ${{ vars.BUNNY_SCRIPT_ID }}
 
+      # TEMPORARY: a script with no imports at all still answers 508, and the response
+      # headers say the origin returned it — so the loop is in front of the code. This
+      # asks the API how the linked pull zone is pointed. Origin fields only: a pull
+      # zone's full JSON carries credentials, and this log is public.
+      - name: How is the pull zone pointed
+        run: |
+          bunny api GET /pullzone/6500335 > /tmp/pz.json 2>/dev/null \
+            || bunny api /pullzone/6500335 > /tmp/pz.json 2>/dev/null || true
+          head -c 200 /tmp/pz.json || true
+          echo
+          jq '{Id, Name, Type, OriginType, OriginUrl, EdgeScriptId, OriginHostHeader}' /tmp/pz.json || true
+
