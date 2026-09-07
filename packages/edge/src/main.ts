@@ -1,5 +1,5 @@
 import { createClient } from '@libsql/client/web'
-import { type Env, createApi } from '@tracks/server/api.ts'
+import { createApi, type Env } from '@tracks/server/api.ts'
 import { connect } from '@tracks/server/connect.ts'
 import { Hono } from 'hono'
 import { assets } from './assets.data.ts'
