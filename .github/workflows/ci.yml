@@ -87,12 +87,18 @@ jobs:
       - name: Deploy the script
         run: bunny scripts deploy packages/edge/dist/script.js ${{ vars.BUNNY_SCRIPT_ID }}
 
-      # TEMPORARY: tracks.stho.net resolved before `domains add` and does not now, at
-      # Bunny's own nameservers. This asks the DNS zone what it holds for `tracks`.
-      - name: What does DNS hold
+      # TEMPORARY: the `tracks` record is gone from the zone — it resolved before
+      # `scripts domains add` ran and not after. Put it back, by name rather than by
+      # guessing a numeric enum against a zone that hosts other things.
+      - name: Point tracks.stho.net back at the script
         run: |
-          ZONE=$(bunny api GET /dnszone 2>/dev/null | jq -r '.Items[] | select(.Domain=="stho.net") | .Id')
-          echo "zone: $ZONE"
-          bunny api GET /dnszone/$ZONE 2>/dev/null \
+          bunny dns --help 2>&1 | head -20 || true
+          echo "--- add ---"
+          bunny dns records add stho.net tracks Script --script ${{ vars.BUNNY_SCRIPT_ID }} \
+            || bunny dns records add stho.net tracks PullZone --pull-zone 6500335 \
+            || bunny dns records add stho.net tracks CNAME tracks-q8oo2.b-cdn.net \
+            || true
+          echo "--- after ---"
+          bunny api GET /dnszone/817890 2>/dev/null \
             | jq '[.Records[] | select(.Name=="tracks") | {Id, Type, Name, Value, Disabled}]' || true
 
