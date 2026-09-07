@@ -23,9 +23,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -48,9 +48,9 @@ jobs:
     env:
       BUNNYNET_API_KEY: ${{ secrets.BUNNYNET_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -62,15 +62,18 @@ jobs:
       # the columns it queries. Migrations run in filename order and carry their own
       # tracking row, so this is a no-op on every deploy that adds none.
       # The script gets its database injected, because the two are connected on Bunny's
-      # side. CI does not: it runs on a GitHub runner, so it needs to be told which
-      # database and with what. `BUNNYNET_API_KEY` authenticates the account and may be
-      # enough on its own to resolve it — if it is, the two secrets below can go. That
-      # is one of the things the first run settles rather than something to assert here.
+      # side. CI does not — it runs on a GitHub runner — so it names the database by id.
+      # That is all it needs: the API key looks the database up and mints a token for
+      # the run, so no database credential is stored here at all. The id is a variable
+      # rather than a secret because it identifies, it does not authorise.
+      # The database is named by its URL, which the CLI turns into an id itself — one
+      # less thing to hand-derive and get subtly wrong. It is an address rather than a
+      # credential: reaching it still needs a token, which the API key mints for the
+      # run, so no database credential is stored here.
       - name: Apply migrations
         env:
           BUNNY_DATABASE_URL: ${{ secrets.BUNNY_DATABASE_URL }}
-          BUNNY_DATABASE_AUTH_TOKEN: ${{ secrets.BUNNY_DATABASE_AUTH_TOKEN }}
-        run: bunny db migrations apply --yes
+        run: bunny db migrations apply --force
 
       - run: pnpm build
 
