@@ -20,8 +20,8 @@
 import { existsSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createClient } from '@libsql/client'
+import { openDb } from '@tracks/server/db.ts'
 import { sql } from 'drizzle-orm'
-import { openDb } from './db.ts'
 
 const url = process.env.TRACKS_DB_URL
 if (!url || url.startsWith('file:')) {
@@ -37,11 +37,11 @@ if (!cutoff) throw new Error('--before needs a date, as YYYY-MM-DD')
 
 const remote = createClient({ url, authToken: process.env.TRACKS_DB_TOKEN })
 
-const path = resolve(import.meta.dirname, '../../../data/dev.db')
+const path = resolve(import.meta.dirname, '../../data/dev.db')
 for (const suffix of ['', '-wal', '-shm']) {
   if (existsSync(path + suffix)) rmSync(path + suffix)
 }
-const local = await openDb(`file:${path}`, resolve(import.meta.dirname, '../../../migrations'))
+const local = await openDb(`file:${path}`, resolve(import.meta.dirname, '../../migrations'))
 
 // Everything lands on the account migration 0004 seeded here, whatever it is called
 // there: a local copy has no business carrying somebody's address around.
@@ -117,7 +117,7 @@ for (const [index, activity] of activities.entries()) {
 }
 
 console.log(`\n\ndata/dev.db: ${activities.length} activities, ${points} points for ${user!.email}`)
-console.log("sign in with any password — the first one you type becomes the account's")
+console.log('`pnpm dev:local` signs in as that account by itself — password: password')
 console.log('\n  pnpm dev:local')
 
 remote.close()

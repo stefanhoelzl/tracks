@@ -18,6 +18,7 @@
     "packages/server/src/**/*.ts",
     "packages/edge/src/**/*.ts",
     "packages/edge/scripts/**/*.ts",
+    "packages/scripts/**/*.ts",
     "types/**/*.d.ts",
     "*.ts"
   ]

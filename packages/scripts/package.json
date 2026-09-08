@@ -1,0 +1,13 @@
+{
+  "name": "@tracks/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@mapbox/polyline": "^1.2.1",
+    "@tracks/core": "workspace:*",
+    "@tracks/server": "workspace:*",
+    "drizzle-orm": "^0.44.7"
+  }
+}

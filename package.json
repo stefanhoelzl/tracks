@@ -15,9 +15,9 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web",
     "fix": "biome check --write .",
     "db:generate": "drizzle-kit generate",
-    "db:seed": "node --experimental-strip-types packages/server/src/seed-dev.ts",
-    "db:pull": "proton-env -- node --experimental-strip-types packages/server/src/pull-dev.ts",
-    "user:add": "node --experimental-strip-types packages/server/src/add-user.ts"
+    "db:seed": "node --experimental-strip-types packages/scripts/seed-dev.ts",
+    "db:pull": "proton-env -- node --experimental-strip-types packages/scripts/pull-dev.ts",
+    "user:add": "node --experimental-strip-types packages/scripts/add-user.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",

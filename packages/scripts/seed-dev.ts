@@ -20,10 +20,10 @@ import { existsSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import polyline from '@mapbox/polyline'
 import { IMPORT_PRECISION, type ImportFrame } from '@tracks/core'
+import { openDb } from '@tracks/server/db.ts'
+import { ingestActivity } from '@tracks/server/ingest.ts'
+import { writeActivityTags } from '@tracks/server/tagging.ts'
 import { sql } from 'drizzle-orm'
-import { openDb } from './db.ts'
-import { ingestActivity } from './ingest.ts'
-import { writeActivityTags } from './tagging.ts'
 
 /** Mulberry32: three lines, and the same sequence on every machine. */
 function random(seed: number) {
@@ -95,18 +95,16 @@ function frame(index: number): ImportFrame {
   }
 }
 
-const path = resolve(import.meta.dirname, '../../../data/dev.db')
+const path = resolve(import.meta.dirname, '../../data/dev.db')
 for (const suffix of ['', '-wal', '-shm']) {
   if (existsSync(path + suffix)) rmSync(path + suffix)
 }
 
-const { db, close } = await openDb(
-  `file:${path}`,
-  resolve(import.meta.dirname, '../../../migrations'),
-)
+const { db, close } = await openDb(`file:${path}`, resolve(import.meta.dirname, '../../migrations'))
 
-// Migration 0004 seeds one passwordless account, which is the whole of the sign-in
-// story here: the first sign-in sets whatever password you type.
+// Migration 0004 seeds one passwordless account, and everything here lands on it. It
+// stays passwordless: `pnpm dev:local` is what claims it, on the way to signing itself
+// in, so the sign-in form is not part of development unless you ask for it.
 const [user] = await db.all<{ id: number; email: string }>(sql`SELECT id, email FROM users`)
 const owner = { userId: user!.id }
 
@@ -132,6 +130,6 @@ for (let i = 0; i < ACTIVITIES; i++) {
 }
 
 console.log(`\n\ndata/dev.db: ${ACTIVITIES} activities for ${user!.email}`)
-console.log("sign in with any password — the first one you type becomes the account's")
+console.log('`pnpm dev:local` signs in as that account by itself — password: password')
 console.log('\n  pnpm dev:local')
 close()
