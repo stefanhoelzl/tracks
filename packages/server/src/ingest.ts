@@ -225,9 +225,9 @@ async function write(
  *
  * The transaction is drizzle's rather than a hand-written `BEGIN IMMEDIATE`, because
  * there is no longer a lock to take up front: nothing runs for minutes, so nothing needs
- * to refuse a second writer at the start rather than part-way through. An activity and
- * every trackpoint under it commit together, and a frame that cannot be written throws
- * before anything of it is visible.
+ * to refuse a second writer at the start rather than part-way through. What it still buys
+ * is the tag registry — a type created for a frame that then fails to write must not
+ * survive it — since the activity and its track are one row and one statement now.
  */
 export function ingestActivity(db: Db, owner: Owner, frame: ImportFrame): Promise<IngestResult> {
   return db.transaction(async (tx) => {

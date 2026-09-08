@@ -82,7 +82,8 @@ function toRow(raw: RawRow): ActivityRow {
  * what the answer rests on; without it a 400 m viewport reports fifty activities that
  * never come near it.
  *
- * The second stage used to be SQL over `trackpoints`, and it walked every point of every
+ * The second stage used to be SQL over `trackpoints`, the row-per-point table since
+ * dropped, and it walked every point of every
  * candidate — 1,045,599 rows for a whole-extent viewport, measured, with no early exit
  * because `DISTINCT` cannot stop at the first match. It is now the simplified polyline,
  * decoded here and tested as segments; `crossesViewport` carries the accuracy this trades.
