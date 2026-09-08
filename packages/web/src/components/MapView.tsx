@@ -5,7 +5,6 @@ import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap }
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { type ReactNode, type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { activityColour, type ColourScale, emphasise } from '../lib/colour.ts'
 import { nearestIndex } from '../lib/geo.ts'
 import type { Plan } from '../lib/plan.ts'
@@ -165,8 +164,22 @@ export function MapView({
   const drag = useRef<Drag | null>(null)
   /** A drag ends in a click MapLibre will still deliver; this is how it is ignored. */
   const suppressClick = useRef(false)
-  /** The marker element the pinned dialog is portalled into, once one exists. */
-  const [pinHost, setPinHost] = useState<HTMLElement | null>(null)
+  /**
+   * Where the pinned dialog is drawn, as a box this component positions by hand.
+   *
+   * Deliberately **not** a `Marker`. A marker lives inside the map's canvas container,
+   * so every click in the dialog bubbled to the map and was read as "put a waypoint
+   * here" — and the obvious repair does not work either, because React delegates its
+   * listeners above the map and stopping the click at the marker takes the dialog's own
+   * buttons with it. Rendering the dialog as a *sibling* of the map container ends the
+   * whole class of problem: there is no path from the dialog to the map's listeners at
+   * all, so nothing about MapLibre's event handling has to be reasoned about.
+   *
+   * The price is doing what a marker does — reprojecting on every `move` — which is one
+   * `project()` and one transform per frame, written straight to the node so React is
+   * not re-rendering a dialog sixty times a second.
+   */
+  const pinBox = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(ref, () => ({
     zoomBy: (delta: number) =>
@@ -504,7 +517,7 @@ export function MapView({
   // would overwrite it with the route the preview is replacing.
   useEffect(() => {
     if (!ready || !map.current || drag.current) return
-    map.current.getSource<GeoJSONSource>(PLAN_SOURCE)?.setData(routeFeatures(legs))
+    map.current.getSource<GeoJSONSource>(PLAN_SOURCE)?.setData(routeFeatures(plan.waypoints, legs))
     map.current
       .getSource<GeoJSONSource>(PLAN_POINTS_SOURCE)
       ?.setData(waypointFeatures(plan.waypoints))
@@ -702,25 +715,22 @@ export function MapView({
     })
   }, [ready, planning, panelInsets.left, panelInsets.right])
 
-  /**
-   * The pinned dialog rides on a `Marker`, so the map moves it.
-   *
-   * Positioning it from React would mean re-projecting on every frame of a pan; a
-   * marker is the platform's answer to exactly that, and portalling into its element
-   * keeps the dialog itself ordinary React.
-   */
+  /** Keeps the dialog over its place while the camera moves — see `pinBox`. */
   useEffect(() => {
-    if (!ready || !map.current || !pinAt) return
+    const instance = map.current
+    if (!ready || !instance || !pinAt) return
 
-    const element = document.createElement('div')
-    const marker = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, -14] })
-      .setLngLat([pinAt.lon, pinAt.lat])
-      .addTo(map.current)
-    setPinHost(element)
+    const place = () => {
+      const box = pinBox.current
+      if (!box) return
+      const at = instance.project([pinAt.lon, pinAt.lat])
+      box.style.transform = `translate(${at.x}px, ${at.y}px)`
+    }
 
+    place()
+    instance.on('move', place)
     return () => {
-      marker.remove()
-      setPinHost(null)
+      instance.off('move', place)
     }
   }, [ready, pinAt])
 
@@ -747,7 +757,13 @@ export function MapView({
   return (
     <>
       <div ref={container} className={styles.map} data-testid="map" />
-      {pinHost && pin ? createPortal(pin, pinHost) : null}
+      {/* A sibling of the map, never a child of it: that is the whole fix for a click
+          in the dialog also landing on the map behind it. */}
+      {pin && pinAt ? (
+        <div ref={pinBox} className={styles.pinAnchor}>
+          <div className={styles.pinDialog}>{pin}</div>
+        </div>
+      ) : null}
     </>
   )
 }

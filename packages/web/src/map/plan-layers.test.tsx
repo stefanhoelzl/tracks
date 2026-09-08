@@ -78,7 +78,7 @@ describe('the plan layers', () => {
     expect(validateStyleMin(style, latest)).toEqual([])
   })
 
-  it('splits routed legs from failed ones, so only failure dashes', () => {
+  it('splits what is a route from what is only a straight line', () => {
     const { layers } = collect()
     // (expression, rootKey) — the second argument only names the location a failure
     // would be reported at.
@@ -89,8 +89,8 @@ describe('the plan layers', () => {
       ).filter
 
     const context = { zoom: 12 } as never
-    const routedFeature = { type: 2, properties: { leg: 0, failed: false } } as never
-    const failedFeature = { type: 2, properties: { leg: 1, failed: true } } as never
+    const routedFeature = { type: 2, properties: { leg: 0, routed: true } } as never
+    const failedFeature = { type: 2, properties: { leg: 1, routed: false } } as never
 
     expect(filterOf(PLAN_LINE_LAYER)(context, routedFeature, null as never)).toBe(true)
     expect(filterOf(PLAN_LINE_LAYER)(context, failedFeature, null as never)).toBe(false)
@@ -118,7 +118,13 @@ describe('the plan layers', () => {
   })
 
   it('gives every leg its own index, which is how a click knows what it hit', () => {
-    const features = routeFeatures([
+    const waypoints = [
+      poi(11, 47, 'a'),
+      poi(11.1, 47.1, 'b'),
+      poi(11.2, 47.2, 'c'),
+      poi(11.3, 47.3, 'd'),
+    ]
+    const features = routeFeatures(waypoints, [
       routed([
         [11, 47],
         [11.1, 47.1],
@@ -127,11 +133,26 @@ describe('the plan layers', () => {
       failed(),
     ]).features
 
-    // The middle leg is still in flight, so it draws nothing — and the one after it
-    // keeps the index it will always have.
     expect(features.map((feature) => feature.properties)).toEqual([
-      { leg: 0, failed: false },
-      { leg: 2, failed: true },
+      { leg: 0, routed: true },
+      { leg: 1, routed: false },
+      { leg: 2, routed: false },
+    ])
+  })
+
+  it('draws a leg with no answer yet, so it is still there to be clicked', () => {
+    // Without this a plan whose router is slow or unreachable has no line at all — and
+    // no line means *insert here* and *shaping point* quietly stop being offered, for a
+    // reason nobody could see.
+    const waypoints = [poi(11, 47, 'a'), shaping(11.05, 47.05), poi(11.1, 47.1, 'b')]
+    const [feature] = routeFeatures(waypoints, [undefined]).features
+
+    expect(feature?.properties).toEqual({ leg: 0, routed: false })
+    // Straight through the hints it holds, which is where the route will run.
+    expect(feature?.geometry.coordinates).toEqual([
+      [11, 47],
+      [11.05, 47.05],
+      [11.1, 47.1],
     ])
   })
 
@@ -145,6 +166,7 @@ describe('the plan layers', () => {
     ])
     // No leg index: a preview is not a leg, and dropping it is what makes one.
     expect(features[0]?.properties.leg).toBe(-1)
+    expect(features[0]?.properties.routed).toBe(false)
   })
 
   it('carries each waypoint index, because every edit addresses one by it', () => {

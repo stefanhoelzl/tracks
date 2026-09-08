@@ -13,8 +13,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * the panels. The map's own behaviour is exercised by hand, not here.
  */
 vi.mock('./components/MapView.tsx', () => ({
-  MapView: (props: { tracks?: { features: unknown[] } }) => (
-    <div data-testid="map">{props.tracks?.features.length ?? 0} tracks</div>
+  MapView: (props: {
+    tracks?: { features: unknown[] }
+    pin?: React.ReactNode
+    onMapClick?: (at: { lat: number; lon: number }, leg: number | null) => void
+  }) => (
+    <div data-testid="map">
+      <span data-testid="track-count">{props.tracks?.features.length ?? 0} tracks</span>
+      {/* The map's own behaviour is exercised by hand; what a test can drive is the
+          one thing it hands back, which is a click at a place. */}
+      <button type="button" onClick={() => props.onMapClick?.({ lat: 47.26, lon: 11.39 }, null)}>
+        click the map
+      </button>
+      {props.pin}
+    </div>
   ),
 }))
 
@@ -155,7 +167,7 @@ describe('the app', () => {
 
     // The sidebar renders the registry it was given.
     expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy()
-    expect(screen.getByTestId('map').textContent).toBe('1 tracks')
+    expect(screen.getByTestId('track-count').textContent).toBe('1 tracks')
 
     const paths = requested.map((r) => r.split(' ')[1]!.split('?')[0])
     expect(new Set(paths)).toEqual(
@@ -299,5 +311,27 @@ describe('the app', () => {
     // Leaving is the plan's only Clear control, so the fragment goes with the mode.
     expect(window.location.hash).toBe('')
     await waitFor(() => expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy())
+  })
+
+  it('writes a waypoint into the fragment, which is the only place a plan lives', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    // The first two are the start and the end, with no kind toggle at all.
+    await userEvent.click(screen.getByRole('button', { name: 'click the map' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(window.location.hash).toContain('kinds=p'))
+    expect(window.location.hash).toContain('at=')
+    // The plan is in the fragment and nowhere else: the query string never learns it.
+    expect(window.location.search).toBe('?mode=planning')
+
+    await userEvent.click(screen.getByRole('button', { name: 'click the map' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'End' }))
+
+    await waitFor(() => expect(window.location.hash).toContain('kinds=pp'))
+    // And it round-trips: the list is rendered from what the fragment now says.
+    expect(screen.getAllByText('Unnamed stop')).toHaveLength(2)
   })
 })

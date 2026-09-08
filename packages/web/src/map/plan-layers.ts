@@ -1,4 +1,5 @@
 import type { Leg, Waypoint } from '@tracks/routing'
+import { stretches } from '@tracks/routing'
 import type { MapLibreMap } from 'maplibre-gl'
 import { highlightCasingPaint, highlightPaint, SELECTION } from './layers.ts'
 
@@ -11,8 +12,10 @@ import { highlightCasingPaint, highlightPaint, SELECTION } from './layers.ts'
  * legible over the vector basemap, the imagery and the hillshade to say what the
  * dimming underneath already says.
  *
- * Two dash patterns would be one too many, so only failure dashes. The plan itself is
- * solid — it is a route, not a proposal.
+ * One dash pattern, one meaning: **this is a straight line, not a route.** A leg that
+ * could not be routed and a leg that has not been routed yet are the same claim as far
+ * as the map is concerned, so they draw the same way — and the plan always has a shape,
+ * which is what keeps its legs clickable while the router is slow, or unreachable.
  */
 
 export const PLAN_SOURCE = 'plan'
@@ -33,7 +36,8 @@ const SHAPING_MIN_ZOOM = 10
 
 interface LineFeature {
   type: 'Feature'
-  properties: { leg: number; failed: boolean }
+  /** `routed` is false for a beeline: unroutable, still in flight, or a drag preview. */
+  properties: { leg: number; routed: boolean }
   geometry: { type: 'LineString'; coordinates: Array<[number, number]> }
 }
 
@@ -48,17 +52,39 @@ const EMPTY: Collection<never> = { type: 'FeatureCollection', features: [] }
  * One feature per leg, carrying its own index so a click on the line knows which leg it
  * landed on — which is the whole of the nearest-leg rule, answered by MapLibre's hit
  * test rather than by geometry in the app.
+ *
+ * A leg with no answer yet still draws, as a straight line between its ends. Without
+ * that, a plan whose router is slow or unreachable has no line at all — and no line
+ * means nothing to click, so *insert here* and *shaping point* quietly stop being
+ * offered for a reason nobody could see.
  */
-export function routeFeatures(legs: ReadonlyArray<Leg | undefined>): Collection<LineFeature> {
+export function routeFeatures(
+  waypoints: readonly Waypoint[],
+  legs: ReadonlyArray<Leg | undefined>,
+): Collection<LineFeature> {
   const features: LineFeature[] = []
-  legs.forEach((leg, index) => {
-    if (!leg) return
+
+  stretches(waypoints).forEach((stretch, index) => {
+    const leg = legs[index]
+    if (leg) {
+      features.push({
+        type: 'Feature',
+        properties: { leg: index, routed: leg.ok },
+        geometry: { type: 'LineString', coordinates: [...leg.coordinates] },
+      })
+      return
+    }
+
     features.push({
       type: 'Feature',
-      properties: { leg: index, failed: !leg.ok },
-      geometry: { type: 'LineString', coordinates: [...leg.coordinates] },
+      properties: { leg: index, routed: false },
+      geometry: {
+        type: 'LineString',
+        coordinates: stretch.map((waypoint) => [waypoint.lon, waypoint.lat]),
+      },
     })
   })
+
   return { type: 'FeatureCollection', features }
 }
 
@@ -75,7 +101,7 @@ export function beelineFeatures(waypoints: readonly Waypoint[]): Collection<Line
     if (!from || !to) continue
     features.push({
       type: 'Feature',
-      properties: { leg: -1, failed: false },
+      properties: { leg: -1, routed: false },
       geometry: {
         type: 'LineString',
         coordinates: [
@@ -118,7 +144,7 @@ export function addPlanLayers(map: MapLibreMap): void {
     id: PLAN_CASING_LAYER,
     type: 'line',
     source: PLAN_SOURCE,
-    filter: ['!', ['get', 'failed']],
+    filter: ['get', 'routed'],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: highlightCasingPaint(),
   })
@@ -127,24 +153,28 @@ export function addPlanLayers(map: MapLibreMap): void {
     id: PLAN_LINE_LAYER,
     type: 'line',
     source: PLAN_SOURCE,
-    filter: ['!', ['get', 'failed']],
+    filter: ['get', 'routed'],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: highlightPaint(),
   })
 
-  // A leg the engine could not connect. Dashed and uncased, so it reads as a gap in
-  // the plan rather than as part of it — the shape survives, the claim does not.
+  // Not a route: unroutable, or not answered yet. Dashed and uncased, so it reads as a
+  // gap in the plan rather than as part of it — the shape survives, the claim does not.
+  // It is still a full-width hit target, which is what keeps a leg clickable before the
+  // router has said anything about it.
   map.addLayer({
     id: PLAN_FAILED_LAYER,
     type: 'line',
     source: PLAN_SOURCE,
-    filter: ['get', 'failed'],
+    filter: ['!', ['get', 'routed']],
     layout: { 'line-cap': 'butt', 'line-join': 'round' },
     paint: {
       'line-color': SELECTION.SELECTED_OUTLINE,
-      'line-width': 2,
-      'line-opacity': 0.55,
-      'line-dasharray': [2, 2.5],
+      // Wide enough to be grabbed, faint enough not to read as a route. The two are
+      // separable because a dash is what says "not a route", not the weight.
+      'line-width': 4,
+      'line-opacity': 0.5,
+      'line-dasharray': [1.5, 2],
     },
   })
 

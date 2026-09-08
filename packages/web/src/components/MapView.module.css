@@ -3,3 +3,25 @@
   inset: 0;
   background: var(--ground);
 }
+
+/*
+ * The pinned dialog's anchor: positioned by a transform this component writes on every
+ * map `move`, exactly as a MapLibre marker positions itself. It sits outside the map
+ * container on purpose — see `pinBox` in MapView.
+ *
+ * Under the panels rather than over them, like the map it points into: a pin that
+ * floated over the waypoint list would cover the list it is about to add a row to.
+ */
+.pinAnchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  will-change: transform;
+}
+
+/* Above the point and centred on it, clear of the pin head by the same 14px a marker
+   offset by. */
+.pinDialog {
+  translate: -50% calc(-100% - 14px);
+}
