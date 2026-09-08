@@ -294,7 +294,7 @@ describe('the REST surface', () => {
       expect(await titles(signedIn, 'speed_max=1')).toEqual(['Balkan hike'])
     })
 
-    it('matches a bbox against trackpoints, exactly', async () => {
+    it('matches a bbox against the cached per-activity box', async () => {
       expect(await titles(signedIn, 'bbox=13.5,46.0,14.0,46.5')).toEqual(['Balkan hike'])
       expect(await titles(signedIn, 'bbox=11.0,48.0,12.0,48.5')).toEqual([
         'Night ride',
@@ -302,6 +302,23 @@ describe('the REST surface', () => {
         'Untyped',
       ])
       expect(await titles(signedIn, 'bbox=0,0,1,1')).toEqual([])
+    })
+
+    it('excludes an activity whose box overlaps where its track never goes', async () => {
+      // The Balkan hike's points are (46.35, 13.75), (46.36, 13.76), (46.37, 13.75), an
+      // L whose box covers a bottom-right corner neither a point nor a segment reaches.
+      // The cached box alone would report it, which is exactly what the second stage is
+      // for — and what a box-only filter costs: fifty activities on a 400 m viewport.
+      expect(await titles(signedIn, 'bbox=13.757,46.350,13.760,46.354')).toEqual([])
+    })
+
+    it('matches a track that crosses the viewport between two recorded points', async () => {
+      // A 200 m box on the diagonal leg, between (46.35, 13.75) and (46.36, 13.76) and
+      // containing neither. Segments are what is tested, not the points that bound them,
+      // so the crossing counts — which the old point test could not see.
+      expect(await titles(signedIn, 'bbox=13.7549,46.3549,13.7551,46.3551')).toEqual([
+        'Balkan hike',
+      ])
     })
 
     it('sorts by any range key, in either direction', async () => {

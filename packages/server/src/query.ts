@@ -161,9 +161,9 @@ export function whereFor(scope: Scope, exclude: Exclusion = {}): SQL {
   }
 
   if (!exclude.bbox && bboxIds !== null) {
-    // Already resolved to activity ids, so every clause built from this scope reuses
-    // one trackpoint query. The set is bounded by the activity count, which is what
-    // keeps it inside SQLite's bound-parameter limit.
+    // Already resolved to activity ids, so every clause built from this scope reuses one
+    // pass of `scopeFor`. The set is bounded by the activity count, which is what keeps
+    // it inside SQLite's bound-parameter limit.
     parts.push(
       bboxIds.length === 0
         ? sql`0 = 1`
