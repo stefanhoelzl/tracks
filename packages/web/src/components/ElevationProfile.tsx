@@ -226,7 +226,8 @@ export function buildProfileOption(profile: Profile): ChartOption {
           grades[index] ?? null,
         ]),
         // Rendering only: the series keeps every point the profile drew, so a hover
-        // still names a real trackpoint and the map marker lands on a real coordinate.
+        // still names a point the track recorded, and the map marker lands on a real
+        // coordinate.
         sampling: 'lttb',
         // A dropout is drawn as a dropout. The nulls survived the wire on purpose.
         connectNulls: false,
@@ -268,7 +269,7 @@ export function ElevationProfile({
    * `updateAxisPointer`, because this has to answer with *our* index into the track:
    * the same number the map marker is placed from and the same number the map hands
    * back the other way. The profile draws a simplification, so the two index spaces
-   * differ — but every drawn point is a real trackpoint, so the conversion is a lookup
+   * differ — but every drawn point is one the track recorded, so the conversion is a lookup
    * and never an interpolation, and it happens here and in the effect below and
    * nowhere else. One index, one meaning, whichever end moved.
    */

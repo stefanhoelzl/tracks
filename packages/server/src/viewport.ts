@@ -3,7 +3,8 @@
  *
  * The question the map's filter asks, answered against the simplified polyline each
  * activity already stores rather than against its points. It used to be SQL over
- * `trackpoints` — `lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?` over every point of every
+ * `trackpoints`, the row-per-point table since dropped — `lat BETWEEN ? AND ? AND lon
+ * BETWEEN ? AND ?` over every point of every
  * candidate — which walked 1,045,599 rows for a whole-extent viewport, once per request
  * and three times per pan, with no early exit because `DISTINCT` cannot stop at the first
  * match. Measured, not assumed: a UDF counting row examinations reported 100% of the table.

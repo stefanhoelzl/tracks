@@ -6,7 +6,7 @@ tagged, filtered and counted on your own machine.
 | | |
 |---|---|
 | **Deployment** | One Edge Script at [tracks.stho.net](https://tracks.stho.net), over Bunny Database |
-| **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
+| **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M track points |
 | **Stack** | Node 24 · pnpm · libSQL · React · MapLibre · Deno at the edge |
 | **Status** | M1–M8 complete |
 
@@ -256,7 +256,7 @@ Everything the tool *produces* is now a single file: `data/tracks.db`.
 
 ## Data model
 
-SQLite, not DuckDB — at this scale (~1M trackpoints) a columnar engine buys nothing and
+SQLite, not DuckDB — at this scale (~1M track points) a columnar engine buys nothing and
 costs a second writer-hostile store. The schema started at six tables and every
 cut below was justified by something being derivable, archived, or speculative.
 
@@ -548,7 +548,8 @@ neighbourhood-sized boxes wrong, one of them by 44 activities — and re-measure
 rather than averaged, a 400 m box reported fifty activities where three belonged. The second
 stage is what makes it exact; the first only makes it cheap.
 
-That second stage was SQL over `trackpoints` until it was measured: a UDF counting row
+That second stage was SQL over `trackpoints` — the row-per-point table, since dropped —
+until it was measured: a UDF counting row
 examinations put a whole-extent viewport at 1,045,599 rows, the entire table, with no early exit
 because `DISTINCT` cannot stop at the first match — three times over, since three routes rebuild
 the scope per pan. It is now the simplified polyline, decoded in the isolate and tested as
@@ -1470,7 +1471,7 @@ will otherwise propose all of these again.
 | Reusing `DetailPanel` with a synthetic activity | Zero new UI code, at the price of fabricating a `startedAt`, a `source` and a tags array for something that was never ridden — and of the component growing `if (isPlan)` branches anyway. |
 | The plan in the selection's paint | Shipped first, on the grounds that a plan plays the role that styling was built for. Reversed after looking at it: that colour and weight mean *this one, among many*, and a plan is the only route on the map — so the weight read as shouting and the colour put a plan and a ride in one voice. The accent means interactive rather than data, which is what a plan is. |
 | An undo stack for the plan | Designed and cut for tagging in M4, for the same reason: discrete edits push to history, so Back already is it. |
-| Seeding a plan from a ride | *Plan something like this* means choosing which of 34k trackpoints become waypoints — a simplification-tuning problem, dropped into a milestone already carrying a router, a geocoder, a dialog and two panels. The dimmed tracks underneath give most of the value by eye, for none of it. |
+| Seeding a plan from a ride | *Plan something like this* means choosing which of a ride's 34k points become waypoints — a simplification-tuning problem, dropped into a milestone already carrying a router, a geocoder, a dialog and two panels. The dimmed tracks underneath give most of the value by eye, for none of it. |
 | GPX export, in M8 | The legs are already coordinates with elevation, so it is a string builder and a Blob whenever it lands — and it does not touch the *no writing back upstream* non-goal, which forbids pushing to Strava and Komoot, not handing you a file. Held back only to keep the milestone to one idea. |
 
 ---
@@ -1501,12 +1502,15 @@ the interface exists, and the reason the mapping table above was written before 
 `GROUP BY round(lat,4), round(lon,4)` — needs no dependency, no precompute, and respects the
 active filter for free. Precomputed H3 cells give equal-area hexagons and instant
 set-difference queries for "was this new terrain?", at the cost of an import step that is
-filter-blind. Nothing in the schema forecloses either — but the on-the-fly grid scans
-`trackpoints`, which is 98% of the database, and once the database is billed per row read
-that stops being free. Whether Bunny counts rows scanned or rows returned decides it.
+filter-blind. Nothing in the schema forecloses either. The on-the-fly grid no longer has a table to
+scan, though: points live encoded on the activity, so a SQL grid over them would mean
+decoding every track per request, or rebuilding a points table to group over — which takes
+under a second but is a step, not a free query. That tilts the choice towards precompute,
+and the billing question that used to decide it is settled: rows read are rows **scanned**,
+so a grid that walked a million points would be charged for a million.
 
 **Backfilling a new derived type** *(M2.5)* — `selectWanted` reports any activity that
-already has trackpoints as one the browser need not fetch, which is what makes re-import
+already has a stored track as one the browser need not fetch, which is what makes re-import
 cheap. So a type added to the registry later does not reach existing rows by re-running the
 import; it needs a one-off rewrite — and since M6 a registry belongs to a user, so that
 rewrite is one per person, scoped by `user_id`. Not a problem yet: `source:` is handled by

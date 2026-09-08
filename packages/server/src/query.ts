@@ -64,14 +64,16 @@ export interface Owner {
 }
 
 /**
- * A filter together with the activities its bounding box selects.
+ * A filter together with the activities its viewport selects.
  *
- * The bbox is the one predicate that cannot be answered from `activities` alone, and
- * `facets` builds eleven WHERE clauses from a single filter — so resolving it inside
- * `whereFor` ran the same trackpoint query eleven times for one request. Resolving it
- * once and carrying the result makes that impossible to reintroduce by accident.
+ * The viewport is the one predicate `whereFor` cannot express: the cached box narrows to
+ * candidates in SQL, but whether a track actually enters the rectangle is a test on its
+ * geometry, decoded. And `facets` builds eleven WHERE clauses from a single filter, so
+ * answering it inside `whereFor` would run that query and that decode eleven times for
+ * one request. Resolving it once and carrying the result makes that impossible to
+ * reintroduce by accident.
  *
- * `null` means no bbox filter. An empty array means a bbox that selects nothing, which
+ * `null` means no viewport filter. An empty array means one that selects nothing, which
  * is a different statement and must not collapse into the first.
  */
 export interface Scope extends Owner {
