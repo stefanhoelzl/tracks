@@ -16,7 +16,7 @@ import { hashPassword, signSession } from './auth.ts'
 import { openDb } from './db.ts'
 import { ingestActivity, selectWanted } from './ingest.ts'
 import type { Owner } from './query.ts'
-import { activities, trackpoints, users } from './schema.ts'
+import { activities, users } from './schema.ts'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../migrations')
 
@@ -113,10 +113,6 @@ const storedTrack = async () => {
 
 const pointCount = async () => (await storedTrack())?.coordinates.length ?? 0
 
-/** Rows still in the retired table — zero, on anything this suite writes. */
-const legacyPointCount = async () =>
-  (await handle.db.select({ n: sql<number>`count(*)` }).from(trackpoints).get())?.n ?? 0
-
 describe('ingest', () => {
   it('writes an activity, its track and its derived tags', async () => {
     const result = await run([frame()])
@@ -140,11 +136,6 @@ describe('ingest', () => {
     // `started_at` already lets anything reconstruct an epoch from.
     expect(track?.secondsFromStart[0]).toBe(0)
     expect(track?.secondsFromStart[3]).toBe(31)
-  })
-
-  it('writes no rows to the retired points table', async () => {
-    await run([frame()])
-    expect(await legacyPointCount()).toBe(0)
   })
 
   it('keeps a track that carries neither altitude nor timing', async () => {
@@ -260,7 +251,7 @@ describe('selectWanted', () => {
         utcOffset: 0,
       })
       .run()
-    // Zero trackpoints means "not imported yet", which is the honest question to ask.
+    // No geometry means "not imported yet", which is the honest question to ask.
     expect(await selectWanted(handle.db, owner, 'komoot', ['empty'])).toEqual(['empty'])
   })
 

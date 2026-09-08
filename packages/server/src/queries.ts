@@ -148,6 +148,12 @@ export async function listTracks(db: Db, scope: Scope): Promise<TracksResponse> 
   }
 }
 
+interface TrackColumns {
+  track_geometry: string | null
+  track_altitudes: string | null
+  track_times: string | null
+}
+
 export async function activityDetail(
   db: Db,
   owner: Owner,
@@ -166,58 +172,17 @@ export async function activityDetail(
   // The owner is not repeated below: the row above established that this activity is
   // theirs, and a track is reached only through its activity.
 
-  const track =
-    raw.track_geometry === null
-      ? await legacyTrack(db, id)
-      : {
-          polyline: raw.track_geometry,
-          altitudes: raw.track_altitudes ?? '',
-          times: raw.track_times ?? '',
-        }
-
-  return { activity: toRow(raw), track }
-}
-
-interface TrackColumns {
-  track_geometry: string | null
-  track_altitudes: string | null
-  track_times: string | null
-}
-
-/**
- * The track of an activity imported before the columns existed, encoded on the way past.
- *
- * Every row gets its columns filled by a one-off script, and `trackpoints` is dropped
- * once they are — so this is the shape of the gap between two deploys and nothing else.
- * It reads and encodes exactly what the route used to do on *every* request, which is
- * both why it is correct and why it is worth being temporary: 4,438 rows and 470KB off
- * Frankfurt for the median activity, against one row and 38KB.
- *
- * Timestamps come back as offsets from the first point rather than from `started_at`.
- * The two agree in every row measured — 203 of 203 — because `started_at` is derived
- * from the first point in the first place.
- */
-async function legacyTrack(db: Db, id: number): Promise<ActivityDetailResponse['track']> {
-  const points = await db.all<{
-    lat: number
-    lon: number
-    altitude_m: number | null
-    recorded_at: number | null
-  }>(sql`
-    SELECT lat, lon, altitude_m, recorded_at FROM trackpoints
-    WHERE activity_id = ${id} ORDER BY seq`)
-
-  const start = points[0]?.recorded_at ?? null
-
+  // Three strings, handed over exactly as stored — the read path has no codec in it.
+  // Null only for an activity with no track at all, which the importer refuses to create
+  // but the schema still permits; empty streams say "no points" in the same words the
+  // codec would.
   return {
-    polyline: polyline.encode(
-      points.map((p) => [p.lat, p.lon] as [number, number]),
-      TRACK_PRECISION,
-    ),
-    altitudes: encodeScalars(altitudesToScalars(points.map((p) => p.altitude_m))),
-    times: encodeScalars(
-      points.map((p) => (p.recorded_at === null || start === null ? null : p.recorded_at - start)),
-    ),
+    activity: toRow(raw),
+    track: {
+      polyline: raw.track_geometry ?? '',
+      altitudes: raw.track_altitudes ?? '',
+      times: raw.track_times ?? '',
+    },
   }
 }
 

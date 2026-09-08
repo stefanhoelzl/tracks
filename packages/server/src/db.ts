@@ -30,8 +30,8 @@ export async function openDb(
   const db = connect(client)
 
   if (local) {
-    // OFF by default in SQLite, so the trackpoints -> activities cascade would silently
-    // not apply without it. Bunny's own connections enforce it; this is for the embedded
+    // OFF by default in SQLite, so the tag_types -> users cascade would silently not
+    // apply without it. Bunny's own connections enforce it; this is for the embedded
     // client, where the pragma is ours to set.
     await client.execute('PRAGMA foreign_keys = ON')
 

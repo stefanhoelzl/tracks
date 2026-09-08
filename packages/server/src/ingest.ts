@@ -10,12 +10,12 @@ import {
   TRACK_PRECISION,
   validateTag,
 } from '@tracks/core'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import type { Conn, Db } from './connect.ts'
 import { simplify } from './polyline.ts'
 import type { Owner } from './query.ts'
 import { createType, loadRegistry, seedFor } from './registry.ts'
-import { activities, trackpoints } from './schema.ts'
+import { activities } from './schema.ts'
 import { utcOffsetAt } from './timezone.ts'
 
 /**
@@ -48,7 +48,7 @@ export interface IngestResult {
  * its points. One pass rather than `Math.min(...lats)`, which spreads a 34k-point track
  * across the argument limit.
  *
- * Exported because anything that writes trackpoints must write this too — a stale box
+ * Exported because anything that writes a track must write this too — a stale box
  * silently drops the activity out of every viewport filter — so there is one definition
  * of it rather than a copy per writer.
  */
@@ -182,8 +182,8 @@ async function write(
     polyline: polyline.encode(simplify(points).map((p) => [p.lat, p.lon] as [number, number])),
     // The full-resolution track, encoded once here into exactly what the detail route
     // sends. `DETAIL_PRECISION` in queries.ts used to do this per request, over rows read
-    // back from `trackpoints`; doing it at import instead is the whole point of the
-    // columns. Times are offsets from `startedAt`, which is where they came from —
+    // back from a row-per-point table; doing it at import instead is the whole point of
+    // the columns. Times are offsets from `startedAt`, which is where they came from —
     // `ImportFrame` sends offsets and this used to widen them back to epochs.
     trackGeometry: polyline.encode(
       points.map((p) => [p.lat, p.lon] as [number, number]),
@@ -214,13 +214,10 @@ async function write(
     return
   }
 
+  // One statement, whether this is the first import or the ninetieth re-import. A
+  // 34,626-point track used to split into seventy `INSERT`s to stay under SQLite's
+  // bind-variable limit, and a re-import had to delete its old points first.
   await conn.update(activities).set(row).where(eq(activities.id, existing.id)).run()
-  // Whatever this activity had in `trackpoints` is now superseded by the columns just
-  // written, and leaving it would only make the fallback in `activityDetail` answer with
-  // the older copy. The insert that used to follow is gone: an activity is one row again,
-  // so a 34,626-point track no longer splits into seventy `INSERT`s to stay under
-  // SQLite's bind-variable limit.
-  await conn.delete(trackpoints).where(eq(trackpoints.activityId, existing.id)).run()
 }
 
 /**
@@ -251,11 +248,6 @@ export function ingestActivity(db: Db, owner: Owner, frame: ImportFrame): Promis
  * "Has a track", not "exists": a row with no geometry means not imported yet, which is
  * what kept the old pipeline resumable and is still the honest question to ask.
  *
- * Two places to look, for exactly as long as both exist. An activity imported before the
- * track columns has its points in `trackpoints` and nulls in the columns, and reporting
- * it as missing would re-fetch the entire archive on the next import. The `EXISTS` half
- * goes when the table does.
- *
  * Scoped to the asker, so somebody else having ridden the same Komoot tour does not
  * make it one you already have.
  */
@@ -274,8 +266,7 @@ export async function selectWanted(
           and(
             eq(activities.userId, owner.userId),
             eq(activities.source, source),
-            sql`(${activities.trackGeometry} IS NOT NULL
-                 OR EXISTS (SELECT 1 FROM trackpoints t WHERE t.activity_id = ${activities.id}))`,
+            isNotNull(activities.trackGeometry),
           ),
         )
         .all()
