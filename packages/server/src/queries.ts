@@ -23,6 +23,7 @@ import {
   SPEED,
   whereFor,
 } from './query.ts'
+import { crossesViewport } from './viewport.ts'
 
 /** Enough bars to show a distribution, few enough to stay legible at 300 px wide. */
 const BUCKET_COUNT = 24
@@ -68,29 +69,43 @@ function toRow(raw: RawRow): ActivityRow {
 /**
  * Resolve a filter's bounding box to the activities it selects, once.
  *
- * Every route calls this before building any SQL, so the trackpoint query runs once
- * per request no matter how many WHERE clauses the route goes on to build.
+ * Every route calls this before building any SQL, so the work happens once per request no
+ * matter how many WHERE clauses the route goes on to build — `facets` alone builds eleven.
+ *
+ * Two stages, and the first is what makes the second cheap: the cached bounding boxes
+ * discard almost every activity by comparing four numbers, so the line test runs over the
+ * handful that could possibly match — a median of 3 and a 95th percentile of 67, against
+ * 203. A box overlapping the viewport is not a track entering it, so the second stage is
+ * what the answer rests on; without it a 400 m viewport reports fifty activities that
+ * never come near it.
+ *
+ * The second stage used to be SQL over `trackpoints`, and it walked every point of every
+ * candidate — 1,045,599 rows for a whole-extent viewport, measured, with no early exit
+ * because `DISTINCT` cannot stop at the first match. It is now the simplified polyline,
+ * decoded here and tested as segments; `crossesViewport` carries the accuracy this trades.
+ * The polylines it reads are ~3–22 KB in the median case, against a scan of the whole
+ * table — and the two costs sit the right way round, since a wide viewport reads the most
+ * geometry exactly where the bounding boxes were already nearly enough.
  */
 export async function scopeFor(db: Conn, owner: Owner, filter: Filter): Promise<Scope> {
   const { userId } = owner
   if (filter.bbox === null) return { userId, filter, bboxIds: null }
 
   const [west, south, east, north] = filter.bbox
-  // Two stages, and the first is what makes the second cheap: the cached bounding boxes
-  // discard almost every activity by comparing four numbers, so the exact point test runs
-  // over the few that could possibly match. A box overlapping the viewport is not a track
-  // entering it — a ride whose box spans a city it only skirted is eliminated here — so
-  // the second stage is what the answer actually rests on.
-  const rows = await db.all<{ activity_id: number }>(sql`
-    SELECT DISTINCT activity_id FROM trackpoints
-    WHERE activity_id IN (
-      SELECT id FROM activities
-      WHERE user_id = ${userId}
-        AND min_lat <= ${north} AND max_lat >= ${south}
-        AND min_lon <= ${east} AND max_lon >= ${west})
-      AND lat BETWEEN ${south} AND ${north} AND lon BETWEEN ${west} AND ${east}`)
+  // `polyline IS NOT NULL` rather than a decode guarded downstream: an activity with no
+  // track has null bounds too and would fail the comparisons anyway, so this only says
+  // out loud which rows the second stage can speak about.
+  const rows = await db.all<{ id: number; polyline: string }>(sql`
+    SELECT id, polyline FROM activities
+    WHERE user_id = ${userId} AND polyline IS NOT NULL
+      AND min_lat <= ${north} AND max_lat >= ${south}
+      AND min_lon <= ${east} AND max_lon >= ${west}`)
 
-  return { userId, filter, bboxIds: rows.map((row) => row.activity_id) }
+  const bboxIds = rows
+    .filter((row) => crossesViewport(polyline.decode(row.polyline), filter.bbox!))
+    .map((row) => row.id)
+
+  return { userId, filter, bboxIds }
 }
 
 export async function listActivities(db: Db, scope: Scope): Promise<ActivityRow[]> {
