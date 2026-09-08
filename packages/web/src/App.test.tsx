@@ -2,7 +2,11 @@ import polyline from '@mapbox/polyline'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useImperativeHandle } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** What the app asked the map to do. Reset per test in `beforeEach`. */
+const flyTo = vi.fn()
 
 /**
  * That the whole app composes, fetches and wires itself together.
@@ -14,24 +18,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 vi.mock('./components/MapView.tsx', () => ({
   MapView: (props: {
+    ref?: React.Ref<{ flyTo: (at: { lat: number; lon: number }) => void }>
     tracks?: { features: unknown[] }
     pin?: React.ReactNode
     onMapClick?: (at: { lat: number; lon: number }) => void
-  }) => (
-    <div data-testid="map">
-      <span data-testid="track-count">{props.tracks?.features.length ?? 0} tracks</span>
-      {/* The map's own behaviour is exercised by hand; what a test can drive is the
+  }) => {
+    // The imperative half of the real component, so the calls the app makes through
+    // the handle are visible here rather than vanishing into a null ref.
+    useImperativeHandle(props.ref, () => ({ flyTo, centre: () => null }) as never)
+
+    return (
+      <div data-testid="map">
+        <span data-testid="track-count">{props.tracks?.features.length ?? 0} tracks</span>
+        {/* The map's own behaviour is exercised by hand; what a test can drive is the
           one thing it hands back, which is a click at a place. Two places, well apart,
           because which leg a click means is decided by distance. */}
-      <button type="button" onClick={() => props.onMapClick?.({ lat: 47.26, lon: 11.39 })}>
-        click the map
-      </button>
-      <button type="button" onClick={() => props.onMapClick?.({ lat: 47.3, lon: 11.5 })}>
-        click elsewhere
-      </button>
-      {props.pin}
-    </div>
-  ),
+        <button type="button" onClick={() => props.onMapClick?.({ lat: 47.26, lon: 11.39 })}>
+          click the map
+        </button>
+        <button type="button" onClick={() => props.onMapClick?.({ lat: 47.3, lon: 11.5 })}>
+          click elsewhere
+        </button>
+        {props.pin}
+      </div>
+    )
+  },
 }))
 
 /**
@@ -43,7 +54,13 @@ vi.mock('./components/MapView.tsx', () => ({
  */
 vi.mock('./lib/routing.ts', () => ({
   router: { id: 'fake', profiles: ['trekking'], route: async () => [] },
-  geocoder: { id: 'fake', search: async () => [], reverse: async () => null },
+  geocoder: {
+    id: 'fake',
+    search: async () => [
+      { name: 'Vent', context: 'Sölden · Tyrol · Austria', lat: 46.86, lon: 10.91 },
+    ],
+    reverse: async () => null,
+  },
   usePlanLegs: () => ({ legs: [], pending: false, error: null }),
 }))
 
@@ -142,6 +159,7 @@ async function renderApp() {
 describe('the app', () => {
   beforeEach(() => {
     requested = []
+    flyTo.mockClear()
     window.history.replaceState(null, '', '/')
     vi.stubGlobal(
       'fetch',
@@ -361,5 +379,33 @@ describe('the app', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Shaping point' }))
     await waitFor(() => expect(window.location.hash).toContain('kinds=prp'))
+  })
+
+  it('goes and looks at a searched place when the row is picked', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
+    await userEvent.click(await screen.findByText('Vent'))
+
+    // The row raises the pinned dialog there — and takes the camera with it, since a
+    // dialog pinned off screen is a dialog about nothing you can see.
+    expect(flyTo).toHaveBeenCalledWith({ lat: 46.86, lon: 10.91 })
+  })
+
+  it('goes and looks at one added straight from its row', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
+    await userEvent.hover(await screen.findByText('Vent'))
+    // The inline placement, not the pinned dialog's — no pin has been dropped here.
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    // A stop that appeared somewhere off screen is a stop you have to go and find.
+    expect(flyTo).toHaveBeenCalledWith({ lat: 46.86, lon: 10.91 })
+    await waitFor(() => expect(window.location.hash).toContain('poi=Vent'))
   })
 })

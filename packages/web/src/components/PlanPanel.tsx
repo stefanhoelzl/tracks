@@ -4,6 +4,7 @@ import { PROFILE_LABELS } from '@tracks/routing'
 import { useMemo } from 'react'
 import { duration, km, metres } from '../lib/format.ts'
 import type { Plan } from '../lib/plan.ts'
+import type { Placement } from '../lib/plan-ops.ts'
 import { planTotals } from '../lib/plan-track.ts'
 import { profileOf } from './ElevationProfile.tsx'
 import styles from './PlanPanel.module.css'
@@ -40,6 +41,8 @@ export function PlanPanel({
   onSelect,
   onRemove,
   onPick,
+  onAddPlace,
+  onHoverPlace,
 }: {
   plan: Plan
   legs: Array<Leg | undefined>
@@ -55,6 +58,8 @@ export function PlanPanel({
   onSelect: (index: number) => void
   onRemove: (index: number) => void
   onPick: (place: Place) => void
+  onAddPlace: (place: Place, placement: Placement) => void
+  onHoverPlace: (place: Place | null) => void
 }) {
   const stops = plan.waypoints.filter((waypoint) => waypoint.kind === 'poi')
 
@@ -129,6 +134,8 @@ export function PlanPanel({
           onSelect={onSelect}
           onRemove={onRemove}
           onPick={onPick}
+          onAddPlace={onAddPlace}
+          onHoverPlace={onHoverPlace}
         />
       </div>
     </>

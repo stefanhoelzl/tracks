@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { NewType, SortKey, TagWrite } from '@tracks/core'
-import type { LatLon, Waypoint } from '@tracks/routing'
+import type { LatLon, Place, Waypoint } from '@tracks/routing'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
@@ -87,6 +87,8 @@ export function App({ email }: { email: string }) {
    * waypoint or editing one that already exists.
    */
   const [pin, setPin] = useState<{ at: LatLon; target: PinTarget } | null>(null)
+  /** The search result under the pointer, ringed on the map. Transient, like the pin. */
+  const [preview, setPreview] = useState<LatLon | null>(null)
 
   const queryClient = useQueryClient()
 
@@ -220,6 +222,27 @@ export function App({ email }: { email: string }) {
     [pin, plan, legs, setPlan, nameStop],
   )
 
+  /**
+   * Adding a searched place straight from its row, without the pin in between.
+   *
+   * The placement is resolved here for the same reason `dropPin` resolves the leg here:
+   * which leg is nearest is a question about the plan, and the search field has no
+   * business knowing the answer.
+   */
+  const addPlace = useCallback(
+    (place: Place, placement: Placement) => {
+      const at = { lat: place.lat, lon: place.lon }
+      const index = placementAt(plan, legs, placement, nearestLeg(plan, legs, at), at)
+      setPlan(addWaypoint(plan, { ...at, kind: 'poi', name: place.name }, index))
+      setPin(null)
+      setPreview(null)
+      // Every way of choosing a searched place ends up looking at it. A stop that
+      // appeared somewhere off screen is a stop you have to go and find.
+      mapHandle.current?.flyTo(at)
+    },
+    [plan, legs, setPlan],
+  )
+
   const editing = pin?.target.state === 'edit' ? pin.target.index : null
 
   const openWaypoint = useCallback(
@@ -306,6 +329,8 @@ export function App({ email }: { email: string }) {
         plan={plan}
         legs={legs}
         plannedTrack={planned.coordinates}
+        pending={legsPending}
+        preview={preview}
         pinAt={pin?.at ?? null}
         pin={
           pin ? (
@@ -439,6 +464,12 @@ export function App({ email }: { email: string }) {
                 mapHandle.current?.flyTo(at)
                 dropPin(at, place.name)
               }}
+              onAddPlace={addPlace}
+              // Ringed where it is, without moving the camera: flying on every hover
+              // would make reading a list of five places a fairground ride.
+              onHoverPlace={(place) =>
+                setPreview(place ? { lat: place.lat, lon: place.lon } : null)
+              }
             />
           ) : view.activity !== null ? (
             <DetailPanel

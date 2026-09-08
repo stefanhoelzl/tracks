@@ -43,6 +43,8 @@ function overview(plan: Partial<Plan>, legs: Array<Leg | undefined> = []) {
       onSelect={vi.fn()}
       onRemove={vi.fn()}
       onPick={vi.fn()}
+      onAddPlace={vi.fn()}
+      onHoverPlace={vi.fn()}
     />,
   )
   return { onPlan }

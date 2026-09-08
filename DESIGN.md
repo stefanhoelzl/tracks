@@ -930,6 +930,14 @@ That granularity turned out to be forced anyway. BRouter answers with one geomet
 request and no leg breakdown, so per-leg numbers require per-leg calls whatever the
 semantics — the model and the provider agreed without being made to.
 
+The whole plan — line, stops and hints — is drawn in the **accent colour**, and thinner than
+a selected track. It borrowed the selection's paint at first, which was wrong twice over.
+That colour and weight say *this is the one you mean* among two hundred others, and a plan
+has no competition: it is the only route on the map. So the weight was doing no work and
+read as shouting, and the voice was a ride's rather than a plan's. The accent has always
+meant *interactive, never data*, which is exactly what a plan is — the one thing on this map
+you are making rather than reading.
+
 ### One dialog does all of it
 
 A map click drops a provisional pin with a small dialog on it; a search result raises the
@@ -1020,6 +1028,14 @@ countries and you are looking straight at one of them. About five rows, each car
 name and a `city · state · country` line from Photon's own properties, so two places with
 one name are told apart before you click rather than after.
 
+Pointing at a result **rings it on the map** and grows its placements inline, so the common
+case — *that Vent, at the end* — is one gesture from a list rather than a trip through the
+pinned dialog. A ring rather than a pin, because it is not part of the plan yet and drawing
+it like a stop would say it was. Clicking the row still raises the dialog, which is the way
+to a shaping point, a rename, or a look before committing. Either way the camera goes there;
+hovering does not move it, because flying on every hover would make reading five results a
+fairground ride.
+
 Reverse geocoding is lazy and POI-only. A map click makes a ROUTING point by default, which
 wants no name and costs no request; promoting one to POI is what asks Photon what is there,
 and the answer is editable afterwards. The gesture people repeat stays free.
@@ -1033,11 +1049,17 @@ ones cancelled through the `AbortSignal` the interface already takes. A drag acr
 costs one request rather than forty, which is the difference between using a public endpoint
 and being the reason it closes.
 
-A leg BRouter cannot connect draws as a **dashed beeline**, its row says why, and the totals
-exclude it and declare themselves incomplete. The alternative — silently beelining, which
-the wire format would happily do — folds a straight line across a glacier into your distance
-with nothing saying so. This is M3.5's rule for an unreadable GPX, unchanged: it costs
-itself and it is named.
+A leg with no answer yet draws as a **dashed beeline that pulses**, in the plan's own colour
+— the only animation in this app, for the only thing in it that is waiting on somebody else.
+A spinner would need somewhere to live, and the thing being waited for is already on screen
+and already the right shape.
+
+A leg BRouter *cannot* connect draws the same dash and holds still, because a failure that
+looks like it is loading is a failure nobody stops waiting for. Its row says why, and the
+totals exclude it and declare themselves incomplete. The alternative — silently beelining,
+which the wire format would happily do — folds a straight line across a glacier into your
+distance with nothing saying so. This is M3.5's rule for an unreadable GPX, unchanged: it
+costs itself and it is named.
 
 ### Both panels
 
@@ -1369,7 +1391,7 @@ will otherwise propose all of these again.
 | A flat waypoint list | One reorderable list, kind shown by an icon. Simpler by every measure except the one that matters: a plan with fifteen shaping points reads as fifteen anonymous rows with the two real places buried among them. |
 | A separate `PlanPanel` | Free to diverge — a leg-by-leg breakdown, a surface summary — without the activity view having an opinion. Two panels that look alike and drift apart, which extracting the shared middle prevents outright. |
 | Reusing `DetailPanel` with a synthetic activity | Zero new UI code, at the price of fabricating a `startedAt`, a `source` and a tags array for something that was never ridden — and of the component growing `if (isPlan)` branches anyway. |
-| A distinct colour for the plan | A plan is not a ride, so it could read as its own thing. The dimming already makes that distinction, and a second highlight colour would need to stay legible over two basemaps and the hillshade to say what resting opacity says for free. |
+| The plan in the selection's paint | Shipped first, on the grounds that a plan plays the role that styling was built for. Reversed after looking at it: that colour and weight mean *this one, among many*, and a plan is the only route on the map — so the weight read as shouting and the colour put a plan and a ride in one voice. The accent means interactive rather than data, which is what a plan is. |
 | An undo stack for the plan | Designed and cut for tagging in M4, for the same reason: discrete edits push to history, so Back already is it. |
 | Seeding a plan from a ride | *Plan something like this* means choosing which of 34k trackpoints become waypoints — a simplification-tuning problem, dropped into a milestone already carrying a router, a geocoder, a dialog and two panels. The dimmed tracks underneath give most of the value by eye, for none of it. |
 | GPX export, in M8 | The legs are already coordinates with elevation, so it is a string builder and a Blob whenever it lands — and it does not touch the *no writing back upstream* non-goal, which forbids pushing to Strava and Komoot, not handing you a file. Held back only to keep the milestone to one idea. |

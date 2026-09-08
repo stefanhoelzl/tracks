@@ -12,10 +12,13 @@ import {
   beelineFeatures,
   PLAN_FAILED_LAYER,
   PLAN_LINE_LAYER,
+  PLAN_PENDING_LAYER,
   PLAN_POI_LAYER,
   PLAN_POINTS_SOURCE,
+  PLAN_PREVIEW_SOURCE,
   PLAN_SHAPING_LAYER,
   PLAN_SOURCE,
+  previewFeature,
   routeFeatures,
   showPlan,
   waypointFeatures,
@@ -89,13 +92,21 @@ describe('the plan layers', () => {
       ).filter
 
     const context = { zoom: 12 } as never
-    const routedFeature = { type: 2, properties: { leg: 0, routed: true } } as never
-    const failedFeature = { type: 2, properties: { leg: 1, routed: false } } as never
+    const routed = { type: 2, properties: { leg: 0, routed: true, pending: false } } as never
+    const failed = { type: 2, properties: { leg: 1, routed: false, pending: false } } as never
+    const waiting = { type: 2, properties: { leg: 2, routed: false, pending: true } } as never
 
-    expect(filterOf(PLAN_LINE_LAYER)(context, routedFeature, null as never)).toBe(true)
-    expect(filterOf(PLAN_LINE_LAYER)(context, failedFeature, null as never)).toBe(false)
-    expect(filterOf(PLAN_FAILED_LAYER)(context, failedFeature, null as never)).toBe(true)
-    expect(filterOf(PLAN_FAILED_LAYER)(context, routedFeature, null as never)).toBe(false)
+    expect(filterOf(PLAN_LINE_LAYER)(context, routed, null as never)).toBe(true)
+    expect(filterOf(PLAN_LINE_LAYER)(context, failed, null as never)).toBe(false)
+
+    // A leg that cannot be routed and a leg that has not been routed yet are separate
+    // layers, because only one of them may pulse: a failure that looks like it is
+    // loading is a failure nobody stops waiting for.
+    expect(filterOf(PLAN_FAILED_LAYER)(context, failed, null as never)).toBe(true)
+    expect(filterOf(PLAN_FAILED_LAYER)(context, waiting, null as never)).toBe(false)
+    expect(filterOf(PLAN_PENDING_LAYER)(context, waiting, null as never)).toBe(true)
+    expect(filterOf(PLAN_PENDING_LAYER)(context, failed, null as never)).toBe(false)
+    expect(filterOf(PLAN_PENDING_LAYER)(context, routed, null as never)).toBe(false)
   })
 
   it('draws POIs and shaping points from one source, split by kind', () => {
@@ -134,9 +145,9 @@ describe('the plan layers', () => {
     ]).features
 
     expect(features.map((feature) => feature.properties)).toEqual([
-      { leg: 0, routed: true },
-      { leg: 1, routed: false },
-      { leg: 2, routed: false },
+      { leg: 0, routed: true, pending: false },
+      { leg: 1, routed: false, pending: true },
+      { leg: 2, routed: false, pending: false },
     ])
   })
 
@@ -147,7 +158,7 @@ describe('the plan layers', () => {
     const waypoints = [poi(11, 47, 'a'), shaping(11.05, 47.05), poi(11.1, 47.1, 'b')]
     const [feature] = routeFeatures(waypoints, [undefined]).features
 
-    expect(feature?.properties).toEqual({ leg: 0, routed: false })
+    expect(feature?.properties).toEqual({ leg: 0, routed: false, pending: true })
     // Straight through the hints it holds, which is where the route will run.
     expect(feature?.geometry.coordinates).toEqual([
       [11, 47],
@@ -192,6 +203,15 @@ describe('the plan layers', () => {
 
   it('names its sources so the plan and the tracks cannot collide', () => {
     const { sources } = collect()
-    expect(Object.keys(sources).sort()).toEqual([PLAN_POINTS_SOURCE, PLAN_SOURCE].sort())
+    expect(Object.keys(sources).sort()).toEqual(
+      [PLAN_POINTS_SOURCE, PLAN_PREVIEW_SOURCE, PLAN_SOURCE].sort(),
+    )
+  })
+
+  it('rings a previewed place, and nothing at all without one', () => {
+    // Not part of the plan, and drawn from its own source so it cannot be mistaken for
+    // one — the question it answers is "which one is that?", not "what is in the plan".
+    expect(previewFeature(null).features).toEqual([])
+    expect(previewFeature({ lat: 47, lon: 11 }).features[0]?.geometry.coordinates).toEqual([11, 47])
   })
 })

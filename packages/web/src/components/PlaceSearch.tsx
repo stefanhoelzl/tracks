@@ -1,16 +1,20 @@
 import type { LatLon, Place } from '@tracks/routing'
 import { Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { Placement } from '../lib/plan-ops.ts'
 import { geocoder } from '../lib/routing.ts'
 import styles from './PlaceSearch.module.css'
 
 /**
  * Finding a place by name.
  *
- * Picking a result does not add anything: it raises the same pinned dialog a map click
- * raises, at that place, with the name already known. One commit path however the place
- * was found — and the name travels with it, so a searched stop never needs a reverse
- * lookup.
+ * Pointing at a result rings it on the map, so *which Vent is that one* is answered by
+ * looking rather than by committing to it. The row under the pointer also grows the
+ * placements inline, because a searched place is almost always a stop and going through
+ * the pinned dialog to say so is a step that decides nothing.
+ *
+ * Picking the row itself still raises that dialog, at that place, with the name already
+ * known — which is the way to a shaping point, a rename, or a look before committing.
  *
  * Biased to the map centre rather than bounded by it, which decides the case that
  * actually comes up: Vent exists in four countries and you are usually looking straight
@@ -23,16 +27,35 @@ const DEBOUNCE_MS = 250
 
 export function PlaceSearch({
   near,
+  placements,
   onPick,
+  onAdd,
+  onHover,
 }: {
   /** Read at request time, not at render: the camera moves between keystrokes. */
   near: () => LatLon | null
+  /** What adding here can mean, in the order the dialog offers it. */
+  placements: Array<{ placement: Placement; label: string }>
   onPick: (place: Place) => void
+  onAdd: (place: Place, placement: Placement) => void
+  onHover: (place: Place | null) => void
 }) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[]>([])
+  const [hovered, setHovered] = useState<string | null>(null)
   const nearest = useRef(near)
   nearest.current = near
+  const hover = useRef(onHover)
+  hover.current = onHover
+
+  // The ring belongs to a row that is on screen. Losing the results without clearing it
+  // would leave a mark on the map pointing at nothing.
+  useEffect(() => {
+    if (places.length === 0) {
+      setHovered(null)
+      hover.current(null)
+    }
+  }, [places])
 
   useEffect(() => {
     if (query.trim() === '') {
@@ -74,24 +97,68 @@ export function PlaceSearch({
       </div>
 
       {places.length > 0 ? (
-        <ul className={styles.results}>
-          {places.map((place) => (
-            <li key={`${place.lat},${place.lon},${place.name}`}>
-              <button
-                type="button"
-                className={styles.result}
-                onClick={() => {
-                  onPick(place)
-                  // The pin is now carrying the query; leaving the list open under it
-                  // would offer four more places for a decision already made.
-                  setQuery('')
+        <ul
+          className={styles.results}
+          onMouseLeave={() => {
+            setHovered(null)
+            onHover(null)
+          }}
+        >
+          {places.map((place) => {
+            const key = `${place.lat},${place.lon},${place.name}`
+            const done = () => {
+              // The list has answered the question it was asked; leaving it open would
+              // offer four more places for a decision already made.
+              setQuery('')
+              setHovered(null)
+              onHover(null)
+            }
+
+            return (
+              <li
+                key={key}
+                className={styles.row}
+                onMouseEnter={() => {
+                  setHovered(key)
+                  onHover(place)
                 }}
               >
-                <span className={styles.name}>{place.name}</span>
-                {place.context ? <span className={styles.context}>{place.context}</span> : null}
-              </button>
-            </li>
-          ))}
+                <button
+                  type="button"
+                  className={styles.result}
+                  onFocus={() => {
+                    setHovered(key)
+                    onHover(place)
+                  }}
+                  onClick={() => {
+                    onPick(place)
+                    done()
+                  }}
+                >
+                  <span className={styles.name}>{place.name}</span>
+                  {place.context ? <span className={styles.context}>{place.context}</span> : null}
+                </button>
+
+                {hovered === key ? (
+                  <div className={styles.placements}>
+                    {placements.map(({ placement, label }) => (
+                      <button
+                        key={placement}
+                        type="button"
+                        className={styles.add}
+                        onClick={() => {
+                          onAdd(place, placement)
+                          done()
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </li>
+            )
+          })}
         </ul>
       ) : null}
     </div>

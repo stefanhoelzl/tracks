@@ -4,7 +4,7 @@ import { X } from 'lucide-react'
 import { useState } from 'react'
 import { km, metres } from '../lib/format.ts'
 import type { Plan } from '../lib/plan.ts'
-import { moveStop } from '../lib/plan-ops.ts'
+import { legCount, moveStop, type Placement } from '../lib/plan-ops.ts'
 import { readingsFrom } from '../lib/plan-track.ts'
 import { PlaceSearch } from './PlaceSearch.tsx'
 import { Label } from './ui/Label.tsx'
@@ -42,6 +42,8 @@ export function WaypointPanel({
   onSelect,
   onRemove,
   onPick,
+  onAddPlace,
+  onHoverPlace,
 }: {
   plan: Plan
   legs: Array<Leg | undefined>
@@ -56,6 +58,8 @@ export function WaypointPanel({
   /** Removing from the list, so a waypoint off screen is still reachable. */
   onRemove: (index: number) => void
   onPick: (place: Place) => void
+  onAddPlace: (place: Place, placement: Placement) => void
+  onHoverPlace: (place: Place | null) => void
 }) {
   /** Which stop is being dragged, as a POI ordinal. Transient, and never in the URL. */
   const [dragging, setDragging] = useState<number | null>(null)
@@ -81,7 +85,26 @@ export function WaypointPanel({
         </div>
       ) : null}
 
-      <PlaceSearch near={near} onPick={onPick} />
+      {/* The same placements the pinned dialog offers, in the same order — a searched
+          place is almost always a stop, so saying which kind of stop is the whole of
+          the decision and the dialog adds nothing to it. */}
+      <PlaceSearch
+        near={near}
+        placements={
+          plan.waypoints.length === 0
+            ? [{ placement: 'end', label: 'Add' }]
+            : [
+                ...(legCount(plan) > 0
+                  ? [{ placement: 'nearest' as Placement, label: 'Insert' }]
+                  : []),
+                { placement: 'start' as Placement, label: 'Start' },
+                { placement: 'end' as Placement, label: 'End' },
+              ]
+        }
+        onPick={onPick}
+        onAdd={onAddPlace}
+        onHover={onHoverPlace}
+      />
 
       <div className={styles.group}>
         <Label>Profile</Label>

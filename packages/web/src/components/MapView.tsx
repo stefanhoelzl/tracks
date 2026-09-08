@@ -27,13 +27,17 @@ import {
 import {
   addPlanLayers,
   beelineFeatures,
+  PENDING_OPACITY,
   PLAN_CASING_LAYER,
   PLAN_FAILED_LAYER,
   PLAN_LINE_LAYER,
+  PLAN_PENDING_LAYER,
   PLAN_POI_LAYER,
   PLAN_POINTS_SOURCE,
+  PLAN_PREVIEW_SOURCE,
   PLAN_SHAPING_LAYER,
   PLAN_SOURCE,
+  previewFeature,
   routeFeatures,
   showPlan,
   waypointFeatures,
@@ -108,6 +112,8 @@ export function MapView({
   plan,
   legs,
   plannedTrack,
+  pending,
+  preview,
   pin,
   pinAt,
   onHover,
@@ -143,6 +149,10 @@ export function MapView({
   legs: Array<Leg | undefined>
   /** Every routed leg end to end — what the elevation cursor indexes into. */
   plannedTrack: Array<[number, number]>
+  /** A leg is outstanding, which is what the dashed line pulses to say. */
+  pending: boolean
+  /** The search result under the pointer, drawn as a ring. Not part of the plan. */
+  preview: LatLon | null
   /** The pinned dialog, positioned at `pinAt` and moved by the map, not by the page. */
   pin: ReactNode
   pinAt: LatLon | null
@@ -412,6 +422,7 @@ export function MapView({
     // shape — and while the router is slow or unreachable it is the only line there is.
     instance.on('mousedown', PLAN_LINE_LAYER, grabLine)
     instance.on('mousedown', PLAN_FAILED_LAYER, grabLine)
+    instance.on('mousedown', PLAN_PENDING_LAYER, grabLine)
 
     instance.on('mousemove', (event: MapLayerMouseEvent) => {
       const state = drag.current
@@ -516,6 +527,46 @@ export function MapView({
     if (!ready || !map.current) return
     showPlan(map.current, planning)
   }, [ready, planning])
+
+  useEffect(() => {
+    if (!ready || !map.current) return
+    map.current.getSource<GeoJSONSource>(PLAN_PREVIEW_SOURCE)?.setData(previewFeature(preview))
+  }, [ready, preview])
+
+  /**
+   * The dashed line breathes while the router is still thinking.
+   *
+   * The one animation in this app, for the one thing in it that is waiting on somebody
+   * else — a spinner would have to go somewhere, and the thing being waited for is
+   * already on screen and already the right shape. Only the pending layer pulses: a leg
+   * that *cannot* be routed must not, because a failure that looks like it is loading is
+   * a failure nobody stops waiting for.
+   */
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance?.getLayer(PLAN_PENDING_LAYER)) return
+
+    if (!planning || !pending) {
+      instance.setPaintProperty(PLAN_PENDING_LAYER, 'line-opacity', PENDING_OPACITY.rest)
+      return
+    }
+
+    let frame = 0
+    const started = performance.now()
+    const pulse = (now: number) => {
+      const phase = ((now - started) % PENDING_OPACITY.periodMs) / PENDING_OPACITY.periodMs
+      const swing = 0.5 - 0.5 * Math.cos(phase * 2 * Math.PI)
+      instance.setPaintProperty(
+        PLAN_PENDING_LAYER,
+        'line-opacity',
+        PENDING_OPACITY.low + (PENDING_OPACITY.rest - PENDING_OPACITY.low) * swing,
+      )
+      frame = requestAnimationFrame(pulse)
+    }
+    frame = requestAnimationFrame(pulse)
+
+    return () => cancelAnimationFrame(frame)
+  }, [ready, planning, pending])
 
   // Not while a drag owns these sources: it is painting a preview into them, and this
   // would overwrite it with the route the preview is replacing.

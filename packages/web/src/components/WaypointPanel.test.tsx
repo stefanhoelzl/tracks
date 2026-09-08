@@ -41,6 +41,8 @@ function panel(plan: Partial<Plan>, legs: Array<Leg | undefined> = [], props = {
   const onSelect = vi.fn()
   const onRemove = vi.fn()
   const onPick = vi.fn()
+  const onAddPlace = vi.fn()
+  const onHoverPlace = vi.fn()
 
   render(
     <WaypointPanel
@@ -53,11 +55,13 @@ function panel(plan: Partial<Plan>, legs: Array<Leg | undefined> = [], props = {
       onSelect={onSelect}
       onRemove={onRemove}
       onPick={onPick}
+      onAddPlace={onAddPlace}
+      onHoverPlace={onHoverPlace}
       {...props}
     />,
   )
 
-  return { onPlan, onSelect, onRemove, onPick }
+  return { onPlan, onSelect, onRemove, onPick, onAddPlace, onHoverPlace }
 }
 
 describe('the waypoint panel', () => {
@@ -163,6 +167,48 @@ describe('the waypoint panel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove shaping point' }))
     expect(onRemove).toHaveBeenCalledWith(1)
+  })
+
+  it('rings a search result while the pointer is on it, and lets it go', async () => {
+    const { onHoverPlace } = panel({})
+
+    await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
+    await userEvent.hover(await screen.findByText('Vent'))
+
+    // Which Vent that one is gets answered by looking, without committing to it.
+    expect(onHoverPlace).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Vent' }))
+
+    await userEvent.unhover(screen.getByText('Vent'))
+    expect(onHoverPlace).toHaveBeenLastCalledWith(null)
+  })
+
+  it('adds a searched place straight from its row', async () => {
+    const { onAddPlace, onPlan } = panel({ waypoints: [poi(0, 'A'), poi(2, 'B')] }, [leg(1000, 10)])
+
+    await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
+    await userEvent.hover(await screen.findByText('Vent'))
+
+    // The same placements the pinned dialog offers, in the same order — with a leg in
+    // the plan, that includes splitting it.
+    expect(screen.getByRole('button', { name: 'Insert' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Start' })).toBeTruthy()
+
+    await userEvent.click(screen.getByRole('button', { name: 'End' }))
+
+    expect(onAddPlace).toHaveBeenCalledWith(expect.objectContaining({ name: 'Vent' }), 'end')
+    // The panel asks; resolving where that lands is the app's job, not the field's.
+    expect(onPlan).not.toHaveBeenCalled()
+  })
+
+  it('offers only Add before the plan has anywhere to insert into', async () => {
+    panel({})
+
+    await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
+    await userEvent.hover(await screen.findByText('Vent'))
+
+    expect(screen.getByRole('button', { name: 'Add' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Insert' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
   })
 
   it('says when the engine is not answering, which is not a waypoint problem', () => {

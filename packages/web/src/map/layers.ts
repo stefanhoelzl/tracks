@@ -186,7 +186,7 @@ export function startPoints(
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
 
 /** The line itself: the track's own colour, turned up. */
-export function highlightPaint() {
+function highlightPaint() {
   return {
     'line-color': HIGHLIGHT_COLOUR,
     'line-width': HIGHLIGHT_WIDTH,
@@ -195,7 +195,7 @@ export function highlightPaint() {
 }
 
 /** The outline under it, which is what separates a highlight from the pale basemap. */
-export function highlightCasingPaint() {
+function highlightCasingPaint() {
   return {
     'line-color': SELECTED_OUTLINE,
     'line-width': HIGHLIGHT_CASING_WIDTH,

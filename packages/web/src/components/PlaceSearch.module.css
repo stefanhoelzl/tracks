@@ -57,10 +57,6 @@
   text-align: left;
 }
 
-.result:hover {
-  background: var(--sunk);
-}
-
 .name {
   font-size: var(--text-base);
   font-weight: 600;
@@ -71,4 +67,36 @@
 .context {
   font-size: var(--text-sm);
   color: var(--muted);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-ctrl);
+}
+
+.row:hover {
+  background: var(--sunk);
+}
+
+/* Only on the row under the pointer, so a list of five places is five places rather
+   than twenty buttons. */
+.placements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 9px 8px;
+}
+
+.add {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: #fff;
+}
+
+.add:hover {
+  background: var(--accent-deep);
 }
