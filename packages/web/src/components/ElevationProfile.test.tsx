@@ -23,6 +23,7 @@ function track(altitudeM: Array<number | null>): ActivityTrack {
   return {
     coordinates: altitudeM.map((_, index): [number, number] => [0, index]),
     altitudeM,
+    secondsFromStart: altitudeM.map(() => null),
   }
 }
 
@@ -57,6 +58,7 @@ describe('profileOf', () => {
         [11, 47],
       ],
       altitudeM: [500, 501],
+      secondsFromStart: [0, 1],
     }
     expect(profileOf(stationary, null)).toBeNull()
   })

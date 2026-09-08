@@ -285,6 +285,9 @@ activities (
   max_lat      REAL,
   min_lon      REAL,
   max_lon      REAL,
+  track_geometry  TEXT,                     -- full resolution, polyline at precision 6
+  track_altitudes TEXT,                     -- decimetres, delta-coded
+  track_times     TEXT,                     -- seconds from started_at, delta-coded
   UNIQUE (user_id, source, external_id)  -- two people may each import the same ride
 );
 
@@ -298,7 +301,7 @@ tag_types (
   UNIQUE (user_id, sort)                    -- unique within one sidebar, not across all
 );
 
-trackpoints (
+trackpoints (                               -- being retired; see the three columns above
   activity_id  INTEGER NOT NULL REFERENCES activities(id),
   seq          INTEGER NOT NULL,            -- authoritative ordering
   lat          REAL NOT NULL,
@@ -317,7 +320,7 @@ itself: a 15.7MB unique index sitting beside a hidden rowid nothing refers to.
 
 An owner column on two tables, and one type that carries it. `Scope` was built in M3 to
 make facets cheap — a filter plus the activities its bounding box selects, resolved once so
-eleven `WHERE` clauses share one trackpoint query. M6 made it the security boundary as
+eleven `WHERE` clauses share one resolution of it. M6 made it the security boundary as
 well: it gained a `userId`, `whereFor` emits `a.user_id = ?` first and unconditionally, and
 the `Exclusion` that lets a facet drop its own terms may never drop that one.
 
@@ -529,23 +532,38 @@ The bbox is the whole canvas, including what shows through the translucent panel
 the unobstructed strip would hide a track that is plainly visible, which reads as a bug.
 
 Two stages, and the first is what makes the second affordable. Cached bounding boxes discard
-almost every activity by comparing four numbers; the exact point test then runs only over what
-survives:
+almost every activity by comparing four numbers — a median of 3 survive, 95th percentile 67,
+against 203 — and the line test then runs only over those:
 
 ```sql
-SELECT DISTINCT activity_id FROM trackpoints
-WHERE activity_id IN (
-    SELECT id FROM activities
-    WHERE min_lat <= ?max_lat AND max_lat >= ?min_lat
-      AND min_lon <= ?max_lon AND max_lon >= ?min_lon)
-  AND lat BETWEEN ?min_lat AND ?max_lat
-  AND lon BETWEEN ?min_lon AND ?max_lon;
+SELECT id, polyline FROM activities
+WHERE user_id = ?
+  AND polyline IS NOT NULL
+  AND min_lat <= ?max_lat AND max_lat >= ?min_lat
+  AND min_lon <= ?max_lon AND max_lon >= ?min_lon;
 ```
 
 The prefilter is an over-approximation and is never the answer: a point-to-point ride's box can
 blanket a city it only skirted. Sampled at 200 random viewports, bounding boxes alone got 26% of
-neighbourhood-sized boxes wrong, one of them by 44 activities. The second stage is what makes it
-exact — the first only makes it cheap.
+neighbourhood-sized boxes wrong, one of them by 44 activities — and re-measured per viewport
+rather than averaged, a 400 m box reported fifty activities where three belonged. The second
+stage is what makes it exact; the first only makes it cheap.
+
+That second stage was SQL over `trackpoints` until it was measured: a UDF counting row
+examinations put a whole-extent viewport at 1,045,599 rows, the entire table, with no early exit
+because `DISTINCT` cannot stop at the first match — three times over, since three routes rebuild
+the scope per pan. It is now the simplified polyline, decoded in the isolate and tested as
+*segments* rather than points. A track's points are a sampling of it, so testing them asks
+whether the recorder happened to sample inside the rectangle; testing the simplified points is
+worse still, missing 153 activities in 3,937 because the point inside the box is the one the
+simplification dropped. The line between two kept points is the track's claim about where it went.
+
+Identical to the old point test at 2°, 0.5°, 0.1° and 0.02° — not one activity gained or lost
+across 800 viewports — and it reads 3–22 KB in the median case. It parts company only below that,
+where the 10 m simplification tolerance is a visible fraction of the rectangle: one activity
+missed in 2,266 at ~400 m, nine in 1,791 at ~80 m, both viewports smaller than a city block. The
+costs also sit the right way round, since a wide viewport reads the most geometry exactly where
+the bounding boxes were already nearly enough.
 
 The only theoretical gap — a track crossing the viewport with no sampled point inside it — is
 irrelevant at one-second sampling.
@@ -809,7 +827,7 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 | `GET /api/activities?<filters>` | List rows, ordered by `sort_key`/`sort_order` |
 | `GET /api/tracks?<filters>` | The simplified polylines, still encoded; each carries its `id`, `tags` and `year` |
 | `GET /api/facets?<filters>` | Summary totals, per-value counts, range bounds + histograms, and the bbox-excluded `extent` — all self-excluded |
-| `GET /api/activities/:id` | Detail plus the full-resolution track, encoded at precision 6 with altitude alongside |
+| `GET /api/activities/:id` | Detail plus the full-resolution track: three strings read straight off the row — geometry at precision 6, altitude and time delta-coded |
 | `GET /api/tag-types` | The registry, each type with the values in use counted over *every* activity — the sidebar renders it, the autocomplete offers it, and the colour layout is laid out from it |
 | `POST /api/import/select` | Takes `{source, ids}`, returns the subset with no track yet. A pure query — no lock, no session |
 | `POST /api/import/:source` | Takes NDJSON frames, writes them in one transaction, streams NDJSON progress back |
@@ -915,7 +933,7 @@ single component test, so canvas would have meant a mock in the setup file for c
 function tested as a value, and the component around it only mounts what that function returned.
 
 Only service-reported metrics are stored. Anything else — consistent cross-service numbers, or
-metrics for part of a track — is computed from trackpoints on demand, since the dynamic path
+metrics for part of a track — is computed from the stored track on demand, since the dynamic path
 has to exist for segments regardless. A cache table can follow later, if a chart proves slow
 enough to justify one.
 

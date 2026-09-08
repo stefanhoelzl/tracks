@@ -2,6 +2,8 @@ import polyline from '@mapbox/polyline'
 import {
   type ActivityDetailResponse,
   type ActivityRow,
+  altitudesToScalars,
+  encodeScalars,
   type FacetsResponse,
   type Filter,
   parseTag,
@@ -10,6 +12,7 @@ import {
   type RangeKey,
   type TagRegistry,
   type TagTypesResponse,
+  TRACK_PRECISION,
   type TracksResponse,
 } from '@tracks/core'
 import { sql } from 'drizzle-orm'
@@ -145,39 +148,76 @@ export async function listTracks(db: Db, scope: Scope): Promise<TracksResponse> 
   }
 }
 
-/** Lossless for six-decimal trackpoints, unlike the default 5. */
-const DETAIL_PRECISION = 6
-
 export async function activityDetail(
   db: Db,
   owner: Owner,
   id: number,
 ): Promise<ActivityDetailResponse | null> {
-  const raw = await first<RawRow>(
+  const raw = await first<RawRow & TrackColumns>(
     db,
-    sql`SELECT ${ROW_COLUMNS} FROM activities a
+    sql`SELECT ${ROW_COLUMNS}, a.track_geometry, a.track_altitudes, a.track_times
+        FROM activities a
         WHERE a.id = ${id} AND a.user_id = ${owner.userId}`,
   )
   // Not "no such activity" but "not yours, or no such activity" — the route turns both
   // into the same 404, because telling them apart is telling a stranger what exists.
   if (!raw) return null
 
-  // The owner is not repeated here: the row above established that this activity is
+  // The owner is not repeated below: the row above established that this activity is
   // theirs, and a track is reached only through its activity.
 
-  const points = await db.all<{ lat: number; lon: number; altitude_m: number | null }>(sql`
-    SELECT lat, lon, altitude_m FROM trackpoints
+  const track =
+    raw.track_geometry === null
+      ? await legacyTrack(db, id)
+      : {
+          polyline: raw.track_geometry,
+          altitudes: raw.track_altitudes ?? '',
+          times: raw.track_times ?? '',
+        }
+
+  return { activity: toRow(raw), track }
+}
+
+interface TrackColumns {
+  track_geometry: string | null
+  track_altitudes: string | null
+  track_times: string | null
+}
+
+/**
+ * The track of an activity imported before the columns existed, encoded on the way past.
+ *
+ * Every row gets its columns filled by a one-off script, and `trackpoints` is dropped
+ * once they are — so this is the shape of the gap between two deploys and nothing else.
+ * It reads and encodes exactly what the route used to do on *every* request, which is
+ * both why it is correct and why it is worth being temporary: 4,438 rows and 470KB off
+ * Frankfurt for the median activity, against one row and 38KB.
+ *
+ * Timestamps come back as offsets from the first point rather than from `started_at`.
+ * The two agree in every row measured — 203 of 203 — because `started_at` is derived
+ * from the first point in the first place.
+ */
+async function legacyTrack(db: Db, id: number): Promise<ActivityDetailResponse['track']> {
+  const points = await db.all<{
+    lat: number
+    lon: number
+    altitude_m: number | null
+    recorded_at: number | null
+  }>(sql`
+    SELECT lat, lon, altitude_m, recorded_at FROM trackpoints
     WHERE activity_id = ${id} ORDER BY seq`)
 
+  const start = points[0]?.recorded_at ?? null
+
   return {
-    activity: toRow(raw),
-    track: {
-      polyline: polyline.encode(
-        points.map((p) => [p.lat, p.lon] as [number, number]),
-        DETAIL_PRECISION,
-      ),
-      altitudeM: points.map((p) => p.altitude_m),
-    },
+    polyline: polyline.encode(
+      points.map((p) => [p.lat, p.lon] as [number, number]),
+      TRACK_PRECISION,
+    ),
+    altitudes: encodeScalars(altitudesToScalars(points.map((p) => p.altitude_m))),
+    times: encodeScalars(
+      points.map((p) => (p.recorded_at === null || start === null ? null : p.recorded_at - start)),
+    ),
   }
 }
 

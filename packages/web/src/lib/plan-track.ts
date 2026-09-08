@@ -96,7 +96,10 @@ export function planTrack(legs: ReadonlyArray<Leg | undefined>): ActivityTrack {
     })
   }
 
-  return { coordinates, altitudeM }
+  // A planned route has no clock: the legs are geometry from the router, not a recording.
+  // Absent per point rather than an absent array, so the shape matches a recorded track
+  // and nothing downstream has to ask which kind it is holding.
+  return { coordinates, altitudeM, secondsFromStart: coordinates.map(() => null) }
 }
 
 /**

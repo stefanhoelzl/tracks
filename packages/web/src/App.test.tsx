@@ -2,6 +2,7 @@ import polyline from '@mapbox/polyline'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { altitudesToScalars, encodeScalars, TRACK_PRECISION } from '@tracks/core'
 import { useImperativeHandle } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -271,7 +272,11 @@ describe('the app', () => {
         url.split('?')[0] === '/api/activities/7'
           ? {
               activity: ACTIVITIES.activities[0],
-              track: { polyline: polyline.encode([[49.2, 20]], 6), altitudeM: [1500] },
+              track: {
+                polyline: polyline.encode([[49.2, 20]], TRACK_PRECISION),
+                altitudes: encodeScalars(altitudesToScalars([1500])),
+                times: encodeScalars([0]),
+              },
             }
           : route(url)
       return new Response(JSON.stringify(body), {
