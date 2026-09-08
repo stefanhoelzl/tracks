@@ -129,8 +129,12 @@ pnpm db:seed
 Sixty generated activities across three years, five places and three sports, deterministic
 so the same command gives the same map. `pnpm db:pull` is the other filling: real
 activities older than a cutoff, copied down from the deployed database, which needs
-`.env`. Sign in with any password — the seeded account has none, and the first one typed
-becomes it.
+`.env`.
+
+There is no signing in to do. `dev:local` points at a `file:` database, and the dev
+server signs itself into those on boot and hands the browser the cookie — so the app
+opens on the map. Signing out reaches the form (the password is `password`), and
+restarting the server skips it again.
 
 ## Expect one failed task per restart
 
