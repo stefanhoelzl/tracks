@@ -22,7 +22,7 @@ import { hashPassword, signSession } from './auth.ts'
 import type { Db } from './connect.ts'
 import { openDb } from './db.ts'
 import { boundingBox } from './ingest.ts'
-import { activities, tagTypes, trackpoints, users } from './schema.ts'
+import { activities, tagTypes, users } from './schema.ts'
 
 /** An account that already has a password, so its sessions have a key to be signed with. */
 async function claimed(db: Db, email: string, password = 'a good long one') {
@@ -189,18 +189,16 @@ describe('the REST surface', () => {
           .get()
       ).id
 
+      // The track, in the three encodings the route serves. Altitude climbs by a metre
+      // a point and time by a second, so a decoded stream is checkable by eye.
       await db
-        .insert(trackpoints)
-        .values(
-          points.map((p, seq) => ({
-            activityId: id,
-            seq,
-            lat: p[0],
-            lon: p[1],
-            altitudeM: 500 + seq,
-            recordedAt: 1_700_000_000 + seq,
-          })),
-        )
+        .update(activities)
+        .set({
+          trackGeometry: polyline.encode(points, TRACK_PRECISION),
+          trackAltitudes: encodeScalars(altitudesToScalars(points.map((_, seq) => 500 + seq))),
+          trackTimes: encodeScalars(points.map((_, seq) => seq)),
+        })
+        .where(eq(activities.id, id))
         .run()
     }
 
@@ -504,10 +502,9 @@ describe('the REST surface', () => {
       expect(decodeScalars(body.track.times)).toEqual([0, 1, 2])
     })
 
-    it('serves the stored columns verbatim when an activity has them', async () => {
-      // The seed writes `trackpoints` and no columns, so everything above goes through
-      // the fallback. This is the other side: the columns are the wire format, so the
-      // route hands them over without a codec running at all.
+    it('serves the stored columns verbatim', async () => {
+      // The columns are the wire format, so the route hands them over without a codec
+      // running at all — this asserts that by writing bytes and reading them back.
       const list = (await (
         await signedIn('/api/activities?tag=sport:hike')
       ).json()) as ActivitiesResponse
@@ -725,11 +722,19 @@ describe('the REST surface', () => {
       ).id
 
       await db
-        .insert(trackpoints)
-        .values([
-          { activityId: theirId, seq: 0, lat: 48.15, lon: 11.59 },
-          { activityId: theirId, seq: 1, lat: 48.16, lon: 11.6 },
-        ])
+        .update(activities)
+        .set({
+          trackGeometry: polyline.encode(
+            [
+              [48.15, 11.59],
+              [48.16, 11.6],
+            ],
+            TRACK_PRECISION,
+          ),
+          trackAltitudes: encodeScalars([null, null]),
+          trackTimes: encodeScalars([null, null]),
+        })
+        .where(eq(activities.id, theirId))
         .run()
     })
 

@@ -301,20 +301,19 @@ tag_types (
   UNIQUE (user_id, sort)                    -- unique within one sidebar, not across all
 );
 
-trackpoints (                               -- being retired; see the three columns above
-  activity_id  INTEGER NOT NULL REFERENCES activities(id),
-  seq          INTEGER NOT NULL,            -- authoritative ordering
-  lat          REAL NOT NULL,
-  lon          REAL NOT NULL,
-  altitude_m   REAL,                        -- height above sea level
-  recorded_at  INTEGER,                     -- Unix epoch seconds, UTC
-  PRIMARY KEY (activity_id, seq)
-) WITHOUT ROWID;
 ```
 
-`WITHOUT ROWID` because the primary key *is* how a track is read — `WHERE activity_id = ?
-ORDER BY seq` walks the table itself. On a rowid table that key would be a second copy of
-itself: a 15.7MB unique index sitting beside a hidden rowid nothing refers to.
+The track lives on the activity, in the three encodings `/api/activities/:id` sends. It was a
+row per point until M9 — 43.1MB of a 43.5MB database, 41 bytes to carry about seven of
+information — and the shape cost more than the size. A viewport filter examined 1,046,207 rows
+where it now examines 203; opening one activity read 1,856 rows where it now reads 1; importing
+one wrote a row per point, on the metered operation that costs a thousand times more per row
+than a read. All measured on the deployed database.
+
+Lossless to the precision the sources themselves report: coordinates within 5.57cm and altitude
+within 5cm, against a receiver with 1-3m of error, verified over all 1,045,599 points. So the
+table can be rebuilt from the columns in under a second, which is what makes dropping it a
+storage decision rather than a one-way door — querying points in SQL is rented, not owned.
 
 ### Whose rows
 
@@ -1288,7 +1287,7 @@ splits into several `INSERT`s *inside* the one batch.
 | **Memory** | 128MB |
 | **Subrequests** | **50** — the one that decides the import's shape |
 | **Script size** | 10MB, against 2.9MB of assets |
-| **Database** | 1GB in public preview — ~25M trackpoints, against 1.02M today |
+| **Database** | 1GB in public preview. At 5.6 bytes a point on the activity row it holds ~180M points, against 1.02M today; it was ~25M when a point was a row |
 
 **Knowing who you are costs a round trip.** M6's per-user signing key means the middleware
 reads the user's row before it can check a signature. Locally that is microseconds; at the
@@ -1389,7 +1388,7 @@ will otherwise propose all of these again.
 | A hand-rolled modal | `<dialog showModal>` gives the focus trap, the inert background and the top layer over the map canvas for free. Its Escape is a preventable event, which is all that stood in the way. |
 | Keeping `tracks serve` | With the sources in the browser and `pnpm dev` running both halves, a second entry point existed only to serve a `dist` that nothing else needed. It was right to delete and right to rebuild three milestones later: `packages/edge` serves a `dist` that something finally needs, which is the internet. |
 | DuckDB | Columnar storage earns nothing at this scale, and it is single-writer — hostile to interactive tagging. |
-| UUIDs for activity ids | `trackpoints.activity_id` sits in a WITHOUT ROWID primary key across 1.02M rows — 98% of the database, at ~42 bytes a row. A TEXT uuid there adds ~37MB and roughly doubles the file, to buy nothing an integer was failing at. |
+| UUIDs for activity ids | Judged when `trackpoints.activity_id` sat in a WITHOUT ROWID primary key across 1.02M rows — 98% of the database at ~42 bytes a row — where a TEXT uuid added ~37MB and roughly doubled the file. That table is gone and the argument with it: an id now appears once per activity, not once per point. Still integers, but the reason is only that nothing wants otherwise. |
 | `tag_types` as JSON on `users` | Tempting: a registry belongs to a user, array order replaces `sort`, and deleting a user takes it along. It would move three invariants out of the schema and into code — the type GC from one atomic `DELETE` to a `json_group_array` rebuild, uniqueness to something the code must not get wrong, and a browsable table to one opaque cell. |
 | Users as credentials only | One shared dataset with several logins was the cheaper half-step: no owner column, no scope on any query. Rejected because the moment a second person has an account they have their own map, and retrofitting an owner column onto a populated database is the migration you least want to write twice. |
 | A global session secret | The obvious design, and one round trip cheaper: sign every cookie with one server secret and never read the user. Rejected for what a per-user key gives instead — a password change revoking that person's sessions and nobody else's, immediately, with no sessions table. The price is a read per request and a database leak becoming sufficient to forge a cookie. |
@@ -1402,7 +1401,7 @@ will otherwise propose all of these again.
 | FIT parser (`@garmin/fitsdk`) | A real archive contains zero FIT files — only GPX and TCX. Add one if a future export needs it. |
 | CSV as sport fallback | Its sport vocabulary is localized to the account language. Two untyped rides are tagged by hand instead. |
 | Deno 2 | drizzle-kit has an open bug with `node:sqlite`; the workaround is a third-party patch on core tooling. Unchanged by M7: `drizzle-kit generate` still runs under Node, and Deno only runs the deployed script, which talks to libSQL over HTTP and never sees `node:sqlite`. |
-| H3 cell precompute | Deferred with the heatmap. The trackpoint table supports it and every alternative. |
+| H3 cell precompute | Deferred with the heatmap. Cells would be derived at import from the same points the track columns are encoded from — or from a `trackpoints` rebuilt out of them, which takes under a second. |
 | Point objects on the detail route | 34k `{lat, lon, altitudeM, recordedAt}` objects is 2.65MB for one activity — JSON overhead, not resolution. The same points encoded at precision 6 are lossless and 0.07MB; with altitude alongside, 0.30MB. Timestamps went with it: nothing had ever read them, and they are still in the database. |
 | Decoding polylines server-side | Kept the browser codec-free, but meant ~50k JSON coordinate arrays per response: 1.14 MB, and more time in `JSON.stringify` and Zod than in the query. The browser already rebuilt every feature to paint it, so the decode joined a pass that existed. 28.3 ms to 2.6 ms. |
 | `trackpoints_spatial` index | 35MB to prune one dimension of two. A cached bbox column with an exact SQL refine is the same answer for 6KB, and faster zoomed in. Adopted in 0002 — an earlier draft rejected the idea when the refine was imagined client-side, in turf. |

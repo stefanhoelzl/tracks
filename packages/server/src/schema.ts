@@ -50,13 +50,13 @@ export const activities = sqliteTable(
     /** JSON array of '<type>:<value>' tags, sorted. Queried with json_each(). */
     tags: text('tags').notNull().default('[]'),
     /**
-     * The track's bounding box, cached from its trackpoints.
+     * The track's bounding box, cached from its points.
      *
      * The same trade as `polyline`: an aggregate over a track's thousand-odd points,
-     * stored once so the common query never reads them. It makes the viewport filter a
+     * stored once so the common query never decodes them. It makes the viewport filter a
      * scan of a few hundred activities that eliminates almost all of them, before the
-     * exact point check runs over what survives. Null only for a row imported before
-     * this column existed, or one with no track.
+     * line test runs over what survives. Null only for a row imported before this column
+     * existed, or one with no track.
      */
     minLat: real('min_lat'),
     maxLat: real('max_lat'),
@@ -84,37 +84,6 @@ export const activities = sqliteTable(
   // The owner is part of the key: two people may each import the same Strava ride, and
   // one of them importing it must not be the other's duplicate.
   (t) => [unique('activities_source_external').on(t.userId, t.source, t.externalId)],
-)
-
-/**
- * The full-resolution track, before it moved onto `activities`.
- *
- * Nothing writes here any more and one thing still reads it: `activityDetail` falls back
- * to it for a row imported before `track_geometry` existed. A one-off script fills those
- * columns and the next migration drops this table, so both the fallback and this comment
- * are the shape of the gap between two deploys.
- *
- * `seq` is the authoritative ordering, not `recordedAt` — timestamps can repeat or be
- * absent.
- */
-export const trackpoints = sqliteTable(
-  'trackpoints',
-  {
-    activityId: integer('activity_id')
-      .notNull()
-      .references(() => activities.id, { onDelete: 'cascade' }),
-    seq: integer('seq').notNull(),
-    lat: real('lat').notNull(),
-    lon: real('lon').notNull(),
-    /** Height above sea level, not cumulative gain. */
-    altitudeM: real('altitude_m'),
-    /** Unix epoch seconds, UTC. */
-    recordedAt: integer('recorded_at'),
-  },
-  // The table is WITHOUT ROWID, which drizzle cannot express — see migration 0002.
-  // The primary key is therefore the table's own key rather than a second copy of it,
-  // which is both how the track is read back and 15MB the database no longer spends.
-  (t) => [primaryKey({ columns: [t.activityId, t.seq] })],
 )
 
 /**

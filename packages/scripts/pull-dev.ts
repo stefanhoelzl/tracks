@@ -93,6 +93,12 @@ const COLUMNS = [
   'max_lat',
   'min_lon',
   'max_lon',
+  // The track itself, three columns on the row. It used to be a second pass — one query
+  // per activity against a row-per-point table, a million rows over the network for a
+  // local copy — and it is now three more values in the row already being copied.
+  'track_geometry',
+  'track_altitudes',
+  'track_times',
 ]
 await insert(
   'activities',
@@ -100,23 +106,7 @@ await insert(
   activities.map((a) => [userId, ...COLUMNS.map((c) => a[c])]),
 )
 
-const POINTS = ['activity_id', 'seq', 'lat', 'lon', 'altitude_m', 'recorded_at']
-let points = 0
-for (const [index, activity] of activities.entries()) {
-  const track = await rows(
-    `SELECT ${POINTS.join(',')} FROM trackpoints WHERE activity_id = ? ORDER BY seq`,
-    [activity.id as number],
-  )
-  await insert(
-    'trackpoints',
-    POINTS,
-    track.map((p) => POINTS.map((c) => p[c])),
-  )
-  points += track.length
-  process.stdout.write(`\r  ${index + 1} of ${activities.length} — ${points} points`)
-}
-
-console.log(`\n\ndata/dev.db: ${activities.length} activities, ${points} points for ${user!.email}`)
+console.log(`\ndata/dev.db: ${activities.length} activities for ${user!.email}`)
 console.log('`pnpm dev:local` signs in as that account by itself — password: password')
 console.log('\n  pnpm dev:local')
 

@@ -56,7 +56,7 @@ export function parseCsvDate(raw: string): Date | null {
  * Reads activities.csv, skipping rows with no track file.
  *
  * Those are pool swims — real activities with no GPS. They are not imported, which
- * keeps "zero trackpoints" meaning "not imported yet".
+ * keeps "no stored geometry" meaning "not imported yet".
  *
  * Takes the text rather than a path: the file arrives as a zip entry the browser
  * pulled by name, and there is no filesystem on this side of the wire.

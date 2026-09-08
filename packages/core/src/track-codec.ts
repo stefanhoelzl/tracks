@@ -27,7 +27,7 @@
 /**
  * What the full-resolution geometry is encoded at, everywhere.
  *
- * Six decimal places is what the sources report and what `trackpoints` held, so the round
+ * Six decimal places is what the sources report, so the round
  * trip is exact to within half a unit in the last place — 5.6cm, against a receiver with
  * 1-3m of error. It lives here rather than beside each user because there are now three:
  * the importer that writes the column, the route that sends it, and the browser that
