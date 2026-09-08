@@ -101,9 +101,10 @@ export class BRouterRouter implements Router {
    * breakdown, so per-leg distances need per-leg calls whatever the semantics. The
    * design wanted legs bounded by breaks and the provider wanted the same thing.
    *
-   * Sequential rather than parallel, because the endpoint is one enthusiast's machine
-   * and a plan is edited one leg at a time anyway — the cache above this means a whole
-   * plan is only ever requested at once when a shared link is first opened.
+   * Handed several stretches at once it walks them in order rather than firing them
+   * together, because the endpoint is one enthusiast's machine. In practice the app
+   * asks per leg so that each one caches on its own, and an edit costs the one or two
+   * legs it invalidated.
    */
   async route(
     waypoints: readonly Waypoint[],

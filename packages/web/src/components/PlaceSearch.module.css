@@ -1,0 +1,74 @@
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.icon {
+  position: absolute;
+  left: 9px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.input {
+  width: 100%;
+  padding: 7px 10px 7px 28px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-ctrl);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+
+.input::placeholder {
+  color: var(--muted);
+}
+
+.input:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 6px 9px;
+  border-radius: var(--radius-ctrl);
+  text-align: left;
+}
+
+.result:hover {
+  background: var(--sunk);
+}
+
+.name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The half that stops two places with one name from being one row you guess at. */
+.context {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

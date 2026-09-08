@@ -42,30 +42,12 @@
   padding: 4px 18px 18px;
 }
 
-.titleBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .title {
   font-size: var(--text-3xl);
   font-weight: 800;
   letter-spacing: var(--tracking-tightest);
   line-height: 1.12;
   margin: 0;
-}
-
-.when {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--muted);
-}
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
 }
 
 .group {
@@ -83,7 +65,6 @@
   margin-bottom: 2px;
 }
 
-.points,
 .loading {
   font-size: var(--text-base);
   color: var(--muted);
@@ -101,18 +82,5 @@
 }
 
 .banner span {
-  color: var(--muted);
-}
-
-/* The same head the sidebar's range groups use: label left, its unit right. */
-.groupHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.unit {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
   color: var(--muted);
 }

@@ -4,11 +4,11 @@ import { useMemo } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, group, km, localTime, longDate, metres } from '../lib/format.ts'
 import styles from './DetailPanel.module.css'
-import { ElevationProfile, profileOf } from './ElevationProfile.tsx'
+import { profileOf } from './ElevationProfile.tsx'
 import { TagInput } from './TagInput.tsx'
+import { TrackOverview } from './TrackOverview.tsx'
 import { Chip } from './ui/Chip.tsx'
 import { Label } from './ui/Label.tsx'
-import { StatTile } from './ui/StatTile.tsx'
 
 /**
  * One activity, and the one place a single activity's tags are edited.
@@ -73,36 +73,25 @@ export function DetailPanel({
 
         {detail ? (
           <>
-            <div className={styles.titleBlock}>
-              <h2 className={styles.title}>{detail.activity.title ?? 'Untitled'}</h2>
-              <div className={styles.when}>
-                {longDate(detail.activity.localDate)} ·{' '}
-                {localTime(detail.activity.startedAt, detail.activity.utcOffset)}
-              </div>
-            </div>
-
-            <div className={styles.stats}>
-              <StatTile label="Distance" value={km(detail.activity.distanceM)} unit="km" />
-              <StatTile label="Elevation" value={metres(detail.activity.elevationGainM)} unit="m" />
-              <StatTile label="Moving" value={duration(detail.activity.durationS)} unit="h" />
-              <StatTile label="Elapsed" value={duration(detail.activity.elapsedS)} unit="h" />
-            </div>
-
-            <div className={styles.group}>
-              <div className={styles.groupHead}>
-                <Label>Elevation</Label>
-                {profile ? <span className={styles.unit}>m</span> : null}
-              </div>
-              {profile ? (
-                <ElevationProfile profile={profile} cursor={cursor} onCursor={onCursor} />
-              ) : (
-                <div className={styles.points}>No elevation recorded</div>
-              )}
-              <div className={styles.points}>
-                {group(detail.track.coordinates.length)} points at full resolution, drawn on the
-                map.
-              </div>
-            </div>
+            <TrackOverview
+              title={<h2 className={styles.title}>{detail.activity.title ?? 'Untitled'}</h2>}
+              when={
+                <>
+                  {longDate(detail.activity.localDate)} ·{' '}
+                  {localTime(detail.activity.startedAt, detail.activity.utcOffset)}
+                </>
+              }
+              tiles={[
+                { label: 'Distance', value: km(detail.activity.distanceM), unit: 'km' },
+                { label: 'Elevation', value: metres(detail.activity.elevationGainM), unit: 'm' },
+                { label: 'Moving', value: duration(detail.activity.durationS), unit: 'h' },
+                { label: 'Elapsed', value: duration(detail.activity.elapsedS), unit: 'h' },
+              ]}
+              profile={profile}
+              cursor={cursor}
+              onCursor={onCursor}
+              note={`${group(detail.track.coordinates.length)} points at full resolution, drawn on the map.`}
+            />
 
             <div className={styles.group}>
               <Label>Tags</Label>

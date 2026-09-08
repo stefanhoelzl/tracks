@@ -18,6 +18,19 @@ vi.mock('./components/MapView.tsx', () => ({
   ),
 }))
 
+/**
+ * A fake router and geocoder, so planning composes without a network.
+ *
+ * What the real adapters do with a real payload is tested against recorded responses
+ * in `packages/routing`; what is worth asserting here is that the mode switch swaps
+ * both panels and that leaving takes the plan with it.
+ */
+vi.mock('./lib/routing.ts', () => ({
+  router: { id: 'fake', profiles: ['trekking'], route: async () => [] },
+  geocoder: { id: 'fake', search: async () => [], reverse: async () => null },
+  usePlanLegs: () => ({ legs: [], pending: false, error: null }),
+}))
+
 const TAG_TYPES = {
   tagTypes: [
     {
@@ -262,5 +275,29 @@ describe('the app', () => {
 
     await renderApp()
     await waitFor(() => expect(screen.getByText(/expected YYYY-MM-DD/)).toBeTruthy())
+  })
+
+  it('swaps both panels for the mode, and leaving takes the plan with it', async () => {
+    // A shared plan link: two stops, in the fragment, which never reached the server.
+    window.history.replaceState(
+      null,
+      '',
+      '/?mode=planning#at=_p~iF~ps%7CU_ulL~ugC&kinds=pp&poi=Vent&poi=Hut',
+    )
+    await renderApp()
+
+    await waitFor(() => expect(screen.getByText('Vent')).toBeTruthy())
+    // The waypoint list takes the sidebar's side; the filter is still in effect on the
+    // tracks underneath and still visible as the top bar's chips.
+    expect(screen.queryByRole('region', { name: 'Sport' })).toBeNull()
+    expect(screen.getByLabelText('Search for a place')).toBeTruthy()
+    // Nothing about the plan was ever requested.
+    expect(requested.some((r) => r.includes('plan'))).toBe(false)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Activities' }))
+
+    // Leaving is the plan's only Clear control, so the fragment goes with the mode.
+    expect(window.location.hash).toBe('')
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy())
   })
 })

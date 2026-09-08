@@ -1,0 +1,42 @@
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.when {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* The same head the sidebar's range groups use: label left, its unit right. */
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.unit {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.note {
+  font-size: var(--text-base);
+  color: var(--muted);
+  line-height: 1.5;
+}

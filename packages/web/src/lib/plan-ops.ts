@@ -130,3 +130,33 @@ export function moveWaypoint(plan: Plan, index: number, at: LatLon): Plan {
 export function kindIsAChoice(plan: Plan): boolean {
   return plan.waypoints.length >= 2
 }
+
+/**
+ * A stop and the shaping points that lead out of it, moved as one.
+ *
+ * `from` and `to` are POI ordinals, because that is what the list shows — the ticks
+ * between two rows belong to the leg leaving the row above them, so a stop drags with
+ * the way out of it. Moving a POI while its hints stayed behind would leave the route
+ * doubling back through them.
+ *
+ * Shaping points before the first POI have no stop to belong to and stay where they
+ * are; they are dropped when the plan is routed anyway.
+ */
+export function moveStop(plan: Plan, from: number, to: number): Plan {
+  const head: Waypoint[] = []
+  const blocks: Waypoint[][] = []
+
+  for (const waypoint of plan.waypoints) {
+    if (waypoint.kind === 'poi') blocks.push([waypoint])
+    else if (blocks.length === 0) head.push(waypoint)
+    else blocks[blocks.length - 1]?.push(waypoint)
+  }
+
+  const block = blocks[from]
+  if (!block || from === to || to < 0 || to >= blocks.length) return plan
+
+  const next = [...blocks]
+  next.splice(from, 1)
+  next.splice(to, 0, block)
+  return { ...plan, waypoints: [...head, ...next.flat()] }
+}

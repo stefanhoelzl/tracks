@@ -106,6 +106,7 @@ export function MapView({
   planning,
   plan,
   legs,
+  plannedTrack,
   pin,
   pinAt,
   onHover,
@@ -139,6 +140,8 @@ export function MapView({
   plan: Plan
   /** One slot per leg; `undefined` while that leg is still in flight. */
   legs: Array<Leg | undefined>
+  /** Every routed leg end to end — what the elevation cursor indexes into. */
+  plannedTrack: Array<[number, number]>
   /** The pinned dialog, positioned at `pinAt` and moved by the map, not by the page. */
   pin: ReactNode
   pinAt: LatLon | null
@@ -199,6 +202,7 @@ export function MapView({
     planning,
     plan,
     legs,
+    plannedTrack,
     onViewportChange,
     onSelect,
     onHover,
@@ -214,6 +218,7 @@ export function MapView({
     planning,
     plan,
     legs,
+    plannedTrack,
     onViewportChange,
     onSelect,
     onHover,
@@ -301,6 +306,17 @@ export function MapView({
       if (index >= 0) live.current.onCursor(index)
     })
     instance.on('mouseleave', SELECTED_CASING_LAYER, () => live.current.onCursor(null))
+
+    // The plan's half of the same link, over the same mechanism — one index into the
+    // array both ends are reading, so neither can be talking about a different point.
+    instance.on('mousemove', PLAN_CASING_LAYER, (event: MapLayerMouseEvent) => {
+      if (drag.current) return
+      const coordinates = live.current.plannedTrack
+      if (!coordinates.length) return
+      const index = nearestIndex(coordinates, event.lngLat.lng, event.lngLat.lat)
+      if (index >= 0) live.current.onCursor(index)
+    })
+    instance.on('mouseleave', PLAN_CASING_LAYER, () => live.current.onCursor(null))
 
     // --- Planning ----------------------------------------------------------
 
@@ -582,14 +598,17 @@ export function MapView({
     const source = map.current.getSource<GeoJSONSource>(CURSOR_SOURCE)
     if (!source) return
 
-    const point = cursor === null ? undefined : detail?.track.coordinates[cursor]
+    // Whichever track is on screen: while planning the detail is not drawn at all, so
+    // the cursor indexes into the plan instead — one mechanism, two sources.
+    const coordinates = planning ? plannedTrack : detail?.track.coordinates
+    const point = cursor === null ? undefined : coordinates?.[cursor]
     source.setData({
       type: 'FeatureCollection',
       features: point
         ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: point } }]
         : [],
     })
-  }, [ready, cursor, detail])
+  }, [ready, cursor, detail, planning, plannedTrack])
 
   // --- Camera ---------------------------------------------------------------
 

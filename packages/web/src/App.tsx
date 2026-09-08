@@ -40,6 +40,7 @@ import {
   setKind,
   updateWaypoint,
 } from './lib/plan-ops.ts'
+import { planTrack } from './lib/plan-track.ts'
 import { geocoder, usePlanLegs } from './lib/routing.ts'
 import { useSignOut } from './lib/session.ts'
 import { useUrlState } from './lib/url.ts'
@@ -175,6 +176,13 @@ export function App({ email }: { email: string }) {
   const { legs, pending: legsPending, error: legsError } = usePlanLegs(plan, planning)
 
   /**
+   * Every routed leg as one track, computed here so the panel and the map read the same
+   * array — which is what makes the elevation cursor one index rather than two roundings
+   * of one position, exactly as it already is for an activity.
+   */
+  const planned = useMemo(() => planTrack(legs), [legs])
+
+  /**
    * Name a stop from whatever is there, after the fact.
    *
    * Lazily, and only for POIs — a shaping point wants no name, which is also exactly
@@ -280,6 +288,7 @@ export function App({ email }: { email: string }) {
         planning={planning}
         plan={plan}
         legs={legs}
+        plannedTrack={planned.coordinates}
         pinAt={pin?.at ?? null}
         pin={
           pin ? (
@@ -349,7 +358,23 @@ export function App({ email }: { email: string }) {
               still in effect on the dimmed tracks and still visible as the top bar's
               chips, so nothing becomes invisible-but-active. */}
           {planning ? (
-            <WaypointPanel plan={plan} pending={legsPending} error={legsError} onPlan={setPlan} />
+            <WaypointPanel
+              plan={plan}
+              legs={legs}
+              pending={legsPending}
+              error={legsError}
+              near={() => mapHandle.current?.centre() ?? null}
+              onPlan={setPlan}
+              onSelect={openWaypoint}
+              // A search result raises the same pinned dialog a map click raises, with
+              // the name already known — so a searched stop needs no reverse lookup.
+              onPick={(place) =>
+                setPin({
+                  at: { lat: place.lat, lon: place.lon },
+                  target: { state: 'new', leg: null, name: place.name },
+                })
+              }
+            />
           ) : (
             <div className={styles.scroll}>
               <FilterSidebar
@@ -393,7 +418,14 @@ export function App({ email }: { email: string }) {
             />
           </div>
           {planning ? (
-            <PlanOverview plan={plan} />
+            <PlanOverview
+              plan={plan}
+              legs={legs}
+              track={planned}
+              cursor={cursor}
+              onCursor={setCursor}
+              onPlan={(next) => setPlan(next, 'replace')}
+            />
           ) : view.activity !== null ? (
             <DetailPanel
               detail={detail.data}
