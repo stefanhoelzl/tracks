@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { NewType, SortKey, TagWrite } from '@tracks/core'
 import type { LatLon, Place, Waypoint } from '@tracks/routing'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { ActivityList } from './components/ActivityList.tsx'
 import { AnalyticsPanel } from './components/AnalyticsPanel.tsx'
@@ -45,6 +45,14 @@ import { planTrack } from './lib/plan-track.ts'
 import { geocoder, usePlanLegs } from './lib/routing.ts'
 import { useSignOut } from './lib/session.ts'
 import { useUrlState } from './lib/url.ts'
+
+/**
+ * How long the pointer has to rest on a search result before the map goes there.
+ *
+ * Below noticing when you meant the row, and above the cost of sweeping past four on
+ * the way to the fifth.
+ */
+const HOVER_DWELL_MS = 160
 
 /** Kept in step with the token file, which the map needs as numbers for its padding. */
 const PANEL_W = 300
@@ -89,6 +97,7 @@ export function App({ email }: { email: string }) {
   const [pin, setPin] = useState<{ at: LatLon; target: PinTarget } | null>(null)
   /** The search result under the pointer, ringed on the map. Transient, like the pin. */
   const [preview, setPreview] = useState<LatLon | null>(null)
+  const dwell = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const queryClient = useQueryClient()
 
@@ -242,6 +251,25 @@ export function App({ email }: { email: string }) {
     },
     [plan, legs, setPlan],
   )
+
+  /**
+   * Ring the place under the pointer, and go and look at it.
+   *
+   * After a short dwell, not immediately: pointing at a row means *that one*, but
+   * sweeping down five rows on the way to the fifth does not mean the first four, and a
+   * camera that chased every one of them would be unreadable. A sixth of a second is
+   * below noticing when you meant it and above the cost when you did not.
+   */
+  const previewPlace = useCallback((place: Place | null) => {
+    clearTimeout(dwell.current)
+    setPreview(place ? { lat: place.lat, lon: place.lon } : null)
+    if (!place) return
+
+    const at = { lat: place.lat, lon: place.lon }
+    dwell.current = setTimeout(() => mapHandle.current?.flyTo(at), HOVER_DWELL_MS)
+  }, [])
+
+  useEffect(() => () => clearTimeout(dwell.current), [])
 
   const editing = pin?.target.state === 'edit' ? pin.target.index : null
 
@@ -465,11 +493,7 @@ export function App({ email }: { email: string }) {
                 dropPin(at, place.name)
               }}
               onAddPlace={addPlace}
-              // Ringed where it is, without moving the camera: flying on every hover
-              // would make reading a list of five places a fairground ride.
-              onHoverPlace={(place) =>
-                setPreview(place ? { lat: place.lat, lon: place.lon } : null)
-              }
+              onHoverPlace={previewPlace}
             />
           ) : view.activity !== null ? (
             <DetailPanel

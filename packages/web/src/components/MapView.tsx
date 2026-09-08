@@ -205,11 +205,12 @@ export function MapView({
     },
     // Zooms in to a place worth looking at, and never back out: arriving from a
     // valley-level view only to be pulled out to z13 would lose what you were reading.
+    // Brisk, because this also runs while a pointer moves down a list of results.
     flyTo: (at: LatLon) =>
       map.current?.flyTo({
         center: [at.lon, at.lat],
         zoom: Math.max(map.current.getZoom(), 13),
-        duration: 700,
+        duration: 450,
       }),
     fitBounds: ([west, south, east, north]: [number, number, number, number]) =>
       map.current?.fitBounds(

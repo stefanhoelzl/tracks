@@ -394,6 +394,33 @@ describe('the app', () => {
     expect(flyTo).toHaveBeenCalledWith({ lat: 46.86, lon: 10.91 })
   })
 
+  it('goes and looks at a result the pointer rests on', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
+    await userEvent.hover(await screen.findByText('Vent'))
+
+    // After a dwell, not immediately — so sweeping down five rows on the way to the
+    // fifth does not drag the camera through the first four.
+    await waitFor(() => expect(flyTo).toHaveBeenCalledWith({ lat: 46.86, lon: 10.91 }))
+  })
+
+  it('does not chase a pointer that passes straight over a result', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
+    const row = await screen.findByText('Vent')
+    await userEvent.hover(row)
+    await userEvent.unhover(row)
+
+    // The dwell has not elapsed and the pointer has already left, so nothing moved.
+    expect(flyTo).not.toHaveBeenCalled()
+  })
+
   it('goes and looks at one added straight from its row', async () => {
     window.history.replaceState(null, '', '/?mode=planning')
     await renderApp()

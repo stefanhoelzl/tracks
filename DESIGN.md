@@ -1028,13 +1028,21 @@ countries and you are looking straight at one of them. About five rows, each car
 name and a `city · state · country` line from Photon's own properties, so two places with
 one name are told apart before you click rather than after.
 
-Pointing at a result **rings it on the map** and grows its placements inline, so the common
-case — *that Vent, at the end* — is one gesture from a list rather than a trip through the
-pinned dialog. A ring rather than a pin, because it is not part of the plan yet and drawing
-it like a stop would say it was. Clicking the row still raises the dialog, which is the way
-to a shaping point, a rename, or a look before committing. Either way the camera goes there;
-hovering does not move it, because flying on every hover would make reading five results a
-fairground ride.
+Pointing at a result **rings it on the map and flies there**, and grows its placements
+inline, so the common case — *that Vent, at the end* — is one gesture from a list rather than
+a trip through the pinned dialog. A ring rather than a pin, because it is not part of the
+plan yet and drawing it like a stop would say it was. Clicking the row still raises the
+dialog, which is the way to a shaping point, a rename, or a look before committing.
+
+The camera waits a sixth of a second before following the pointer. Moving on every hover was
+the first attempt and was unreadable — sweeping down five rows dragged the camera through
+the first four — and not moving at all was the second, which left *which Vent is that* to a
+ring somewhere off screen. A dwell is below noticing when you meant the row and above the
+cost when you did not.
+
+The results themselves float **over** the panel rather than sitting in it. In the flow they
+shoved the profile pills and the whole list of stops down and let them spring back on the
+next keystroke, which is the page moving under a pointer trying to reach a row.
 
 Reverse geocoding is lazy and POI-only. A map click makes a ROUTING point by default, which
 wants no name and costs no request; promoting one to POI is what asks Photon what is there,

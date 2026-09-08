@@ -1,7 +1,8 @@
+/* The anchor for the results, which float rather than sit in the flow. */
 .search {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 
 .field {
@@ -37,13 +38,33 @@
   border-color: var(--accent);
 }
 
+/*
+ * Over the panel, not in it.
+ *
+ * In the flow, five results shoved the profile pills and the whole list of stops down
+ * the panel and let them spring back on the next keystroke — the page moving under a
+ * pointer that is trying to reach a row. Floating it costs a surface of its own, since
+ * the panel behind it is glass and would otherwise read straight through.
+ */
 .results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 1px;
   margin: 0;
-  padding: 0;
+  padding: 4px;
   list-style: none;
+  max-height: 264px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-ctrl);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
 }
 
 .result {
