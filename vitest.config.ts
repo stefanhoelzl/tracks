@@ -23,6 +23,7 @@ export default defineConfig({
             'packages/core/src/**/*.test.ts',
             'packages/server/src/**/*.test.ts',
             'packages/edge/src/**/*.test.ts',
+            'packages/routing/src/**/*.test.ts',
           ],
           environment: 'node',
         },

@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 2012758279,
+        "osm_key": "shop",
+        "osm_value": "clothes",
+        "type": "house",
+        "housenumber": "18",
+        "name": "Lacoste",
+        "street": "Maria-Theresien-Straße",
+        "district": "Altstadt",
+        "city": "Innsbruck",
+        "state": "Tyrol",
+        "country": "Austria",
+        "postcode": "6020",
+        "countrycode": "AT"
+      },
+      "geometry": { "type": "Point", "coordinates": [11.3929725, 47.2653976] }
+    }
+  ]
+}

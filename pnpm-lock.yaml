@@ -58,6 +58,12 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
 
+  packages/routing:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
   packages/scripts:
     dependencies:
       '@libsql/client':

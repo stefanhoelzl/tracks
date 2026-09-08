@@ -1,0 +1,98 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 240102359,
+        "osm_key": "place",
+        "osm_value": "village",
+        "type": "district",
+        "name": "Vent",
+        "city": "Sölden",
+        "county": "Bezirk Imst",
+        "state": "Tyrol",
+        "country": "Austria",
+        "postcode": "6458",
+        "countrycode": "AT"
+      },
+      "geometry": { "type": "Point", "coordinates": [10.9146696, 46.8600108] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "W",
+        "osm_id": 507947712,
+        "osm_key": "landuse",
+        "osm_value": "winter_sports",
+        "type": "other",
+        "name": "Vent",
+        "district": "Vent",
+        "city": "Sölden",
+        "county": "Bezirk Imst",
+        "state": "Tyrol",
+        "country": "Austria",
+        "countrycode": "AT",
+        "extent": [10.891217, 46.8740194, 10.9216825, 46.8528152]
+      },
+      "geometry": { "type": "Point", "coordinates": [10.908008, 46.8632382] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "W",
+        "osm_id": 925622588,
+        "osm_key": "natural",
+        "osm_value": "valley",
+        "type": "other",
+        "name": "Venter Tal",
+        "city": "Sölden",
+        "county": "Bezirk Imst",
+        "state": "Tyrol",
+        "country": "Austria",
+        "countrycode": "AT",
+        "extent": [10.911031, 46.9383487, 11.0266469, 46.8579313]
+      },
+      "geometry": { "type": "Point", "coordinates": [10.9657835, 46.9044801] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "R",
+        "osm_id": 4505313,
+        "osm_key": "waterway",
+        "osm_value": "river",
+        "type": "other",
+        "name": "Venter Ache",
+        "city": "Sölden",
+        "county": "Bezirk Imst",
+        "state": "Tyrol",
+        "country": "Austria",
+        "countrycode": "AT",
+        "extent": [10.9111648, 46.9390321, 11.0262657, 46.8579292]
+      },
+      "geometry": { "type": "Point", "coordinates": [10.9664586, 46.9037324] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "W",
+        "osm_id": 783145688,
+        "osm_key": "highway",
+        "osm_value": "tertiary",
+        "type": "street",
+        "name": "Venter Straße",
+        "district": "Zwieselstein",
+        "city": "Sölden",
+        "county": "Bezirk Imst",
+        "state": "Tyrol",
+        "country": "Austria",
+        "postcode": "6450",
+        "countrycode": "AT",
+        "extent": [11.027074, 46.9402047, 11.0271742, 46.9402007]
+      },
+      "geometry": { "type": "Point", "coordinates": [11.0271241, 46.9402027] }
+    }
+  ]
+}
