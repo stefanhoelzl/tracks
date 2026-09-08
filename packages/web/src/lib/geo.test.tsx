@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cumulativeDistances, indexAtDistance, nearestIndex } from './geo.ts'
+import { cumulativeDistances, indexAtDistance, nearestIndex, nearestOnPath } from './geo.ts'
 
 /** One degree of latitude on the sphere the haversine above is written against. */
 const DEGREE_M = 111_195
@@ -106,5 +106,41 @@ describe('indexAtDistance', () => {
   it('clamps to the ends', () => {
     expect(indexAtDistance(distances, -50)).toBe(0)
     expect(indexAtDistance(distances, 9_000)).toBe(3)
+  })
+})
+
+describe('nearestOnPath', () => {
+  // A straight line east along the equator, one degree between the two points.
+  const beeline: Array<[number, number]> = [
+    [0, 0],
+    [1, 0],
+  ]
+
+  it('measures to the segment, not to whichever end happens to be closer', () => {
+    // The whole reason this exists: an unrouted leg is two distant points, and a click
+    // in the middle of it is far from both. Vertex distance would call this ~55 km.
+    const hit = nearestOnPath(beeline, 0.5, 0)
+    expect(hit.distanceM).toBeCloseTo(0, 5)
+    expect(hit.position).toBeCloseTo(0.5, 6)
+  })
+
+  it('reports how far along, so points on one leg can be ordered', () => {
+    expect(nearestOnPath(beeline, 0.25, 0).position).toBeCloseTo(0.25, 6)
+    expect(nearestOnPath(beeline, 0.75, 0).position).toBeCloseTo(0.75, 6)
+  })
+
+  it('clamps to the ends rather than running off them', () => {
+    expect(nearestOnPath(beeline, -1, 0).position).toBe(0)
+    expect(nearestOnPath(beeline, 5, 0).position).toBe(1)
+  })
+
+  it('measures the perpendicular offset in metres', () => {
+    // A hundredth of a degree of latitude is ~1113 m.
+    expect(nearestOnPath(beeline, 0.5, 0.01).distanceM).toBeCloseTo(1113.2, 0)
+  })
+
+  it('is infinitely far from a path with no segments', () => {
+    expect(nearestOnPath([], 0, 0).distanceM).toBe(Number.POSITIVE_INFINITY)
+    expect(nearestOnPath([[0, 0]], 0, 0).distanceM).toBe(Number.POSITIVE_INFINITY)
   })
 })

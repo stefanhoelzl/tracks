@@ -33,7 +33,9 @@ import { parsePlan } from './lib/plan.ts'
 import {
   addWaypoint,
   kindIsAChoice,
+  legLabel,
   moveWaypoint,
+  nearestLeg,
   type Placement,
   placementAt,
   removeWaypoint,
@@ -229,6 +231,21 @@ export function App({ email }: { email: string }) {
   )
 
   /**
+   * A place, and the leg it is nearest — which is what makes *insert* and *shaping
+   * point* offerable from a click anywhere rather than only from a click on the line.
+   */
+  const dropPin = useCallback(
+    (at: LatLon, name: string | null) => {
+      const leg = nearestLeg(plan, legs, at)
+      setPin({
+        at,
+        target: { state: 'new', leg, between: leg === null ? null : legLabel(plan, leg), name },
+      })
+    },
+    [plan, legs],
+  )
+
+  /**
    * Selecting is also the one thing that invalidates the cursor: it indexes into the
    * track that was open, and the next one is a different array of a different length.
    */
@@ -312,7 +329,7 @@ export function App({ email }: { email: string }) {
             />
           ) : null
         }
-        onMapClick={(at, leg) => setPin({ at, target: { state: 'new', leg, name: null } })}
+        onMapClick={(at) => dropPin(at, null)}
         onWaypointClick={openWaypoint}
         // Replace on both: a drag is one gesture, and Back should step out of it rather
         // than through every frame.
@@ -377,7 +394,7 @@ export function App({ email }: { email: string }) {
               onPick={(place) => {
                 const at = { lat: place.lat, lon: place.lon }
                 mapHandle.current?.flyTo(at)
-                setPin({ at, target: { state: 'new', leg: null, name: place.name } })
+                dropPin(at, place.name)
               }}
             />
           ) : (

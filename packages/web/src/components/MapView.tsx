@@ -150,8 +150,11 @@ export function MapView({
   onCursor: (index: number | null) => void
   onSelect: (id: number | null) => void
   onViewportChange: (bbox: [number, number, number, number]) => void
-  /** A click on open map or on the route. `leg` is which leg it landed on, if any. */
-  onMapClick: (at: LatLon, leg: number | null) => void
+  /**
+   * A click anywhere on the map. Which leg it meant is decided by distance, above this
+   * — a hit test would make shaping a route a game of aiming at a few pixels.
+   */
+  onMapClick: (at: LatLon) => void
   onWaypointClick: (index: number) => void
   onWaypointMove: (index: number, at: LatLon) => void
   /** A drag off the line: insert a shaping point at `index`, where it was let go. */
@@ -388,7 +391,7 @@ export function MapView({
      * pointer. Its position in the array is settled at `mousedown` and never moves
      * again, so the leg it belongs to cannot change halfway through the gesture.
      */
-    instance.on('mousedown', PLAN_LINE_LAYER, (event: MapLayerMouseEvent) => {
+    const grabLine = (event: MapLayerMouseEvent) => {
       if (!live.current.planning || drag.current) return
       const leg = event.features?.[0]?.properties?.leg
       if (typeof leg !== 'number' || leg < 0) return
@@ -403,7 +406,12 @@ export function MapView({
           .waypoints,
         moved: false,
       })
-    })
+    }
+
+    // Both lines, because a leg that has not routed yet is still a leg you want to
+    // shape — and while the router is slow or unreachable it is the only line there is.
+    instance.on('mousedown', PLAN_LINE_LAYER, grabLine)
+    instance.on('mousedown', PLAN_FAILED_LAYER, grabLine)
 
     instance.on('mousemove', (event: MapLayerMouseEvent) => {
       const state = drag.current
@@ -436,9 +444,9 @@ export function MapView({
     /**
      * One click handler rather than one per layer.
      *
-     * A waypoint, then the route, then open map — asked in that order, of the same
-     * point, so a click can only ever mean one of them. The casing is queried alongside
-     * the line because it is the wider of the two, and a route is a few pixels across.
+     * An existing waypoint is the only thing worth hit-testing for, because clicking one
+     * means *that* one and nothing else. Everything else is a click on the map, and
+     * which leg it meant is a question of distance answered above this component.
      */
     instance.on('click', (event: MapLayerMouseEvent) => {
       if (!live.current.planning) return
@@ -456,11 +464,7 @@ export function MapView({
         return
       }
 
-      const onRoute = instance.queryRenderedFeatures(event.point, {
-        layers: present([PLAN_LINE_LAYER, PLAN_CASING_LAYER, PLAN_FAILED_LAYER]),
-      })
-      const leg = onRoute[0]?.properties?.leg
-      live.current.onMapClick(at(event), typeof leg === 'number' && leg >= 0 ? leg : null)
+      live.current.onMapClick(at(event))
     })
 
     instance.on('render', () => {

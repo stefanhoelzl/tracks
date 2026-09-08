@@ -86,6 +86,56 @@ export function nearestIndex(coordinates: readonly Point[], lon: number, lat: nu
   return best
 }
 
+/** Close enough anywhere for choosing which leg a click meant. */
+const M_PER_DEG = 111_320
+
+export interface PathHit {
+  /** How far along, as a segment index plus the fraction across it. Monotonic. */
+  position: number
+  distanceM: number
+}
+
+/**
+ * The closest point on a path, as a distance and a position along it.
+ *
+ * Perpendicular to each *segment*, not to the vertices — which `nearestIndex` above
+ * does and which is right for a dense recorded track, where the nearest vertex is never
+ * far from the nearest point. A plan's legs are not always dense: an unrouted leg is two
+ * points that may be twenty kilometres apart, and a click in the middle of it is nowhere
+ * near either end. Choosing the leg a click meant has to work for that case, because it
+ * is exactly the case where the router has not answered yet.
+ *
+ * Longitude is squashed by the latitude's cosine so a degree means the same distance on
+ * both axes, and the result is scaled to metres — near enough for comparing legs.
+ */
+export function nearestOnPath(coordinates: readonly Point[], lon: number, lat: number): PathHit {
+  const squash = Math.cos(lat * RAD)
+  const px = lon * squash
+  let best: PathHit = { position: 0, distanceM: Number.POSITIVE_INFINITY }
+
+  for (let i = 0; i + 1 < coordinates.length; i++) {
+    const from = coordinates[i]
+    const to = coordinates[i + 1]
+    if (!from || !to) continue
+
+    const ax = from[0] * squash
+    const ay = from[1]
+    const dx = to[0] * squash - ax
+    const dy = to[1] - ay
+
+    const span = dx * dx + dy * dy
+    const t = span === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (lat - ay) * dy) / span))
+
+    const offX = px - (ax + t * dx)
+    const offY = lat - (ay + t * dy)
+    const distanceM = Math.sqrt(offX * offX + offY * offY) * M_PER_DEG
+
+    if (distanceM < best.distanceM) best = { position: i + t, distanceM }
+  }
+
+  return best
+}
+
 /**
  * The index nearest a distance along the track.
  *

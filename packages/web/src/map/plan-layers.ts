@@ -1,6 +1,6 @@
 import type { Leg, Waypoint } from '@tracks/routing'
-import { stretches } from '@tracks/routing'
 import type { MapLibreMap } from 'maplibre-gl'
+import { legGeometries } from '../lib/plan-track.ts'
 import { highlightCasingPaint, highlightPaint, SELECTION } from './layers.ts'
 
 /**
@@ -62,30 +62,14 @@ export function routeFeatures(
   waypoints: readonly Waypoint[],
   legs: ReadonlyArray<Leg | undefined>,
 ): Collection<LineFeature> {
-  const features: LineFeature[] = []
-
-  stretches(waypoints).forEach((stretch, index) => {
-    const leg = legs[index]
-    if (leg) {
-      features.push({
-        type: 'Feature',
-        properties: { leg: index, routed: leg.ok },
-        geometry: { type: 'LineString', coordinates: [...leg.coordinates] },
-      })
-      return
-    }
-
-    features.push({
+  return {
+    type: 'FeatureCollection',
+    features: legGeometries(waypoints, legs).map((coordinates, index) => ({
       type: 'Feature',
-      properties: { leg: index, routed: false },
-      geometry: {
-        type: 'LineString',
-        coordinates: stretch.map((waypoint) => [waypoint.lon, waypoint.lat]),
-      },
-    })
-  })
-
-  return { type: 'FeatureCollection', features }
+      properties: { leg: index, routed: legs[index]?.ok === true },
+      geometry: { type: 'LineString', coordinates },
+    })),
+  }
 }
 
 /**

@@ -6,7 +6,9 @@ import {
   insertionAt,
   kindIsAChoice,
   legCount,
+  legLabel,
   moveWaypoint,
+  nearestLeg,
   placementAt,
   removeWaypoint,
   setKind,
@@ -77,10 +79,50 @@ describe('inserting into a leg', () => {
     expect(insertionAt(plan, legs, 1, { lat: 0, lon: 18 })).toBe(3)
   })
 
-  it('falls to the end of the leg when there is no geometry to measure against', () => {
-    // Only reachable before the first response lands.
-    const plan = planOf([poi(0, 0), shaping(2, 0), poi(10, 0)])
-    expect(insertionAt(plan, [undefined], 0, { lat: 0, lon: 1 })).toBe(2)
+  it('orders against the straight line too, before the router has answered', () => {
+    // The leg is then the run through its own waypoints, which is what the map draws —
+    // so *where along* means what it looks like it means either way.
+    const plan = planOf([poi(0, 0), shaping(8, 0), poi(10, 0)])
+    expect(insertionAt(plan, [undefined], 0, { lat: 0, lon: 2 })).toBe(1)
+    expect(insertionAt(plan, [undefined], 0, { lat: 0, lon: 9 })).toBe(2)
+  })
+})
+
+describe('nearestLeg', () => {
+  const plan = planOf([poi(0, 0, 'A'), poi(10, 0, 'B'), poi(20, 0, 'C')])
+  const legs = [straight(0, 10), straight(10, 20)]
+
+  it('answers a click that is nowhere near the line', () => {
+    // The whole point: aiming at a few pixels of line was the old rule, and it had no
+    // answer at all while the router was still thinking.
+    expect(nearestLeg(plan, legs, { lat: 3, lon: 5 })).toBe(0)
+    expect(nearestLeg(plan, legs, { lat: -4, lon: 15 })).toBe(1)
+  })
+
+  it('measures against the straight line a leg draws before it is routed', () => {
+    // No geometry from the router, so the leg is the run through its own waypoints —
+    // the same line the map is drawing, which is what makes *nearest* predictable.
+    expect(nearestLeg(plan, [undefined, undefined], { lat: 1, lon: 16 })).toBe(1)
+  })
+
+  it('has nothing to answer before there is a leg', () => {
+    expect(nearestLeg(planOf([poi(0, 0, 'A')]), [], { lat: 0, lon: 0 })).toBeNull()
+    expect(nearestLeg(planOf([]), [], { lat: 0, lon: 0 })).toBeNull()
+  })
+})
+
+describe('legLabel', () => {
+  it('names the two stops a leg runs between', () => {
+    const plan = planOf([poi(0, 0, 'Vent'), shaping(5, 0), poi(10, 0, 'Hut')])
+    expect(legLabel(plan, 0)).toBe('Vent → Hut')
+  })
+
+  it('stands in for a stop that has no name yet', () => {
+    expect(legLabel(planOf([poi(0, 0, null), poi(10, 0, 'Hut')]), 0)).toBe('stop → Hut')
+  })
+
+  it('is nothing at all when the leg does not exist', () => {
+    expect(legLabel(planOf([poi(0, 0, 'A')]), 0)).toBeNull()
   })
 })
 

@@ -1,5 +1,6 @@
 import type { ActivityTrack } from '@tracks/core'
-import type { Leg } from '@tracks/routing'
+import type { Leg, Waypoint } from '@tracks/routing'
+import { stretches } from '@tracks/routing'
 
 /**
  * A plan's legs, read as one track.
@@ -8,6 +9,28 @@ import type { Leg } from '@tracks/routing'
  * `ActivityTrack` is what `profileOf` already takes, so a plan's elevation profile is
  * the activity detail's profile, unchanged, cursor sync included.
  */
+
+/**
+ * What each leg looks like on the map, routed or not.
+ *
+ * One definition, three readers: the layer that draws the plan, the choice of which leg
+ * a click meant, and the ordering of shaping points inside a leg. They have to agree —
+ * if the line you can see is not the line the click is measured against, *nearest* means
+ * something you cannot predict by looking.
+ *
+ * A leg with no answer yet is the straight run through its own waypoints, which is both
+ * what the map draws and where the route will go.
+ */
+export function legGeometries(
+  waypoints: readonly Waypoint[],
+  legs: ReadonlyArray<Leg | undefined>,
+): Array<Array<[number, number]>> {
+  return stretches(waypoints).map((stretch, index) => {
+    const leg = legs[index]
+    if (leg) return [...leg.coordinates]
+    return stretch.map((waypoint): [number, number] => [waypoint.lon, waypoint.lat])
+  })
+}
 
 export interface PlanTotals {
   distanceM: number

@@ -12,15 +12,21 @@ import styles from './WaypointDialog.module.css'
  * edit state. One dialog, two states — so however a place was found, committing it is
  * the same gesture, and there is nowhere else to look for rename or remove.
  *
- * It rides on a MapLibre marker, so the map moves it. Everything here is ordinary React
- * portalled into that marker's element.
+ * It is positioned over its place by `MapView`, from outside the map's own DOM — see
+ * `pinBox` there. Everything here is ordinary React.
  */
 
 export type PinTarget =
   | {
       state: 'new'
-      /** Which leg the click landed on, if any. ROUTING has nowhere to go without one. */
+      /**
+       * The leg this place is nearest, if the plan has one at all. Not the leg the
+       * pointer hit: a shaping hint means "bend the route here", and being made to aim
+       * at a few pixels of line to say so is the opposite of that.
+       */
       leg: number | null
+      /** How that leg reads — "Vent → Hut" — so the choice names its consequence. */
+      between: string | null
       /** Known already when the pin came from a search result; looked up otherwise. */
       name: string | null
     }
@@ -68,12 +74,14 @@ export function WaypointDialog({
           <div className={styles.title}>{target.name ?? 'Waypoint'}</div>
 
           <div className={styles.group}>
-            <span className={styles.label}>Add as stop</span>
+            <span className={styles.label}>
+              {target.leg !== null && target.between ? `Add to ${target.between}` : 'Add as stop'}
+            </span>
             <div className={styles.row}>
-              {/* Splitting the leg it landed on is only on offer when it landed on one. */}
+              {/* Splitting a leg is on offer as soon as there is a leg to split. */}
               {target.leg !== null ? (
                 <button type="button" className={styles.go} onClick={() => onAdd('poi', 'nearest')}>
-                  Insert here
+                  Insert
                 </button>
               ) : null}
               {count === 0 ? (
@@ -104,7 +112,11 @@ export function WaypointDialog({
               >
                 Shaping point
               </button>
-              <span className={styles.hint}>Bends this leg without stopping there</span>
+              <span className={styles.hint}>
+                {target.between
+                  ? `Bends ${target.between} without stopping there`
+                  : 'Bends this leg without stopping there'}
+              </span>
             </div>
           ) : null}
         </>

@@ -1,6 +1,7 @@
 import type { LatLon, Leg, Waypoint, WaypointKind } from '@tracks/routing'
-import { nearestIndex } from './geo.ts'
+import { nearestOnPath } from './geo.ts'
 import type { Plan } from './plan.ts'
+import { legGeometries } from './plan-track.ts'
 
 /**
  * Editing a plan.
@@ -33,6 +34,35 @@ export function legCount(plan: Plan): number {
 }
 
 /**
+ * Which leg a click meant — the nearest one, measured against the line you can see.
+ *
+ * *Nearest*, not *hit*. Requiring the pointer to land on the line made shaping a route
+ * a game of aiming at a few pixels, and it failed outright whenever the router had not
+ * answered, because then there was no line under the cursor at all. Every leg is a
+ * candidate and the closest wins, so a click anywhere on the map has an answer.
+ *
+ * Null only when there is no leg yet, which is the case the kind toggle is hidden for.
+ */
+export function nearestLeg(
+  plan: Plan,
+  legs: ReadonlyArray<Leg | undefined>,
+  at: LatLon,
+): number | null {
+  let best: number | null = null
+  let bestDistance = Number.POSITIVE_INFINITY
+
+  legGeometries(plan.waypoints, legs).forEach((coordinates, index) => {
+    const { distanceM } = nearestOnPath(coordinates, at.lon, at.lat)
+    if (distanceM < bestDistance) {
+      bestDistance = distanceM
+      best = index
+    }
+  })
+
+  return best
+}
+
+/**
  * Where inside leg `legIndex` a point belongs, as an index into `plan.waypoints`.
  *
  * The shaping points already in that leg are ordered by how far along the drawn line
@@ -40,8 +70,8 @@ export function legCount(plan: Plan): number {
  * before the closing POI — otherwise dropping a hint near the start of a leg would put
  * it after every hint near the end, and the route would double back through them.
  *
- * With no routed geometry to measure against there is nothing to compare, so it goes
- * last in the leg. That is only reachable before the first response arrives.
+ * Measured against the same geometry the map drew, routed or not, so *where along* means
+ * what it looks like it means even before the router has answered.
  */
 export function insertionAt(
   plan: Plan,
@@ -54,10 +84,10 @@ export function insertionAt(
   const closes = pois[legIndex + 1]
   if (opens === undefined || closes === undefined) return plan.waypoints.length
 
-  const leg = legs[legIndex]
-  if (!leg || leg.coordinates.length < 2) return closes
+  const coordinates = legGeometries(plan.waypoints, legs)[legIndex]
+  if (!coordinates || coordinates.length < 2) return closes
 
-  const along = (point: LatLon) => nearestIndex(leg.coordinates, point.lon, point.lat)
+  const along = (point: LatLon) => nearestOnPath(coordinates, point.lon, point.lat).position
   const target = along(at)
 
   for (let index = opens + 1; index < closes; index++) {
@@ -65,6 +95,15 @@ export function insertionAt(
     if (waypoint && along(waypoint) > target) return index
   }
   return closes
+}
+
+/** How a leg reads in the dialog: the two stops it runs between. */
+export function legLabel(plan: Plan, legIndex: number): string | null {
+  const pois = plan.waypoints.filter((waypoint) => waypoint.kind === 'poi')
+  const from = pois[legIndex]
+  const to = pois[legIndex + 1]
+  if (!from || !to) return null
+  return `${from.name ?? 'stop'} → ${to.name ?? 'stop'}`
 }
 
 /** Resolves the dialog's placement choice to one index. */

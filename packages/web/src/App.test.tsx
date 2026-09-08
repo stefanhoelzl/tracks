@@ -16,14 +16,18 @@ vi.mock('./components/MapView.tsx', () => ({
   MapView: (props: {
     tracks?: { features: unknown[] }
     pin?: React.ReactNode
-    onMapClick?: (at: { lat: number; lon: number }, leg: number | null) => void
+    onMapClick?: (at: { lat: number; lon: number }) => void
   }) => (
     <div data-testid="map">
       <span data-testid="track-count">{props.tracks?.features.length ?? 0} tracks</span>
       {/* The map's own behaviour is exercised by hand; what a test can drive is the
-          one thing it hands back, which is a click at a place. */}
-      <button type="button" onClick={() => props.onMapClick?.({ lat: 47.26, lon: 11.39 }, null)}>
+          one thing it hands back, which is a click at a place. Two places, well apart,
+          because which leg a click means is decided by distance. */}
+      <button type="button" onClick={() => props.onMapClick?.({ lat: 47.26, lon: 11.39 })}>
         click the map
+      </button>
+      <button type="button" onClick={() => props.onMapClick?.({ lat: 47.3, lon: 11.5 })}>
+        click elsewhere
       </button>
       {props.pin}
     </div>
@@ -333,5 +337,27 @@ describe('the app', () => {
     await waitFor(() => expect(window.location.hash).toContain('kinds=pp'))
     // And it round-trips: the list is rendered from what the fragment now says.
     expect(screen.getAllByText('Unnamed stop')).toHaveLength(2)
+  })
+
+  it('offers shaping from a click anywhere, not only from a click on the line', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    await userEvent.click(screen.getByRole('button', { name: 'click the map' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
+    await userEvent.click(screen.getByRole('button', { name: 'click elsewhere' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'End' }))
+    await waitFor(() => expect(window.location.hash).toContain('kinds=pp'))
+
+    // A third click, nowhere near the line — and with the router having said nothing,
+    // so there is no routed geometry either. Both were reasons it used to be refused.
+    await userEvent.click(screen.getByRole('button', { name: 'click the map' }))
+
+    expect(await screen.findByRole('button', { name: 'Shaping point' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Insert' })).toBeTruthy()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Shaping point' }))
+    await waitFor(() => expect(window.location.hash).toContain('kinds=prp'))
   })
 })
