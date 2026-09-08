@@ -130,3 +130,59 @@ export function cumulative(legs: ReadonlyArray<Leg | undefined>): PlanTotals[] {
 
   return running
 }
+
+export interface StopReading {
+  /** Signed: negative for a stop that comes before the one being measured from. */
+  distanceM: number
+  ascentM: number
+  /** A leg between this stop and the base did not route, so the gap is unknown. */
+  incomplete: boolean
+}
+
+/**
+ * What each stop reads, measured from `base` rather than always from the start.
+ *
+ * "How far is the hut from here" is the question a list of stops is usually being asked,
+ * and *here* is rarely the beginning — it is whichever row you are looking at. So the
+ * numbers re-base to the row under the pointer, and fall back to the first stop, which
+ * is what they always were.
+ *
+ * The base row itself returns null: the row you are measuring from carries no numbers,
+ * exactly as the first row always did.
+ *
+ * Values are differences of cumulative figures, so a stop before the base reads negative
+ * on both — that far back, and that much less climbing so far.
+ */
+export function readingsFrom(
+  legs: ReadonlyArray<Leg | undefined>,
+  base: number,
+): Array<StopReading | null> {
+  const running = cumulative(legs)
+
+  const at = (stop: number): PlanTotals => {
+    if (stop <= 0) return { distanceM: 0, ascentM: 0, descentM: 0, durationS: 0, incomplete: false }
+    return (
+      running[stop - 1] ?? {
+        distanceM: 0,
+        ascentM: 0,
+        descentM: 0,
+        durationS: 0,
+        incomplete: true,
+      }
+    )
+  }
+
+  const anchor = at(base)
+
+  return Array.from({ length: running.length + 1 }, (_, stop) => {
+    if (stop === base) return null
+    const here = at(stop)
+    return {
+      distanceM: here.distanceM - anchor.distanceM,
+      ascentM: here.ascentM - anchor.ascentM,
+      // `incomplete` is sticky forward, so whichever of the two stops is later already
+      // carries any gap that lies between them.
+      incomplete: at(Math.max(stop, base)).incomplete,
+    }
+  })
+}

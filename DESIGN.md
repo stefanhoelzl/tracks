@@ -1041,10 +1041,16 @@ itself and it is named.
 ### Both panels
 
 The waypoint list mirrors the leg structure rather than the waypoint array. Each **POI is a
-row** — name, and cumulative distance and ascent to it — and the ROUTING points inside a leg
-are **inline ticks on the connector** between two rows, reorderable but not competing for
-attention. A plan with fifteen shaping points and two real places reads as the trip it is:
-*Hut · 12.4 km · 640 m up*.
+row** — name, distance and ascent — and the ROUTING points inside a leg are **inline ticks on
+the connector** between two rows, reorderable but not competing for attention. A plan with
+fifteen shaping points and two real places reads as the trip it is: *Hut · 12.4 km · 640 m up*.
+
+Those numbers are measured **from whichever row is under the pointer**, and from the first
+stop when none is. *How far is the hut from here* is what a list of stops is usually being
+asked, and *here* is rarely the beginning. They are differences of cumulative figures, so a
+stop behind the one you are pointing at reads negative on both — that far back, and that much
+less climbing done by then — and the row being measured from carries no numbers at all, which
+is what the first row always did.
 
 The overview reuses the single-activity view, by extraction rather than by pretence: the
 title block, the stat grid and the elevation profile come out of `DetailPanel` into a piece

@@ -88,6 +88,28 @@ describe('the waypoint panel', () => {
     expect(within(items[1] as HTMLElement).getByText('12.4 km · 640 m up')).toBeDefined()
   })
 
+  it('measures from the row under the pointer, and from the first when there is none', async () => {
+    panel({ waypoints: [poi(0, 'Vent'), poi(2, 'Hut'), poi(4, 'Station')] }, [
+      leg(12_400, 640),
+      leg(8_000, 100),
+    ])
+
+    const rows = () => screen.getAllByRole('listitem')
+    await userEvent.hover(within(rows()[1] as HTMLElement).getByText('Hut'))
+
+    // The hovered row is the one being measured from, so it carries no numbers — and
+    // the stop behind it reads negative, which is where it is.
+    expect(within(rows()[0] as HTMLElement).getByText('-12.4 km · -640 m up')).toBeDefined()
+    expect(within(rows()[1] as HTMLElement).queryByText(/km/)).toBeNull()
+    expect(within(rows()[2] as HTMLElement).getByText('8.0 km · 100 m up')).toBeDefined()
+
+    await userEvent.unhover(within(rows()[1] as HTMLElement).getByText('Hut'))
+
+    // Back to the first stop, which is what the list always read before.
+    expect(within(rows()[1] as HTMLElement).getByText('12.4 km · 640 m up')).toBeDefined()
+    expect(within(rows()[2] as HTMLElement).getByText('20.4 km · 740 m up')).toBeDefined()
+  })
+
   it('refuses to state a total that is missing a leg', () => {
     panel({ waypoints: [poi(0, 'Vent'), poi(2, 'Hut')] }, [undefined])
 

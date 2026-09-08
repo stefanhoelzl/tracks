@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { km, metres } from '../lib/format.ts'
 import type { Plan } from '../lib/plan.ts'
 import { moveStop } from '../lib/plan-ops.ts'
-import { cumulative } from '../lib/plan-track.ts'
+import { readingsFrom } from '../lib/plan-track.ts'
 import { PlaceSearch } from './PlaceSearch.tsx'
 import { Label } from './ui/Label.tsx'
 import styles from './WaypointPanel.module.css'
@@ -23,6 +23,10 @@ import styles from './WaypointPanel.module.css'
  * row carrying the distance and the climb to it; the shaping points inside a leg are
  * ticks on the connector between two rows. A plan with fifteen hints and two real places
  * then reads as the trip it is, rather than as seventeen anonymous entries.
+ *
+ * Those numbers are measured from whichever row is under the pointer, and from the first
+ * stop when none is. "How far is the hut from here" is what a list of stops is usually
+ * being asked, and *here* is rarely the beginning.
  *
  * The profile lives here rather than on the map chrome: it belongs to the plan, travels
  * in the fragment with it, and choosing it is a decision about the trip rather than
@@ -55,8 +59,10 @@ export function WaypointPanel({
 }) {
   /** Which stop is being dragged, as a POI ordinal. Transient, and never in the URL. */
   const [dragging, setDragging] = useState<number | null>(null)
+  /** Which stop the distances are measured from. Also a POI ordinal, also transient. */
+  const [base, setBase] = useState<number | null>(null)
 
-  const totals = cumulative(legs)
+  const readings = readingsFrom(legs, base ?? 0)
 
   // Walked once: a row is a POI, and it needs both where it sits in the waypoint array
   // (every edit addresses that) and which leg arrives at it.
@@ -107,13 +113,17 @@ export function WaypointPanel({
       ) : (
         <div className={styles.group}>
           <Label>Route</Label>
-          <ol className={styles.list}>
+          {/* Cleared on the way out of the list rather than per row: moving between
+              rows crosses the gaps between them, and re-basing to the first stop for a
+              frame each time would make the numbers flicker. */}
+          <ol className={styles.list} onMouseLeave={() => setBase(null)}>
             {rows.map(({ waypoint, index, stop: ordinal }) => {
-              const before = totals[ordinal - 1]
+              const reading = readings[ordinal]
 
               return waypoint.kind === 'poi' ? (
                 <li
                   key={index}
+                  onMouseEnter={() => setBase(ordinal)}
                   // Native drag rather than a library: a dozen rows on one axis, and the
                   // platform already carries the drag image and the drop target.
                   draggable
@@ -129,19 +139,20 @@ export function WaypointPanel({
                   <button
                     type="button"
                     className={styles.rowButton}
+                    // Focus re-bases too, so the list is not a mouse-only readout.
+                    onFocus={() => setBase(ordinal)}
                     onClick={() => onSelect(index)}
                   >
                     <span className={styles.dot} />
                     <span className={styles.name}>{waypoint.name ?? 'Unnamed stop'}</span>
-                    {/* The first stop has nothing behind it, so it carries no numbers
-                        rather than four zeroes. A leg that failed shows a dash: the
-                        totals past it are short by that leg, and saying 12.4 km would
-                        be quietly wrong. */}
-                    {ordinal > 0 ? (
+                    {/* The row being measured from carries no numbers, which is what
+                        the first row always did. A leg that failed shows a dash: the
+                        gap is unknown, and saying 12.4 km would be quietly wrong. */}
+                    {reading ? (
                       <span className={styles.meta}>
-                        {before && !before.incomplete
-                          ? `${km(before.distanceM)} km · ${metres(before.ascentM)} m up`
-                          : '—'}
+                        {reading.incomplete
+                          ? '—'
+                          : `${km(reading.distanceM)} km · ${metres(reading.ascentM)} m up`}
                       </span>
                     ) : null}
                   </button>

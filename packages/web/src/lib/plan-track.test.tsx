@@ -2,7 +2,7 @@ import type { Leg, Waypoint } from '@tracks/routing'
 import { describe, expect, it } from 'vitest'
 import { emptyPlan, type Plan } from './plan.ts'
 import { moveStop } from './plan-ops.ts'
-import { cumulative, planTotals, planTrack } from './plan-track.ts'
+import { cumulative, planTotals, planTrack, readingsFrom } from './plan-track.ts'
 
 const poi = (lon: number, name: string | null = null): Waypoint => ({
   lon,
@@ -102,6 +102,44 @@ describe('cumulative', () => {
     // Sticky: every total after the gap is short by that leg, so a row reading 2 km
     // three legs later would be quietly wrong.
     expect(running.map((total) => total.incomplete)).toEqual([false, true, true])
+  })
+})
+
+describe('readingsFrom', () => {
+  // Three legs of 1 km and 100 m of climb each, so four stops at 0/1/2/3 km.
+  const legs = [routed([[0, 0]]), routed([[1, 0]]), routed([[2, 0]])]
+
+  it('measures from the first stop when nothing is highlighted', () => {
+    expect(readingsFrom(legs, 0).map((r) => r?.distanceM ?? null)).toEqual([null, 1000, 2000, 3000])
+  })
+
+  it('re-bases to the highlighted stop, and reads backwards as negative', () => {
+    const readings = readingsFrom(legs, 2)
+
+    // Two stops back is -2 km and -200 m of climb: that far behind, and that much less
+    // climbing done by then.
+    expect(readings.map((r) => r?.distanceM ?? null)).toEqual([-2000, -1000, null, 1000])
+    expect(readings.map((r) => r?.ascentM ?? null)).toEqual([-200, -100, null, 100])
+  })
+
+  it('gives the base row no numbers at all', () => {
+    expect(readingsFrom(legs, 1)[1]).toBeNull()
+    expect(readingsFrom(legs, 3)[3]).toBeNull()
+  })
+
+  it('refuses to state a gap that spans a leg which did not route', () => {
+    const broken = [routed([[0, 0]]), failed(), routed([[2, 0]])]
+
+    // Measured from stop 1: stop 0 is behind the gap and fine, stop 2 and 3 are past it.
+    const readings = readingsFrom(broken, 1)
+    expect(readings[0]?.incomplete).toBe(false)
+    expect(readings[2]?.incomplete).toBe(true)
+    expect(readings[3]?.incomplete).toBe(true)
+  })
+
+  it('reports one entry per stop, which is one more than the legs', () => {
+    expect(readingsFrom([], 0)).toHaveLength(1)
+    expect(readingsFrom(legs, 0)).toHaveLength(4)
   })
 })
 
