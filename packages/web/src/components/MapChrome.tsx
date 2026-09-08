@@ -11,6 +11,7 @@ import styles from './MapChrome.module.css'
 export function MapChrome({
   grouped,
   basemap,
+  planning,
   canFitAll,
   onToggleGrouping,
   onToggleBasemap,
@@ -21,7 +22,12 @@ export function MapChrome({
 }: {
   grouped: boolean
   basemap: 'map' | 'satellite'
-  /** False when nothing outside the viewport matches, so there is nowhere to fly to. */
+  /**
+   * While planning, the tracks are dim and inert — so grouping them into a tally you
+   * cannot click has nothing to offer, and *fit everything* means the route instead.
+   */
+  planning: boolean
+  /** False when there is nothing outside the viewport to fly to. */
   canFitAll: boolean
   onToggleGrouping: () => void
   onToggleBasemap: () => void
@@ -31,6 +37,7 @@ export function MapChrome({
   insetLeft: number
 }) {
   const label = grouped ? 'Grouping nearby starts' : 'Showing every track'
+  const fit = planning ? 'Zoom out to the whole route' : 'Zoom out to all activities'
 
   return (
     <>
@@ -55,8 +62,8 @@ export function MapChrome({
           className={styles.group}
           onClick={onFitAll}
           disabled={!canFitAll}
-          aria-label="Zoom out to all activities"
-          title="Zoom out to all activities"
+          aria-label={fit}
+          title={fit}
         >
           <Maximize size={17} strokeWidth={2} />
         </button>
@@ -78,16 +85,20 @@ export function MapChrome({
           )}
         </button>
 
-        <button
-          type="button"
-          className={[styles.group, grouped ? '' : styles.groupOn].join(' ')}
-          onClick={onToggleGrouping}
-          aria-label={label}
-          title={label}
-          aria-pressed={!grouped}
-        >
-          <Ungroup size={17} strokeWidth={2} />
-        </button>
+        {/* Nothing to group while planning: the tracks underneath are inert, and a
+            donut you cannot click is a control that lies. */}
+        {planning ? null : (
+          <button
+            type="button"
+            className={[styles.group, grouped ? '' : styles.groupOn].join(' ')}
+            onClick={onToggleGrouping}
+            aria-label={label}
+            title={label}
+            aria-pressed={!grouped}
+          >
+            <Ungroup size={17} strokeWidth={2} />
+          </button>
+        )}
       </div>
 
       <div className={styles.attribution} style={{ left: insetLeft + 16 }}>

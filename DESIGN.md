@@ -1104,6 +1104,13 @@ in Komoot. A selected activity is shadowed the same way: `activity=` is left alo
 right panel just shows the plan instead. Planning shadows the other modes' state; only its
 own is destroyed by leaving.
 
+The map chrome follows the mode too. *Fit everything* frames the **whole route** rather than
+the extent of the activities — the plan is what you are looking at, and the tracks behind it
+are context you dimmed on purpose — over the waypoints *and* the drawn line, because a route
+can bulge outside the box its stops make and a hint outside every leg is still on screen. The
+grouping toggle is gone entirely: the tracks underneath are inert, and a donut you cannot
+click is a control that lies.
+
 The camera fits the plan **once, on first load**, padded past both panels — the same
 opening-fit-then-never-again rule the `bbox` filter settled on, for the same reason. A
 `?mode=planning#plan=…` link that opened on the wrong continent would be reported as broken

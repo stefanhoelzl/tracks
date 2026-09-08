@@ -186,3 +186,37 @@ export function readingsFrom(
     }
   })
 }
+
+/**
+ * Everything the plan covers, as `[west, south, east, north]`.
+ *
+ * The waypoints *and* the drawn geometry, because neither is a superset of the other: a
+ * route can bulge well outside the box its stops make — around a lake, over the only
+ * col — and a stop can sit outside every leg, since a hint before the first stop or
+ * after the last belongs to no leg at all.
+ *
+ * Null when there is nothing to frame, which is what disables the control.
+ */
+export function planBounds(
+  waypoints: readonly Waypoint[],
+  legs: ReadonlyArray<Leg | undefined>,
+): [number, number, number, number] | null {
+  let west = Number.POSITIVE_INFINITY
+  let south = Number.POSITIVE_INFINITY
+  let east = Number.NEGATIVE_INFINITY
+  let north = Number.NEGATIVE_INFINITY
+
+  const extend = (lon: number, lat: number) => {
+    west = Math.min(west, lon)
+    east = Math.max(east, lon)
+    south = Math.min(south, lat)
+    north = Math.max(north, lat)
+  }
+
+  for (const waypoint of waypoints) extend(waypoint.lon, waypoint.lat)
+  for (const leg of legGeometries(waypoints, legs)) {
+    for (const [lon, lat] of leg) extend(lon, lat)
+  }
+
+  return Number.isFinite(west) ? [west, south, east, north] : null
+}

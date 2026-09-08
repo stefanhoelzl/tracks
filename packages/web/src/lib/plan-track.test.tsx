@@ -2,7 +2,7 @@ import type { Leg, Waypoint } from '@tracks/routing'
 import { describe, expect, it } from 'vitest'
 import { emptyPlan, type Plan } from './plan.ts'
 import { moveStop } from './plan-ops.ts'
-import { cumulative, planTotals, planTrack, readingsFrom } from './plan-track.ts'
+import { cumulative, planBounds, planTotals, planTrack, readingsFrom } from './plan-track.ts'
 
 const poi = (lon: number, name: string | null = null): Waypoint => ({
   lon,
@@ -102,6 +102,34 @@ describe('cumulative', () => {
     // Sticky: every total after the gap is short by that leg, so a row reading 2 km
     // three legs later would be quietly wrong.
     expect(running.map((total) => total.incomplete)).toEqual([false, true, true])
+  })
+})
+
+describe('planBounds', () => {
+  it('covers the waypoints and the line, since neither contains the other', () => {
+    // The route bulges east of both stops — around the lake, over the only col — and
+    // framing the stops alone would cut it off.
+    const bounds = planBounds(
+      [poi(0, 'a'), poi(2, 'b')],
+      [
+        routed([
+          [0, 0],
+          [5, 1],
+          [2, 0],
+        ]),
+      ],
+    )
+
+    expect(bounds).toEqual([0, 0, 5, 1])
+  })
+
+  it('frames a stop that belongs to no leg at all', () => {
+    // A hint before the first stop is dropped by the router, but it is still on screen.
+    expect(planBounds([shaping(-3), poi(0, 'a'), poi(2, 'b')], [undefined])).toEqual([-3, 0, 2, 0])
+  })
+
+  it('has nothing to frame when the plan is empty', () => {
+    expect(planBounds([], [])).toBeNull()
   })
 })
 

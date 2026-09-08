@@ -41,7 +41,7 @@ import {
   setKind,
   updateWaypoint,
 } from './lib/plan-ops.ts'
-import { planTrack } from './lib/plan-track.ts'
+import { planBounds, planTrack } from './lib/plan-track.ts'
 import { geocoder, usePlanLegs } from './lib/routing.ts'
 import { useSignOut } from './lib/session.ts'
 import { useUrlState } from './lib/url.ts'
@@ -194,6 +194,17 @@ export function App({ email }: { email: string }) {
    * of one position, exactly as it already is for an activity.
    */
   const planned = useMemo(() => planTrack(legs), [legs])
+
+  /**
+   * What *fit everything* means while planning.
+   *
+   * The extent of the activities is the wrong answer there — the plan is what you are
+   * looking at, and the tracks behind it are context you dimmed on purpose.
+   */
+  const routeExtent = useMemo(
+    () => (planning ? planBounds(plan.waypoints, legs) : null),
+    [planning, plan.waypoints, legs],
+  )
 
   /**
    * Name a stop from whatever is there, after the fact.
@@ -568,12 +579,16 @@ export function App({ email }: { email: string }) {
       <MapChrome
         grouped={view.grouped}
         basemap={view.basemap}
-        canFitAll={extent !== null}
+        planning={planning}
+        canFitAll={(planning ? routeExtent : extent) !== null}
         onToggleGrouping={() => setView({ ...view, grouped: !view.grouped })}
         onToggleBasemap={() =>
           setView({ ...view, basemap: view.basemap === 'map' ? 'satellite' : 'map' })
         }
-        onFitAll={() => extent && mapHandle.current?.fitBounds(extent)}
+        onFitAll={() => {
+          const target = planning ? routeExtent : extent
+          if (target) mapHandle.current?.fitBounds(target)
+        }}
         onZoom={zoom}
         insetLeft={insets.left}
         insetRight={insets.right}

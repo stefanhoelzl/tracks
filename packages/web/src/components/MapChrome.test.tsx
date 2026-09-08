@@ -3,7 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { MapChrome } from './MapChrome.tsx'
 
-function setup(grouped: boolean, canFitAll = true, basemap: 'map' | 'satellite' = 'map') {
+function setup(
+  grouped: boolean,
+  canFitAll = true,
+  basemap: 'map' | 'satellite' = 'map',
+  planning = false,
+) {
   const onToggleGrouping = vi.fn()
   const onToggleBasemap = vi.fn()
   const onFitAll = vi.fn()
@@ -11,6 +16,7 @@ function setup(grouped: boolean, canFitAll = true, basemap: 'map' | 'satellite' 
   render(
     <MapChrome
       grouped={grouped}
+      planning={planning}
       basemap={basemap}
       canFitAll={canFitAll}
       onToggleGrouping={onToggleGrouping}
@@ -100,5 +106,24 @@ describe('the basemap switch', () => {
     const { onToggleBasemap } = setup(true, true, 'map')
     await userEvent.click(screen.getByRole('button', { name: 'Show satellite imagery' }))
     expect(onToggleBasemap).toHaveBeenCalledOnce()
+  })
+
+  it('drops the grouping toggle while planning, and reframes what fit means', async () => {
+    const { onFitAll } = setup(true, true, 'map', true)
+
+    // The tracks underneath a plan are dim and inert, so a donut you cannot click is a
+    // control that lies — and the thing worth framing is the route, not the archive.
+    expect(screen.queryByRole('button', { name: 'Grouping nearby starts' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Zoom out to all activities' })).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Zoom out to the whole route' }))
+    expect(onFitAll).toHaveBeenCalled()
+  })
+
+  it('keeps both outside planning', () => {
+    setup(true)
+
+    expect(screen.getByRole('button', { name: 'Grouping nearby starts' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Zoom out to all activities' })).toBeTruthy()
   })
 })
