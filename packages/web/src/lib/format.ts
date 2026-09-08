@@ -41,6 +41,18 @@ export function duration(seconds: number | null): string {
   return `${hours}:${String(minutes).padStart(2, '0')}`
 }
 
+/**
+ * `+7.4`, `-5.2`, `+0.0` — a gradient, which is only ever read with its sign.
+ *
+ * Signed always, because the sign is the whole point: the profile's colour says how
+ * hard, and the sign says which way. `toFixed` will produce `-0.0` for a shallow
+ * descent that rounds away, which is not a gradient anybody has ever ridden.
+ */
+export function slope(percent: number): string {
+  const value = Number(percent.toFixed(1)) || 0
+  return `${value < 0 ? '-' : '+'}${Math.abs(value).toFixed(1)}`
+}
+
 export function kmh(metresPerSecond: number | null, digits = 1): string {
   if (metresPerSecond === null) return '—'
   return (metresPerSecond * 3.6).toFixed(digits)

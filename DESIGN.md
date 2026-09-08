@@ -603,12 +603,57 @@ The axis starts at the track's own minimum, never at sea level, but never spans 
 without a floor a rolling valley loop fills the box exactly as a col does, and the shape is the
 only thing the chart is for. Missing altitude is drawn as missing: a dropout leaves a gap, and a
 track with no altitude at all says so in words rather than drawing a flat line that would read as
-a plain. It is neutral ink, deliberately not the activity's hashed colour — that colour answers
-*which category*, and one ride's terrain is not answering that.
+a plain. Its colour is the gradient — still deliberately not the activity's hashed colour, which
+answers *which category* where this answers *how steep, here*, and one ride's terrain was never
+answering the first.
+
+**Colour runs on an absolute ramp**: dark green at −8%, light green at level, then yellow at +4%,
+orange at +8%, red at +11.5% and dark red at +15%, interpolated continuously between and clamped
+at both ends. Absolute rather than stretched to each track: 8% is 8% on every activity, so a
+towpath draws all green and an alpine col reds out, where a per-ride scale would make dark red mean
+"4%" on the towpath and the colour would carry nothing you could take to the next activity.
+
+Level ground is green and not yellow, because green means *this is not costing you anything*,
+which is as true of flat as of downhill. Descent saturates at −8%, which real descents reach
+constantly, rather than mirroring +15% onto ground almost nothing reaches; the warm half tightens
+towards the top, because 11% against 15% is a difference a rider feels and −8% against −12% is
+not. The line and the area beneath it take the same paint, so a climb is legible as a coloured
+mass rather than as a coloured hairline over a grey one.
+
+There is no legend. The hover reads `km 12.4 · 840 m · +7.4%` with the figure set in the colour the
+line under it is drawn in — the key and the value in one mark, which is the whole of what a legend
+would have said. Under deuteranopia the two ends of the ramp collapse into each other, both reading
+as dark olive. That is accepted rather than overlooked: red-for-steep is the convention in this
+domain, the profile's shape is the first read and its colour the second, and the figure is there in
+digits for anyone the colour fails.
+
+The gradient behind it is measured across a centred 100 m window, never point to point — at the
+~7 m spacing a ride records at, ±0.2 m of altimeter error is ±3% of slope, and colour taken from
+that would speckle rather than describe. The window narrows at a dropout onto whatever measured
+pair it can still reach, and widens on a coarse recording onto the points either side, which are
+then a window apart or further; it never widens across a gap, and where no pair exists at all the
+gradient is unknown and that stretch stays neutral ink. Nothing reports a gradient, which is how it
+escapes the objection that sank a computed elevation gain: there is no second right number for it
+to disagree with.
+
+**The profile draws a simplification, not the track.** Ramer–Douglas–Peucker with a vertical
+tolerance of `max(1 m, range / 400)` keeps a point wherever the terrain turns and drops it along a
+straight drag, so points cluster through switchbacks and thin out on a canal towpath. The share of
+the range keeps
+the tolerance sub-pixel on a 96 px box whatever the terrain, so nothing you could see is ever
+dropped; the 1 m floor stops it falling below what an altimeter resolves, so it never spends points
+preserving noise. Every local minimum and maximum deeper than that survives exactly, which is what
+makes the axis labels and the drawn line agree about where the summit is.
+
+Simplification alone leaves no floor under the cursor — a long even climb reduces to its two ends —
+so any surviving span longer than 50 m is subdivided again with real points. That cap is cursor
+resolution and nothing else; the shape is entirely the tolerance's business. Below 2 km it shrinks
+with the track, because 50 m of a 500 m walk is a tenth of it and the snap would be visible.
 
 Hovering it puts a dot on the track; hovering the track moves the profile's cursor to the nearest
-point. One index, resolved from whichever end moved, so the two can never disagree about which
-point is meant.
+point. Every point the profile draws is one the track recorded, so the two index spaces convert by
+lookup and never by interpolation, and the marker still lands on a real coordinate. One index,
+resolved from whichever end moved, so the two can never disagree about which point is meant.
 
 Nothing dims, and hovering and selecting look the same. Both were arrived at by removing things
 that seemed obviously right. Dimming the rest answered "which one is it?" by deleting the context
@@ -1169,7 +1214,7 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Web build** | Vite for the browser, esbuild for the deployment. `pnpm dev` runs the Hono app inside Vite via `@hono/vite-dev-server`, so one command HMRs both sides; `pnpm build` produces `dist/`, inlines it into `packages/edge`, and bundles the two into one file. There is one production server and it is that file — a second entry point existed briefly as `tracks serve`, was deleted in M3.5 for serving a `dist` nothing needed, and came back in M7 when there was somewhere to serve it *to*. |
 | **Web state** | No router — the app is one page, and core already parses the query string. A `useUrlState` hook over `useSyncExternalStore` is the whole of it; M8 widened its snapshot from `search` to `search + hash` and added `hashchange` beside `popstate`, which is the entire cost of the plan living in a fragment. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover and a viewport-derived filter are both things a declarative wrapper would be in the way of. |
-| **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file — except the two sets no CSS rule can read, the *colour by* palette and the chart colours, which are mirrored in `lib/colour.ts` and `lib/chart-theme.ts` beside their only consumers. |
+| **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file — except the two sets no CSS rule can read, the *colour by* palette and the chart colours, which live in `lib/colour.ts` and `lib/chart-theme.ts` beside their only consumers — mirrored from the token file where a token exists, and simply defined there where none does, as the profile's gradient ramp is. |
 | **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
 | **Testing** | Vitest in two projects. `node` covers core, the query layer and ingestion — including that an aborted import leaves the database byte-identical — and stays offline. No longer under a second: signing in really does 600k PBKDF2 rounds, and
 the handful of tests that go through `POST /api/session` pay for it on purpose, because a
