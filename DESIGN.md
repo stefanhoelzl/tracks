@@ -8,7 +8,7 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | One Edge Script at [tracks.stho.net](https://tracks.stho.net), over Bunny Database |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M trackpoints |
 | **Stack** | Node 24 · pnpm · libSQL · React · MapLibre · Deno at the edge |
-| **Status** | M1–M7 complete |
+| **Status** | M1–M8 complete |
 
 ---
 
@@ -35,8 +35,9 @@ server against the same database, so there is no local copy to drift.
 | **Writing back upstream** | Strictly read-only sync. No pushing tags, renames or edits to Strava or Komoot. Keeps the blast radius of any bug at zero. |
 | **Photos and media** | Both services attach photos. Not imported, not displayed. |
 
-Route planning is wanted *eventually*, but nothing is reserved for it — adding a nullable
-column later is the safest migration there is.
+Route planning arrived in M8, and took none of the space that had been left for it: a plan
+is a fragment in the address bar, not a row. The nullable column stayed unwritten, which is
+cheaper than the safest migration there is.
 
 ### Conventions
 
@@ -573,8 +574,10 @@ stopped adjusting the filter and started reading the map under it.
 At its right edge is **Import**, a dropdown with one entry per source. The chips beside it
 scroll; it never shrinks, because an
 action you cannot reach is worse than a filter term you have to scroll to. Beside it is the
-analytics switch, two segments rather than a button: the panel it opens covers the list, so
-what you are choosing between is which of the two you are reading.
+mode switch — segments rather than buttons, because each one covers the list, so what you
+are choosing between is which of them you are reading. Two of them until M8 added Planning;
+the control was built to hold a set rather than a boolean, and `?analytics=true` became
+`?mode=` when the set grew.
 
 Picking a source opens a modal — a real `<dialog>`, so the platform supplies the focus trap
 and the layer above the map canvas — which moves through the form, the reading, the writing
@@ -873,21 +876,230 @@ enough to justify one.
 
 ---
 
+## Planning
+
+A third mode beside Activities and Analytics, and the first one that is a *place you go*
+rather than a panel over somewhere else: the waypoint list takes the sidebar's side, the
+route overview takes the list's, and the map runs between them as it always does.
+
+Underneath it, everything you have already ridden, dimmed to resting opacity and made
+inert — no hover, no click. That is the reason to plan here rather than in Komoot: *have I
+been up that valley?* is answered by looking, without leaving the thing you are drawing.
+Making them inert is not decoration either. Every click on the map now means "put a
+waypoint here", and a click that might instead select a track is a click you have to aim.
+
+### The plan is a fragment
+
+It lives in `#plan=`, not in the query string and not in a table. A fragment is never
+transmitted, so the one piece of state in this app that says where you are *going* stays in
+the tab — the same rule that keeps a Komoot password and a Strava archive off the server,
+applied to the only new data M8 creates.
+
+It is one store all the same. `useUrlState` had a `snapshot()` of `window.location.search`;
+it now returns `search + hash`, subscribes to `hashchange` beside `popstate`, and writes
+`pathname?search#hash` in one go. Three parsers over two slices — `parseFilter`, `parseView`,
+`parsePlan` — and one `useSyncExternalStore`, which dedupes identical snapshots, so the
+double notification a hash write produces costs nothing. There is no second state mechanism,
+and no second place to look when the URL disagrees with the screen.
+
+Waypoints encode with the polyline codec the app already ships, at about six characters
+each, plus a parallel string of kinds. Coordinates were never what makes a plan URL long;
+names are. Both need `encodeURIComponent` on the way in, because polyline encoding emits
+ASCII 63–126 and that range includes a backslash, which a fragment may not carry raw.
+
+**Leaving the mode clears the plan.** `#plan=` exists only while `mode=planning`, so there
+is no Clear control anywhere — switching away is the clear, and starting fresh is switching
+back. Back is the safety net, since a mode switch pushes. The cost is stated rather than
+hidden: a `?mode=planning#plan=…` link stops carrying its plan the moment its recipient
+looks at Analytics.
+
+### Two kinds of waypoint
+
+| | |
+|---|---|
+| **POI** | A halt — a labelled pin above the line. It is a **break**: the router may turn around there, and it bounds a leg. |
+| **ROUTING** | A shaping hint — a small hollow dot on the line, from mid zoom. It is a **pass-through**: no u-turn, no leg boundary. |
+
+The difference is not presentational, which is the decision the rest of this section falls
+out of. A leg therefore runs POI to POI with its shaping points *inside* it, and the leg
+cache keys on all of them together. Flipping a waypoint's kind merges or splits a leg and
+moves the line, so the dialog doing the flipping says so.
+
+That granularity turned out to be forced anyway. BRouter answers with one geometry per
+request and no leg breakdown, so per-leg numbers require per-leg calls whatever the
+semantics — the model and the provider agreed without being made to.
+
+### One dialog does all of it
+
+A map click drops a provisional pin with a small dialog on it; a search result raises the
+same dialog in the same place. One commit path, however the place was found. The pin is
+transient — it belongs to neither the plan nor the URL — and clicking a waypoint that
+already exists reopens that same dialog in an edit state, with rename and remove on it.
+
+Placement is decided there, and differs by kind, because the kinds want different things:
+
+- **ROUTING** always inserts into the nearest leg. "Bend the route here" has nowhere else
+  to go, and appending it would mean something else entirely.
+- **POI** offers three — split the nearest leg, or become the new start, or the new end.
+
+The **first two waypoints are POIs implicitly**, with no toggle at all: they are the start
+and the end, and until they exist there is no leg for a shaping hint to attach to. The
+toggle appears with the third click, when the choice finally means something.
+
+Dragging is the same rules under direct manipulation. A marker drags to move it, recomputing
+its one or two legs; the **line itself drags out a new ROUTING waypoint**, into the leg it
+came from. Both write history with `replace`, so Back steps out of a gesture rather than
+through every frame of it — the rule the viewport already follows. Every discrete edit
+pushes, which makes Back an undo and means M8 ships no undo stack, having watched one get
+designed and cut for tagging in M4.
+
+### The router is an interface
+
+`packages/routing` holds a `Router` and a `Geocoder` and one directory per implementation —
+the shape `ActivitySource` has had since M1, in its own package because neither half of the
+app is the natural owner. It costs almost nothing to be a package here: core proves the
+pattern is a five-line `package.json` pointing at source, and `noEmit` everywhere means
+there is no build step to add.
+
+```ts
+route(waypoints, profile, signal): Promise<Leg[]>
+```
+
+Array in, legs out. **Single versus batched is not an interface question**: an
+implementation with multi-via support sends one request, one without loops, and neither is
+visible to the caller. A leg cache sits in front, so an edit normally asks for the one or
+two legs it invalidated and nothing else.
+
+Elevation is part of what a `Leg` *is*, rather than a second interface to compose.
+Implementations whose provider supplies it pass it through; the rest fill it before
+returning. The profile view then has no nulls to handle, and `ElevationProfile` is reused
+exactly as the detail panel uses it, cursor sync included — that state was already shared.
+
+**BRouter is implementation #1**, at `brouter.de`: keyless, `Access-Control-Allow-Origin: *`,
+and the router people who care about bicycles actually use. Its GeoJSON carries three-element
+coordinates, so elevation arrives with the geometry, and it reports `filtered ascend`
+separately from `plain-ascend` — the filtered figure being the one that agrees with what
+Strava says about the same hill, which a naive sum over a DEM does not.
+
+Its wire format also already contains this section's central distinction. In `lonlats`, a
+point given a name comes back typed `via` and a bare one comes back `shaping`. So a POI is
+sent as `lon,lat,<name>` and a ROUTING point as `lon,lat`, and the mapping is not a mapping
+at all. (`,d` requests a beeline, which is spare capacity for a third kind nobody has asked
+for.)
+
+The catch is the same one Komoot carries, and is recorded below rather than smoothed over:
+one enthusiast's server, with an API documented as "read `ServerHandler.java`". Every fact
+in this section was established by reading that source and then calling the endpoint, not
+from documentation, because there is none to trust.
+
+### Profiles are the app's words
+
+Five names — `road`, `trekking`, `gravel`, `mtb`, `hiking` — belonging to the app, with each
+implementation mapping them to whatever its engine calls them. A shared link keeps meaning
+the same thing across an engine swap, which engine-native strings in the fragment would not.
+
+| App | BRouter | Valhalla |
+|---|---|---|
+| Road | `fastbike` | `bicycle` + `bicycle_type=Road` |
+| Trekking | `trekking` | `bicycle` + `bicycle_type=Hybrid` |
+| Gravel | `gravel` | `bicycle` + `bicycle_type=Cross` |
+| MTB | `mtb` | `bicycle` + `bicycle_type=Mountain` |
+| Hiking | `hiking-mountain` | `pedestrian` (`type=foot`) |
+
+That it lands 1:1 on two engines built on different premises is the same evidence M2 got
+when Komoot needed no change to `ActivitySource`: the interface is probably cut in the right
+place. A `Router` declares which of the five it serves, and the UI greys the rest.
+
+### Searching for a place
+
+Photon, at `photon.komoot.io` — keyless, CORS, and built for type-ahead, which is precisely
+what Nominatim's usage policy forbids. Results are biased to the map centre with its
+`lat`/`lon` parameters, which decides the case that actually comes up: Vent exists in four
+countries and you are looking straight at one of them. About five rows, each carrying the
+name and a `city · state · country` line from Photon's own properties, so two places with
+one name are told apart before you click rather than after.
+
+Reverse geocoding is lazy and POI-only. A map click makes a ROUTING point by default, which
+wants no name and costs no request; promoting one to POI is what asks Photon what is there,
+and the answer is editable afterwards. The gesture people repeat stays free.
+
+### What it costs the server it borrows
+
+Legs route **on drop, not during the drag**. A drag repaints its affected legs as straight
+lines to the cursor — instant, and honest about being provisional — and fires the real
+request on `dragend`. Search debounces at 250 ms. One request in flight per leg, superseded
+ones cancelled through the `AbortSignal` the interface already takes. A drag across a valley
+costs one request rather than forty, which is the difference between using a public endpoint
+and being the reason it closes.
+
+A leg BRouter cannot connect draws as a **dashed beeline**, its row says why, and the totals
+exclude it and declare themselves incomplete. The alternative — silently beelining, which
+the wire format would happily do — folds a straight line across a glacier into your distance
+with nothing saying so. This is M3.5's rule for an unreadable GPX, unchanged: it costs
+itself and it is named.
+
+### Both panels
+
+The waypoint list mirrors the leg structure rather than the waypoint array. Each **POI is a
+row** — name, and cumulative distance and ascent to it — and the ROUTING points inside a leg
+are **inline ticks on the connector** between two rows, reorderable but not competing for
+attention. A plan with fifteen shaping points and two real places reads as the trip it is:
+*Hut · 12.4 km · 640 m up*.
+
+The overview reuses the single-activity view, by extraction rather than by pretence: the
+title block, the stat grid and the elevation profile come out of `DetailPanel` into a piece
+both modes render. A plan gets a name, four tiles — distance, ascent, descent, estimated
+time — and the profile. No tags and no date, because it was never ridden; the engine and
+profile sit where the source badge does. Building a synthetic `ActivityDetail` to reuse the
+component untouched was considered and rejected: it fabricates a `startedAt` and a `source`
+for something that has neither, and grows `if (isPlan)` branches anyway.
+
+The filter sidebar is simply not there while planning — one left panel, whose content
+follows the mode. The filter stays in effect on the dimmed tracks underneath and stays
+visible and removable as the top bar's chips, so nothing is invisible-but-active, and coming
+back restores the sidebar untouched because the filter never left the query string. A
+selected activity is shadowed the same way: `activity=` is left alone and the right panel
+just shows the plan instead. Planning shadows the other modes' state; only its own is
+destroyed by leaving.
+
+The camera fits the plan **once, on first load**, padded past both panels — the same
+opening-fit-then-never-again rule the `bbox` filter settled on, for the same reason. A
+`?mode=planning#plan=…` link that opened on the wrong continent would be reported as broken
+before anything else about it. Panning keeps writing `bbox`, because the tracks underneath
+are still filtered by it and that mechanism must not fork per mode.
+
+### Tested at two levels
+
+Recorded BRouter and Photon responses replayed through msw for the adapters — M2's treatment
+of Komoot, and the thing that fails with a diff on the day a payload shifts rather than in
+someone's browser. A trivial fake `Router` returning straight lines drives every component
+test, because a panel test that needs a fixture to render is a panel test that will be
+deleted.
+
+---
+
 ## Stack
 
 ```
 tracks/
 ├─ packages/core     # tag grammar · THE filter serialization · the API contract
 ├─ packages/server   # schema · timezone · simplifier · Hono REST API · ingest
+├─ packages/routing  # the Router & Geocoder interfaces · BRouter · Photon
 ├─ packages/web      # React · MapLibre · ECharts · ActivitySources
 ├─ migrations/       # drizzle-kit
-├─ fixtures/         # recorded Strava & Komoot responses
+├─ fixtures/         # recorded Strava, Komoot, BRouter & Photon responses
 └─ data/             # gitignored: tracks.db
 ```
 
 The sources sit in `packages/web` because only the browser runs them — the same rule that
 put the schema and the timezone derivation in `packages/server`. Core gained the import
 frame schema, which both sides genuinely do run.
+
+`packages/routing` is the one thing neither rule reaches. Only the browser calls a router
+today, so `packages/web` would have been defensible — but a server-proxied implementation is
+an explicitly anticipated one, and an interface that would have to move house to admit it is
+in the wrong place. It costs a five-line `package.json` and one line of `include` to keep it
+out of that argument.
 
 **Core is what both sides run identically, and nothing else.** It held the schema, the timezone
 derivation, the simplifier and the `ActivitySource` interface for as long as the server was its
@@ -906,7 +1118,7 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Node, and Deno** | The toolchain is Node: drizzle-kit + `node:sqlite` is an open bug needing a community patch, and a patched migration toolchain is the wrong place to spend novelty. The *deployment* is Deno, because Edge Scripting is — but it never meets that bug, since `drizzle-kit generate` runs here and the script talks to libSQL over HTTP. |
 | **Validation** | Zod, in core, for the filter and every response shape — parsed on the way in *and* on the way out. |
 | **Web build** | Vite for the browser, esbuild for the deployment. `pnpm dev` runs the Hono app inside Vite via `@hono/vite-dev-server`, so one command HMRs both sides; `pnpm build` produces `dist/`, inlines it into `packages/edge`, and bundles the two into one file. There is one production server and it is that file — a second entry point existed briefly as `tracks serve`, was deleted in M3.5 for serving a `dist` nothing needed, and came back in M7 when there was somewhere to serve it *to*. |
-| **Web state** | No router — the app is one page, and core already parses the query string. A `useFilterState` hook over `useSyncExternalStore` is the whole of it. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
+| **Web state** | No router — the app is one page, and core already parses the query string. A `useUrlState` hook over `useSyncExternalStore` is the whole of it; M8 widened its snapshot from `search` to `search + hash` and added `hashchange` beside `popstate`, which is the entire cost of the plan living in a fragment. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover and a viewport-derived filter are both things a declarative wrapper would be in the way of. |
 | **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file — except the two sets no CSS rule can read, the *colour by* palette and the chart colours, which are mirrored in `lib/colour.ts` and `lib/chart-theme.ts` beside their only consumers. |
 | **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
@@ -1042,6 +1254,7 @@ inspected through a SQLite browser.
 | **M5** | Analytics | The three filter-scoped ECharts views, in a slide-over over the map, and the route that was going to serve them deleted before it was written — the rows the client already holds are the input. Three commits — the aggregations, the panel and its trend, the calendar and the distributions. |
 | **M6** | Multi-tenancy | A `users` table, and an owner for every row that has one. `activities` and `tag_types` gain a `user_id`; `Scope` stops being the object that made facets cheap and becomes the boundary that keeps users apart, so a query that forgets whose data it is does not compile — including the by-id routes, which until now took an id and nothing else. Accounts are made by hand and carry no password until a first login sets one, and the identifier is an email address because an unguessable name is what makes that safe, not because anything is ever sent to it. Ids stay integers: a UUID in the trackpoint primary key would double the database to buy nothing. |
 | **M7** | Hosted on bunny.net | The move off the laptop. Bunny Database — managed libSQL — as one Frankfurt primary, and one Edge Script serving both the browser bundle and the API at `tracks.stho.net`, applied and deployed from CI. `better-sqlite3` goes, and with it the synchronous data layer; the import becomes one activity per request, one `batch()`, one transaction, which is what finally retires the run-long transaction and the module-level lock that guarded it. |
+| **M8** | Planning | A third mode, and the first new *kind* of data since M1 — which took no schema at all. A plan is a fragment in the address bar, so the milestone adds no migration, no route and no server code; `useUrlState` widens from `search` to `search + hash` and that is the whole of the plumbing. `packages/routing` gives the router and the geocoder the treatment `ActivitySource` got in M1, with BRouter and Photon behind them, and the POI/ROUTING split turns out to be BRouter's own `via`/`shaping` distinction wearing different names. Four commits — the interfaces, the mode shell, the map editing, the panels. |
 
 ---
 
@@ -1084,7 +1297,7 @@ will otherwise propose all of these again.
 | `sport_raw` | Already in the on-disk raw JSON. Duplicating the archive into the DB for a query nobody runs. |
 | `local_date` | Derivable from `started_at` + `utc_offset`. Denormalization that can drift, for an index nothing needs. |
 | `deleted_upstream` | Undetectable with an incremental sync anyway — a deleted activity is indistinguishable from an unlisted one. |
-| `kind` discriminator | Reserved space for planned routes that have no design. Adding a nullable column later is trivial. |
+| `kind` discriminator | Reserved space for planned routes, on the grounds that a nullable column later is trivial. M8 gave planned routes a design and it wanted no column at all — a plan lives in the URL fragment. The cheapest migration remained the one nobody wrote. |
 | Self-computed metrics | Segment metrics must be dynamic regardless, so storing whole-activity copies duplicates code that already exists. |
 | `sync_runs` / `sync_state` | The full-list-plus-missing-streams strategy makes the database its own sync state. |
 | Tags join table | Still no join table for *assignments*: a JSON array with `json_each()` does the job at this size. The registry that arrived in M2.5 holds types, not values, so tags never gained ids. |
@@ -1130,6 +1343,24 @@ will otherwise propose all of these again.
 | Clusters as a circle layer | A circle layer paints one colour per feature, and a cluster is a mixture. Donut markers over the canvas, tallied by `clusterProperties` inside the clustering worker. |
 | A separate cluster-count layer | The donut carries its own number in the middle of the ring. |
 
+| A `routes` table | The obvious home for a plan, and the one that makes plans nameable, listable and portable between devices. It also wants a migration, a REST surface, a plans list in a UI with nowhere to put one, and an answer to whether the URL then carries an id or the waypoints. Deferred rather than refused — the fragment forecloses none of it. |
+| The plan in the query string | One channel instead of two, and no `hashchange` to subscribe to. Rejected for the one thing a fragment does that a query string cannot: never be transmitted. Length was the reason to expect a fight and turned out not to be one — polyline-encoded waypoints are ~6 characters each, against an ~8 KB edge request-line budget. |
+| Planned routes as `activities` rows | Reuses polyline, bbox, the detail route and the list wholesale, for the price of putting rides that never happened into every facet, every count and every analytics chart unless every query in the app learns to exclude them. |
+| Valhalla as implementation #1 | Genuinely close, and better documented than BRouter by a distance: `break`/`through` in the reference as the exact semantics wanted, elevation inline via `elevation_interval`, and a precision-6 polyline this app already decodes. BRouter won on the thing the app is for — bicycles — and on `filtered ascend`. Valhalla is the natural implementation #2, and the mapping table above is most of it already. |
+| OSRM at FOSSGIS | The most reliable of the three public endpoints and the simplest API. No elevation at all, no gravel/MTB/hiking distinction, and no profile tuning: it answers *the fastest way* and nothing else, which is not the question. |
+| Routing through the server | Would buy keyed commercial providers without shipping a key to the tab, and one place to cache. Costs an edge subrequest per call and a second wire format between the interface and the provider, to solve a problem no keyless provider has. It stays an implementation of the same interface rather than a different design, which is the point of there being an interface. |
+| Routing live during a drag | The route following the cursor is a better feel and is what the slickest planners do. It also aims a request every ~150 ms at one enthusiast's server for the length of every drag. The beeline preview gives the immediacy for nothing. |
+| Silently beelining an unroutable leg | BRouter has a first-class beeline, so the failure could just disappear. It would fold a straight line across a glacier into the distance total with nothing saying so. |
+| Nominatim | The obvious OSM geocoder, whose usage policy forbids autocomplete — which is exactly what a search field that answers as you type is. |
+| Engine-native profile names in the fragment | Nothing to map and nothing to keep in sync; a new BRouter profile would appear in the UI for free. It also couples every shared link to the engine that made it, so swapping engines invalidates all of them. |
+| A flat waypoint list | One reorderable list, kind shown by an icon. Simpler by every measure except the one that matters: a plan with fifteen shaping points reads as fifteen anonymous rows with the two real places buried among them. |
+| A separate `PlanPanel` | Free to diverge — a leg-by-leg breakdown, a surface summary — without the activity view having an opinion. Two panels that look alike and drift apart, which extracting the shared middle prevents outright. |
+| Reusing `DetailPanel` with a synthetic activity | Zero new UI code, at the price of fabricating a `startedAt`, a `source` and a tags array for something that was never ridden — and of the component growing `if (isPlan)` branches anyway. |
+| A distinct colour for the plan | A plan is not a ride, so it could read as its own thing. The dimming already makes that distinction, and a second highlight colour would need to stay legible over two basemaps and the hillshade to say what resting opacity says for free. |
+| An undo stack for the plan | Designed and cut for tagging in M4, for the same reason: discrete edits push to history, so Back already is it. |
+| Seeding a plan from a ride | *Plan something like this* means choosing which of 34k trackpoints become waypoints — a simplification-tuning problem, dropped into a milestone already carrying a router, a geocoder, a dialog and two panels. The dimmed tracks underneath give most of the value by eye, for none of it. |
+| GPX export, in M8 | The legs are already coordinates with elevation, so it is a string builder and a Blob whenever it lands — and it does not touch the *no writing back upstream* non-goal, which forbids pushing to Strava and Komoot, not handing you a file. Held back only to keep the milestone to one idea. |
+
 ---
 
 ## Still undecided
@@ -1146,6 +1377,13 @@ working in the browser and the answer is a thin server-side relay — the creden
 then transit the server again, though nothing would need to store them. At the edge that
 relay has 50 subrequests to spend per request, so it could not pull an account's tours in
 one call: it would be one request per tour, driven by the tab, like the import already is.
+
+**BRouter's server, and its undocumented API** — the same bet as Komoot's, taken knowingly a
+second time. `brouter.de` is one enthusiast's machine with no published rate limit and no API
+reference; everything M8 relies on was established by reading `ServerHandler.java` and
+`FormatJson.java` and then calling the endpoint. If it goes away or its format moves, planning
+stops working and the answer is Valhalla behind the same interface — which is the entire reason
+the interface exists, and the reason the mapping table above was written before it was needed.
 
 **Heatmap implementation** *(unscheduled)* — Two live candidates. An on-the-fly SQL grid —
 `GROUP BY round(lat,4), round(lon,4)` — needs no dependency, no precompute, and respects the
