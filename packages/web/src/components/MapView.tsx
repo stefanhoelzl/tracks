@@ -42,6 +42,7 @@ import {
   showPlan,
   waypointFeatures,
 } from '../map/plan-layers.ts'
+import { geographicBbox } from '../map/viewport.ts'
 import styles from './MapView.module.css'
 
 /**
@@ -487,8 +488,10 @@ export function MapView({
     instance.on('moveend', () => {
       clearTimeout(moveTimer)
       moveTimer = setTimeout(() => {
+        // What the camera reports is not yet a place on the earth: `geographicBbox` is
+        // the step that makes it one, and the filter only accepts the latter.
         const [[west, south], [east, north]] = instance.getBounds().toArray()
-        live.current.onViewportChange([west!, south!, east!, north!])
+        live.current.onViewportChange(geographicBbox([west!, south!, east!, north!]))
       }, MOVE_MS)
     })
 
