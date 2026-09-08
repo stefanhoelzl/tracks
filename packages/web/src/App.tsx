@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { NewType, SortKey, TagWrite } from '@tracks/core'
+import type { LatLon, Waypoint } from '@tracks/routing'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
@@ -14,6 +15,7 @@ import { PlanOverview } from './components/PlanOverview.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { IconButton } from './components/ui/IconButton.tsx'
 import { Panel } from './components/ui/Panel.tsx'
+import { type PinTarget, WaypointDialog } from './components/WaypointDialog.tsx'
 import { WaypointPanel } from './components/WaypointPanel.tsx'
 import {
   ApiFailure,
@@ -27,6 +29,18 @@ import {
 } from './lib/api.ts'
 import { buildScale, type ColourGroup, TYPE_GROUP } from './lib/colour.ts'
 import { setBbox } from './lib/filter-ops.ts'
+import { parsePlan } from './lib/plan.ts'
+import {
+  addWaypoint,
+  kindIsAChoice,
+  moveWaypoint,
+  type Placement,
+  placementAt,
+  removeWaypoint,
+  setKind,
+  updateWaypoint,
+} from './lib/plan-ops.ts'
+import { geocoder, usePlanLegs } from './lib/routing.ts'
 import { useSignOut } from './lib/session.ts'
 import { useUrlState } from './lib/url.ts'
 
@@ -62,6 +76,14 @@ export function App({ email }: { email: string }) {
   // whichever end moved — the profile sets it on hover, the map sets it on hover, and
   // both read it back — so the two can never disagree about which point is meant.
   const [cursor, setCursor] = useState<number | null>(null)
+  /**
+   * The provisional pin, and what its dialog is about.
+   *
+   * Transient by the same rule as the rest of this block: it belongs to neither the plan
+   * nor the URL. `at` is where it sits; the target says whether it is committing a new
+   * waypoint or editing one that already exists.
+   */
+  const [pin, setPin] = useState<{ at: LatLon; target: PinTarget } | null>(null)
 
   const queryClient = useQueryClient()
 
@@ -148,6 +170,56 @@ export function App({ email }: { email: string }) {
 
   const zoom = useCallback((delta: number) => mapHandle.current?.zoomBy(delta), [])
 
+  // --- Planning -------------------------------------------------------------
+
+  const { legs, pending: legsPending, error: legsError } = usePlanLegs(plan, planning)
+
+  /**
+   * Name a stop from whatever is there, after the fact.
+   *
+   * Lazily, and only for POIs — a shaping point wants no name, which is also exactly
+   * what BRouter wants for one, so the gesture people repeat costs no request. The plan
+   * is re-read from the URL rather than closed over: the lookup takes a moment, and the
+   * address bar is the authority on what the plan is by the time it returns.
+   */
+  const nameStop = useCallback(
+    async (at: LatLon, index: number) => {
+      const name = await geocoder.reverse(at).catch(() => null)
+      if (!name) return
+
+      const current = parsePlan(window.location.hash)
+      const waypoint = current.waypoints[index]
+      if (waypoint?.kind !== 'poi' || waypoint.name !== null) return
+      // Replace: the name is the tail of the click that added it, not a second edit.
+      setPlan(updateWaypoint(current, index, { name }), 'replace')
+    },
+    [setPlan],
+  )
+
+  const addFromPin = useCallback(
+    (kind: Waypoint['kind'], placement: Placement) => {
+      if (pin?.target.state !== 'new') return
+
+      const index = placementAt(plan, legs, placement, pin.target.leg, pin.at)
+      const name = kind === 'poi' ? pin.target.name : null
+
+      setPlan(addWaypoint(plan, { ...pin.at, kind, name }, index))
+      setPin(null)
+      if (kind === 'poi' && name === null) void nameStop(pin.at, index)
+    },
+    [pin, plan, legs, setPlan, nameStop],
+  )
+
+  const editing = pin?.target.state === 'edit' ? pin.target.index : null
+
+  const openWaypoint = useCallback(
+    (index: number) => {
+      const waypoint = plan.waypoints[index]
+      if (waypoint) setPin({ at: waypoint, target: { state: 'edit', index, waypoint } })
+    },
+    [plan],
+  )
+
   /**
    * Selecting is also the one thing that invalidates the cursor: it indexes into the
    * track that was open, and the next one is a different array of a different length.
@@ -205,6 +277,44 @@ export function App({ email }: { email: string }) {
         onCursor={setCursor}
         onSelect={(id) => select(id)}
         onViewportChange={onViewportChange}
+        planning={planning}
+        plan={plan}
+        legs={legs}
+        pinAt={pin?.at ?? null}
+        pin={
+          pin ? (
+            <WaypointDialog
+              target={pin.target}
+              count={plan.waypoints.length}
+              kindIsAChoice={kindIsAChoice(plan)}
+              onAdd={addFromPin}
+              onKind={(kind) => {
+                if (editing !== null) setPlan(setKind(plan, editing, kind))
+                setPin(null)
+              }}
+              onRename={(name) => {
+                if (editing !== null) setPlan(updateWaypoint(plan, editing, { name: name || null }))
+              }}
+              onRemove={() => {
+                if (editing !== null) setPlan(removeWaypoint(plan, editing))
+                setPin(null)
+              }}
+              onClose={() => setPin(null)}
+            />
+          ) : null
+        }
+        onMapClick={(at, leg) => setPin({ at, target: { state: 'new', leg, name: null } })}
+        onWaypointClick={openWaypoint}
+        // Replace on both: a drag is one gesture, and Back should step out of it rather
+        // than through every frame.
+        onWaypointMove={(index, at) => {
+          setPin(null)
+          setPlan(moveWaypoint(plan, index, at), 'replace')
+        }}
+        onShapingDrop={(index, at) => {
+          setPin(null)
+          setPlan(addWaypoint(plan, { ...at, kind: 'routing', name: null }, index), 'replace')
+        }}
       />
 
       <div className={styles.top} style={{ left: 16, right: 16 }}>
@@ -239,7 +349,7 @@ export function App({ email }: { email: string }) {
               still in effect on the dimmed tracks and still visible as the top bar's
               chips, so nothing becomes invisible-but-active. */}
           {planning ? (
-            <WaypointPanel plan={plan} onPlan={setPlan} />
+            <WaypointPanel plan={plan} pending={legsPending} error={legsError} onPlan={setPlan} />
           ) : (
             <div className={styles.scroll}>
               <FilterSidebar
@@ -283,7 +393,7 @@ export function App({ email }: { email: string }) {
             />
           </div>
           {planning ? (
-            <PlanOverview plan={plan} onPlan={setPlan} />
+            <PlanOverview plan={plan} />
           ) : view.activity !== null ? (
             <DetailPanel
               detail={detail.data}

@@ -59,3 +59,24 @@
   color: var(--muted);
   line-height: 1.5;
 }
+
+.banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-ctrl);
+  background: var(--sunk);
+  font-size: var(--text-base);
+}
+
+.banner span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.pending {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

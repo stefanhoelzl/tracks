@@ -133,7 +133,7 @@ describe('the track layers', () => {
   })
 
   /** Records what `paintTracks` would have written, and answers `getLayer`. */
-  function painted(options: { focusId: number | null; grouped: boolean }) {
+  function painted(options: { focusId: number | null; grouped: boolean; dimmed?: boolean }) {
     const writes: Record<string, unknown> = {}
     const map = {
       getLayer: () => ({}),
@@ -148,7 +148,7 @@ describe('the track layers', () => {
       },
     } as unknown as MapLibreMap
 
-    paintTracks(map, options)
+    paintTracks(map, { dimmed: false, ...options })
     return writes
   }
 
@@ -164,6 +164,16 @@ describe('the track layers', () => {
   it('hides the start points when it is not grouping', () => {
     expect(painted({ focusId: null, grouped: true })['starts-circles.visibility']).toBe('visible')
     expect(painted({ focusId: null, grouped: false })['starts-circles.visibility']).toBe('none')
+  })
+
+  it('dims the tracks and takes the donuts with them while planning', () => {
+    const writes = painted({ focusId: 7, grouped: true, dimmed: true })
+
+    expect(writes['line-opacity']).toEqual(OPACITY.fadeInTo(OPACITY.DIMMED_OPACITY))
+    // A cluster you cannot click is a control that lies, so the donuts go too — and
+    // nothing is focused, because the tracks are inert and the plan wears that paint.
+    expect(writes['starts-circles.visibility']).toBe('none')
+    expect(writes.filter).toEqual(['==', ['get', 'id'], -1])
   })
 
   it('paints a hovered track and a selected one identically', () => {
@@ -234,7 +244,7 @@ describe('the track layers', () => {
       },
     } as unknown as MapLibreMap
 
-    expect(() => paintTracks(map, { focusId: null, grouped: true })).not.toThrow()
+    expect(() => paintTracks(map, { focusId: null, grouped: true, dimmed: false })).not.toThrow()
   })
 
   /**

@@ -16,9 +16,28 @@ import styles from './WaypointPanel.module.css'
  * in the fragment with it, and changing it is a decision about the trip rather than
  * about the view.
  */
-export function WaypointPanel({ plan, onPlan }: { plan: Plan; onPlan: (plan: Plan) => void }) {
+export function WaypointPanel({
+  plan,
+  pending,
+  error,
+  onPlan,
+}: {
+  plan: Plan
+  /** A leg is in flight. The map has already drawn the beeline it will replace. */
+  pending: boolean
+  /** The engine refusing or unreachable — not a leg that could not be routed. */
+  error: string | null
+  onPlan: (plan: Plan) => void
+}) {
   return (
     <div className={styles.panel}>
+      {error ? (
+        <div className={styles.banner}>
+          <strong>The router is not answering</strong>
+          <span>{error}</span>
+        </div>
+      ) : null}
+
       <div className={styles.group}>
         <Label>Profile</Label>
         <div className={styles.profiles}>
@@ -38,13 +57,17 @@ export function WaypointPanel({ plan, onPlan }: { plan: Plan; onPlan: (plan: Pla
         </div>
       </div>
 
-      <div className={styles.empty}>
-        <strong>Click the map to start</strong>
-        <span>
-          The first two points are the start and the end. After that you can add stops, or drag the
-          line to shape the route.
-        </span>
-      </div>
+      {plan.waypoints.length === 0 ? (
+        <div className={styles.empty}>
+          <strong>Click the map to start</strong>
+          <span>
+            The first two points are the start and the end. After that you can add stops, or drag
+            the line to shape the route.
+          </span>
+        </div>
+      ) : null}
+
+      {pending ? <div className={styles.pending}>Routing…</div> : null}
     </div>
   )
 }

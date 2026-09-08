@@ -12,7 +12,7 @@ import styles from './PlanOverview.module.css'
  * Below two waypoints there is no line and no totals, so it says that rather than
  * drawing a frame around nothing.
  */
-export function PlanOverview({ plan }: { plan: Plan; onPlan: (plan: Plan) => void }) {
+export function PlanOverview({ plan }: { plan: Plan }) {
   const pois = plan.waypoints.filter((waypoint) => waypoint.kind === 'poi').length
 
   return (

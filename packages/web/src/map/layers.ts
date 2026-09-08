@@ -91,6 +91,17 @@ const HIGHLIGHT_COLOUR: ExpressionSpecification = [
 const RESTING_OPACITY = 0.85
 
 /**
+ * What the tracks drop to while a plan is being drawn over them.
+ *
+ * Still legible — planning against what you have already ridden is most of the reason
+ * to plan on *this* map — but plainly underneath, and paired with the layer ceasing to
+ * be a hover or click target. That second half is what matters: every click on the map
+ * now means "put a waypoint here", and a click that might instead select a track is a
+ * click you would have to aim.
+ */
+const DIMMED_OPACITY = 0.3
+
+/**
  * A zoom fade that ends at `opacity`.
  *
  * The multiplication has to live in the interpolate's own output stops: MapLibre
@@ -175,7 +186,7 @@ export function startPoints(
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
 
 /** The line itself: the track's own colour, turned up. */
-function highlightPaint() {
+export function highlightPaint() {
   return {
     'line-color': HIGHLIGHT_COLOUR,
     'line-width': HIGHLIGHT_WIDTH,
@@ -184,7 +195,7 @@ function highlightPaint() {
 }
 
 /** The outline under it, which is what separates a highlight from the pale basemap. */
-function highlightCasingPaint() {
+export function highlightCasingPaint() {
   return {
     'line-color': SELECTED_OUTLINE,
     'line-width': HIGHLIGHT_CASING_WIDTH,
@@ -307,25 +318,26 @@ export function addTrackLayers(map: MapLibreMap): void {
  */
 export function paintTracks(
   map: MapLibreMap,
-  { focusId, grouped }: { focusId: number | null; grouped: boolean },
+  { focusId, grouped, dimmed }: { focusId: number | null; grouped: boolean; dimmed: boolean },
 ): void {
   // A style reload drops every layer this module added, and the effects that call
   // this do not know that happened — so check rather than throw into the console.
   if (!map.getLayer(TRACKS_LAYER)) return
 
-  const focus: FilterSpecification = ['==', ['get', 'id'], focusId ?? -1]
+  // Nothing is focused while planning: the tracks are inert, so there is no hover to
+  // draw and the highlight would be a second thing wearing the plan's own paint.
+  const focus: FilterSpecification = ['==', ['get', 'id'], dimmed ? -1 : (focusId ?? -1)]
   map.setFilter(FOCUS_CASING_LAYER, focus)
   map.setFilter(FOCUS_LAYER, focus)
-  map.setPaintProperty(
-    TRACKS_LAYER,
-    'line-opacity',
-    grouped ? fadeInTo(RESTING_OPACITY) : RESTING_OPACITY,
-  )
-  map.setLayoutProperty(STARTS_LAYER, 'visibility', grouped ? 'visible' : 'none')
+
+  const resting = dimmed ? DIMMED_OPACITY : RESTING_OPACITY
+  map.setPaintProperty(TRACKS_LAYER, 'line-opacity', grouped ? fadeInTo(resting) : resting)
+  // The donuts go with the hover: a cluster you cannot click is a control that lies.
+  map.setLayoutProperty(STARTS_LAYER, 'visibility', grouped && !dimmed ? 'visible' : 'none')
 }
 
 /** Exported for the style-spec test, which validates what `addTrackLayers` builds. */
-export const OPACITY = { RESTING_OPACITY, fadeInTo, fadeOutFrom }
+export const OPACITY = { RESTING_OPACITY, DIMMED_OPACITY, fadeInTo, fadeOutFrom }
 
 /** Exported so the style test can assert the outline is dark, not merely present. */
 export const SELECTION = { SELECTED_OUTLINE }

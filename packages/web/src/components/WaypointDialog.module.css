@@ -1,0 +1,130 @@
+/* Floats over the map like every other panel, but anchored to a place rather than to
+   an edge — so it carries a tail pointing at the pin it belongs to. */
+.dialog {
+  position: relative;
+  width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 13px;
+  border-radius: var(--radius-panel);
+  background: var(--glass-hi);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-md);
+  color: var(--ink);
+}
+
+.dialog::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  translate: -50% 0;
+  rotate: 45deg;
+  background: var(--glass-hi);
+  border-bottom-right-radius: 2px;
+}
+
+.close {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: flex;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+}
+
+.close:hover {
+  background: var(--sunk);
+  color: var(--ink-2);
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tighter);
+  padding-right: 20px;
+}
+
+.name {
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-ctrl);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.name:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.go,
+.quiet,
+.remove {
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.go {
+  background: var(--accent);
+  color: #fff;
+}
+
+.go:hover {
+  background: var(--accent-deep);
+}
+
+.quiet {
+  background: var(--sunk);
+  color: var(--ink-2);
+}
+
+.quiet:hover {
+  background: var(--line);
+}
+
+.remove {
+  background: transparent;
+  color: var(--muted);
+}
+
+.remove:hover {
+  color: var(--ink);
+  background: var(--sunk);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: 1.45;
+}
