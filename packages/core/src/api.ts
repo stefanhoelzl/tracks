@@ -144,25 +144,30 @@ export const facetsResponseSchema = z.object({
 
 export type FacetsResponse = z.infer<typeof facetsResponseSchema>
 
-/** Full resolution, as point objects. At this scale a decoder costs more than bytes. */
 /**
- * One activity's full-resolution track.
+ * One activity's full-resolution track: three strings, read straight off the row.
  *
- * Encoded at precision 6, which is lossless here — trackpoints carry six decimal places,
- * so the round trip is exact rather than merely close. As 34k point objects the same
- * track was 2.65MB; encoded with altitude alongside it is 0.30MB.
+ * Geometry is a polyline at `TRACK_PRECISION`, which is lossless to within 5.6cm — the
+ * sources report six decimal places. As 34k point objects the same track was 2.65MB.
  *
- * Altitude is a parallel array, aligned by index with the decoded coordinates, and the
- * detail panel's elevation profile is what reads it. Timestamps are not sent — no
- * consumer has ever read them, and they are still in the database for whatever
- * eventually wants them. The profile plots against distance instead, summed from the
- * coordinates it already has.
+ * Altitude and time are the same argument, finally applied to the other half of the
+ * payload. Altitude used to travel as a JSON array of nullable numbers, which over the
+ * whole archive is 6.41MB against 1.06MB through `encodeScalars`; the profile decodes it
+ * into exactly the array it had before. Time is here for the first time, as seconds from
+ * `started_at` — 1.03MB, against 3.19MB of ten-digit epochs. Nothing reads it yet. It is
+ * sent because it is on the row and because the shape that hid it, a table nobody could
+ * afford to read, is gone.
+ *
+ * All three are null together, and only for an activity with no track. A dropout inside
+ * one is a null *within* a stream, which the codec carries and the profile draws as a gap.
  */
 export const activityTrackSchema = z.object({
-  /** Encoded polyline, `[lat, lon]` pairs, precision 6. */
+  /** Encoded polyline, `[lat, lon]` pairs, at `TRACK_PRECISION`. */
   polyline: z.string(),
-  /** Height above sea level per point, not cumulative gain. */
-  altitudeM: z.array(z.number().nullable()),
+  /** Height above sea level per point, decimetres, `encodeScalars`. Not cumulative gain. */
+  altitudes: z.string(),
+  /** Seconds after the activity's `startedAt`, per point, `encodeScalars`. */
+  times: z.string(),
 })
 
 export const activityDetailSchema = z.object({
@@ -177,6 +182,8 @@ export type ActivityDetailResponse = z.infer<typeof activityDetailSchema>
 export interface ActivityTrack {
   coordinates: Array<[number, number]>
   altitudeM: Array<number | null>
+  /** Seconds after the activity started. Decoded alongside the rest; nothing reads it yet. */
+  secondsFromStart: Array<number | null>
 }
 
 export interface ActivityDetail {

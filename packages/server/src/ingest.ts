@@ -1,10 +1,13 @@
 import polyline from '@mapbox/polyline'
 import {
+  altitudesToScalars,
+  encodeScalars,
   IMPORT_PRECISION,
   type ImportFrame,
   mergeDerivedTags,
   parseTag,
   type TagType,
+  TRACK_PRECISION,
   validateTag,
 } from '@tracks/core'
 import { and, eq, sql } from 'drizzle-orm'
@@ -103,16 +106,17 @@ interface Point {
   lat: number
   lon: number
   altitudeM: number | null
-  recordedAt: number | null
+  /** Seconds after `startedAt`, as the frame sends them. */
+  secondsFromStart: number | null
 }
 
 /**
  * Rebuilds the full-resolution track from the frame.
  *
- * The parallel arrays are the wire's compression, not a shape worth keeping: a track
- * with no elevation sends one `null` instead of 25,000 of them, and times are offsets
- * from the start rather than ten-digit epochs. Both are widened back out here, where
- * `startedAt` is known.
+ * The parallel arrays are the wire's compression: a track with no elevation sends one
+ * `null` instead of 25,000 of them. Altitude is widened back out here; time is not,
+ * because an offset from `startedAt` is what gets stored. This used to add `startedAt`
+ * back on to make a ten-digit epoch per point, next to the `startedAt` it added.
  */
 function decodePoints(frame: ImportFrame): Point[] {
   const coordinates = polyline.decode(frame.geometry, IMPORT_PRECISION)
@@ -127,18 +131,18 @@ function decodePoints(frame: ImportFrame): Point[] {
     }
   }
 
-  const startEpoch = Math.round(new Date(frame.startedAt).getTime() / 1000)
-  if (Number.isNaN(startEpoch)) throw new Error(`'${frame.startedAt}' is not a date`)
+  // Still parsed, still rejected if it is not a date: `startedAt` is what every stored
+  // offset is measured from, so a bad one would silently shift a whole track in time.
+  if (Number.isNaN(Date.parse(frame.startedAt))) {
+    throw new Error(`'${frame.startedAt}' is not a date`)
+  }
 
-  return coordinates.map(([lat, lon], i) => {
-    const offset = frame.times?.[i] ?? null
-    return {
-      lat,
-      lon,
-      altitudeM: frame.altitudes?.[i] ?? null,
-      recordedAt: offset === null ? null : startEpoch + offset,
-    }
-  })
+  return coordinates.map(([lat, lon], i) => ({
+    lat,
+    lon,
+    altitudeM: frame.altitudes?.[i] ?? null,
+    secondsFromStart: frame.times?.[i] ?? null,
+  }))
 }
 
 /** Writes one activity, inside the caller's transaction. */
@@ -176,6 +180,17 @@ async function write(
     elapsedS: frame.elapsedS,
     elevationGainM: frame.elevationGainM,
     polyline: polyline.encode(simplify(points).map((p) => [p.lat, p.lon] as [number, number])),
+    // The full-resolution track, encoded once here into exactly what the detail route
+    // sends. `DETAIL_PRECISION` in queries.ts used to do this per request, over rows read
+    // back from `trackpoints`; doing it at import instead is the whole point of the
+    // columns. Times are offsets from `startedAt`, which is where they came from —
+    // `ImportFrame` sends offsets and this used to widen them back to epochs.
+    trackGeometry: polyline.encode(
+      points.map((p) => [p.lat, p.lon] as [number, number]),
+      TRACK_PRECISION,
+    ),
+    trackAltitudes: encodeScalars(altitudesToScalars(points.map((p) => p.altitudeM))),
+    trackTimes: encodeScalars(points.map((p) => p.secondsFromStart)),
     ...boundingBox(points),
     // `source:` duplicates the column on purpose: the upsert key needs the column, and
     // the tag is what makes source one more facet like any other. Derived here rather
@@ -194,30 +209,18 @@ async function write(
     ),
   }
 
-  let id = existing?.id
-  if (id === undefined) {
-    id = (await conn.insert(activities).values(row).returning({ id: activities.id }).get()).id
-  } else {
-    await conn.update(activities).set(row).where(eq(activities.id, id)).run()
-    await conn.delete(trackpoints).where(eq(trackpoints.activityId, id)).run()
+  if (existing === undefined) {
+    await conn.insert(activities).values(row).run()
+    return
   }
 
-  // Chunked to stay well under SQLite's variable limit on a 25k-point track.
-  for (let i = 0; i < points.length; i += 500) {
-    await conn
-      .insert(trackpoints)
-      .values(
-        points.slice(i, i + 500).map((p, j) => ({
-          activityId: id,
-          seq: i + j,
-          lat: p.lat,
-          lon: p.lon,
-          altitudeM: p.altitudeM,
-          recordedAt: p.recordedAt,
-        })),
-      )
-      .run()
-  }
+  await conn.update(activities).set(row).where(eq(activities.id, existing.id)).run()
+  // Whatever this activity had in `trackpoints` is now superseded by the columns just
+  // written, and leaving it would only make the fallback in `activityDetail` answer with
+  // the older copy. The insert that used to follow is gone: an activity is one row again,
+  // so a 34,626-point track no longer splits into seventy `INSERT`s to stay under
+  // SQLite's bind-variable limit.
+  await conn.delete(trackpoints).where(eq(trackpoints.activityId, existing.id)).run()
 }
 
 /**
@@ -245,8 +248,13 @@ export function ingestActivity(db: Db, owner: Owner, frame: ImportFrame): Promis
  * and the answer is a pure function of the database, taking no lock and leaving
  * nothing behind, so an abandoned dialog costs exactly nothing.
  *
- * "Has a track", not "exists": zero trackpoints means not imported yet, which is what
- * kept the old pipeline resumable and is still the honest question to ask.
+ * "Has a track", not "exists": a row with no geometry means not imported yet, which is
+ * what kept the old pipeline resumable and is still the honest question to ask.
+ *
+ * Two places to look, for exactly as long as both exist. An activity imported before the
+ * track columns has its points in `trackpoints` and nulls in the columns, and reporting
+ * it as missing would re-fetch the entire archive on the next import. The `EXISTS` half
+ * goes when the table does.
  *
  * Scoped to the asker, so somebody else having ridden the same Komoot tour does not
  * make it one you already have.
@@ -266,7 +274,8 @@ export async function selectWanted(
           and(
             eq(activities.userId, owner.userId),
             eq(activities.source, source),
-            sql`EXISTS (SELECT 1 FROM trackpoints t WHERE t.activity_id = ${activities.id})`,
+            sql`(${activities.trackGeometry} IS NOT NULL
+                 OR EXISTS (SELECT 1 FROM trackpoints t WHERE t.activity_id = ${activities.id}))`,
           ),
         )
         .all()

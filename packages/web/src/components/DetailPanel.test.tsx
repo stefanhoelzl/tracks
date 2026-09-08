@@ -42,7 +42,7 @@ const DETAIL: ActivityDetail = {
     speedMs: 0.84,
     tags: ['source:komoot', 'sport:hike'],
   },
-  track: { coordinates: [[20, 49]], altitudeM: [null] },
+  track: { coordinates: [[20, 49]], altitudeM: [null], secondsFromStart: [null] },
 }
 
 const SCALE = buildScale([{ type: 'sport', values: ['hike'] }])

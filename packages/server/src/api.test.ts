@@ -2,13 +2,18 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import polyline from '@mapbox/polyline'
-import type {
-  ActivitiesResponse,
-  ActivityDetailResponse,
-  ApiError,
-  FacetsResponse,
-  TagTypesResponse,
-  TracksResponse,
+import {
+  type ActivitiesResponse,
+  type ActivityDetailResponse,
+  type ApiError,
+  altitudesFromScalars,
+  altitudesToScalars,
+  decodeScalars,
+  encodeScalars,
+  type FacetsResponse,
+  type TagTypesResponse,
+  TRACK_PRECISION,
+  type TracksResponse,
 } from '@tracks/core'
 import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -494,8 +499,35 @@ describe('the REST surface', () => {
         [46.36, 13.76],
         [46.37, 13.75],
       ])
-      // Altitude is a parallel array, aligned with the points by index.
-      expect(body.track.altitudeM).toEqual([500, 501, 502])
+      // Altitude and time are encoded streams, aligned with the points by index.
+      expect(altitudesFromScalars(decodeScalars(body.track.altitudes))).toEqual([500, 501, 502])
+      expect(decodeScalars(body.track.times)).toEqual([0, 1, 2])
+    })
+
+    it('serves the stored columns verbatim when an activity has them', async () => {
+      // The seed writes `trackpoints` and no columns, so everything above goes through
+      // the fallback. This is the other side: the columns are the wire format, so the
+      // route hands them over without a codec running at all.
+      const list = (await (
+        await signedIn('/api/activities?tag=sport:hike')
+      ).json()) as ActivitiesResponse
+      const id = list.activities[0]!.id
+      await db
+        .update(activities)
+        .set({
+          trackGeometry: polyline.encode([[1, 2]], TRACK_PRECISION),
+          trackAltitudes: encodeScalars(altitudesToScalars([70])),
+          trackTimes: encodeScalars([0]),
+        })
+        .where(eq(activities.id, id))
+        .run()
+
+      const body = (await (
+        await signedIn(`/api/activities/${id}`)
+      ).json()) as ActivityDetailResponse
+
+      expect(polyline.decode(body.track.polyline, TRACK_PRECISION)).toEqual([[1, 2]])
+      expect(altitudesFromScalars(decodeScalars(body.track.altitudes))).toEqual([70])
     })
 
     it('is a 404 for an activity that is not there, and a 400 for one that cannot be', async () => {

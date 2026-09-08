@@ -1,5 +1,10 @@
 import polyline from '@mapbox/polyline'
-import type { ActivityDetailResponse, TracksResponse } from '@tracks/core'
+import {
+  type ActivityDetailResponse,
+  altitudesToScalars,
+  encodeScalars,
+  type TracksResponse,
+} from '@tracks/core'
 import { describe, expect, it } from 'vitest'
 import { decodeActivityDetail, decodeTracks } from './tracks.ts'
 
@@ -64,7 +69,8 @@ describe('decodeActivityDetail', () => {
           ],
           6,
         ),
-        altitudeM: [1500, 1600],
+        altitudes: encodeScalars(altitudesToScalars([1500, 1600])),
+        times: encodeScalars([0, 7]),
       },
     }
 
@@ -86,7 +92,8 @@ describe('decodeActivityDetail', () => {
           ],
           6,
         ),
-        altitudeM: [1500, null],
+        altitudes: encodeScalars(altitudesToScalars([1500, null])),
+        times: encodeScalars([0, null]),
       },
     }
     const { coordinates, altitudeM } = decodeActivityDetail(response).track

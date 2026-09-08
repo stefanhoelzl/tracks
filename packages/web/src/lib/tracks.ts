@@ -1,9 +1,12 @@
 import polyline from '@mapbox/polyline'
-import type {
-  ActivityDetail,
-  ActivityDetailResponse,
-  TrackCollection,
-  TracksResponse,
+import {
+  type ActivityDetail,
+  type ActivityDetailResponse,
+  altitudesFromScalars,
+  decodeScalars,
+  TRACK_PRECISION,
+  type TrackCollection,
+  type TracksResponse,
 } from '@tracks/core'
 
 /**
@@ -29,9 +32,6 @@ export function decodeTracks(response: TracksResponse): TrackCollection {
   }
 }
 
-/** Lossless for six-decimal trackpoints — must match what the route encodes with. */
-const DETAIL_PRECISION = 6
-
 /**
  * One activity's full-resolution track, decoded once on arrival.
  *
@@ -43,9 +43,13 @@ export function decodeActivityDetail(response: ActivityDetailResponse): Activity
     activity: response.activity,
     track: {
       coordinates: polyline
-        .decode(response.track.polyline, DETAIL_PRECISION)
+        .decode(response.track.polyline, TRACK_PRECISION)
         .map(([lat, lon]) => [lon, lat]),
-      altitudeM: response.track.altitudeM,
+      // Three strings in, three arrays out, all decoded in the one place the response is
+      // adapted — so `ElevationProfile` and `geo.ts` still see the nullable number array
+      // they always did, and never learn that the wire stopped sending one.
+      altitudeM: altitudesFromScalars(decodeScalars(response.track.altitudes)),
+      secondsFromStart: decodeScalars(response.track.times),
     },
   }
 }

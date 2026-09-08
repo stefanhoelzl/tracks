@@ -19,9 +19,9 @@ export const users = sqliteTable('users', {
 })
 
 /**
- * Activity metadata. Service-reported metrics are stored verbatim; anything else
- * (segment distances, cross-service-consistent totals) is computed from trackpoints
- * on demand.
+ * Activity metadata, and the track itself. Service-reported metrics are stored verbatim;
+ * anything else (segment distances, cross-service-consistent totals) is computed from the
+ * stored track on demand.
  */
 export const activities = sqliteTable(
   'activities',
@@ -62,6 +62,24 @@ export const activities = sqliteTable(
     maxLat: real('max_lat'),
     minLon: real('min_lon'),
     maxLon: real('max_lon'),
+    /**
+     * The full-resolution track, in the three encodings the detail route sends.
+     *
+     * A row per point was 41 bytes to carry about seven of information, and 43.1MB of a
+     * 43.5MB database. These three columns are 5.9MB for the same 1.02M points, and the
+     * shape is the reason rather than the size: opening an activity was 4,438 rows and
+     * 470KB off Frankfurt, and importing one was a row per point — 1.02M of them, on the
+     * one metered operation that costs a thousand times more per row than a read.
+     *
+     * Stored in exactly the form the API sends, so the read path has no codec in it at
+     * all. `track_geometry` is a polyline at precision 6, which is what `/api/activities/:id`
+     * already encoded on every request; the other two are `encodeScalars` over decimetres
+     * and over seconds from `started_at`. Null together, and only for an activity with no
+     * track — a dropout inside one is a null *within* a stream, which the codec carries.
+     */
+    trackGeometry: text('track_geometry'),
+    trackAltitudes: text('track_altitudes'),
+    trackTimes: text('track_times'),
   },
   // The owner is part of the key: two people may each import the same Strava ride, and
   // one of them importing it must not be the other's duplicate.
@@ -69,8 +87,15 @@ export const activities = sqliteTable(
 )
 
 /**
- * Full-resolution track. `seq` is the authoritative ordering, not `recordedAt` —
- * timestamps can repeat or be absent.
+ * The full-resolution track, before it moved onto `activities`.
+ *
+ * Nothing writes here any more and one thing still reads it: `activityDetail` falls back
+ * to it for a row imported before `track_geometry` existed. A one-off script fills those
+ * columns and the next migration drops this table, so both the fallback and this comment
+ * are the shape of the gap between two deploys.
+ *
+ * `seq` is the authoritative ordering, not `recordedAt` — timestamps can repeat or be
+ * absent.
  */
 export const trackpoints = sqliteTable(
   'trackpoints',

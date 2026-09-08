@@ -2,7 +2,13 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import polyline from '@mapbox/polyline'
-import { IMPORT_PRECISION, type ImportFrame } from '@tracks/core'
+import {
+  altitudesFromScalars,
+  decodeScalars,
+  IMPORT_PRECISION,
+  type ImportFrame,
+  TRACK_PRECISION,
+} from '@tracks/core'
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApi } from './api.ts'
@@ -94,7 +100,21 @@ async function run(frames: ImportFrame[]) {
 }
 
 const rows = () => handle.db.select().from(activities).all()
-const pointCount = async () =>
+/** The stored track, decoded back into the arrays the frame carried. */
+const storedTrack = async () => {
+  const [row] = await rows()
+  if (!row?.trackGeometry) return null
+  return {
+    coordinates: polyline.decode(row.trackGeometry, TRACK_PRECISION),
+    altitudeM: altitudesFromScalars(decodeScalars(row.trackAltitudes ?? '')),
+    secondsFromStart: decodeScalars(row.trackTimes ?? ''),
+  }
+}
+
+const pointCount = async () => (await storedTrack())?.coordinates.length ?? 0
+
+/** Rows still in the retired table — zero, on anything this suite writes. */
+const legacyPointCount = async () =>
   (await handle.db.select({ n: sql<number>`count(*)` }).from(trackpoints).get())?.n ?? 0
 
 describe('ingest', () => {
@@ -110,24 +130,32 @@ describe('ingest', () => {
     expect(await pointCount()).toBe(4)
   })
 
-  it('widens the wire format back out', async () => {
+  it('stores the wire format as the wire format', async () => {
     await run([frame()])
-    const points = await handle.db.select().from(trackpoints).orderBy(trackpoints.seq).all()
+    const track = await storedTrack()
 
-    expect(points[0]?.lat).toBeCloseTo(46.7812, 6)
-    expect(points[0]?.altitudeM).toBe(594.3)
-    // Times arrive as offsets from the start and are stored as absolute epochs.
-    const start = Math.round(Date.parse('2026-08-20T06:36:58.000Z') / 1000)
-    expect(points[0]?.recordedAt).toBe(start)
-    expect(points[3]?.recordedAt).toBe(start + 31)
+    expect(track?.coordinates[0]?.[0]).toBeCloseTo(46.7812, 6)
+    expect(track?.altitudeM[0]).toBe(594.3)
+    // Times stay offsets from the start, which is what the frame sends and what
+    // `started_at` already lets anything reconstruct an epoch from.
+    expect(track?.secondsFromStart[0]).toBe(0)
+    expect(track?.secondsFromStart[3]).toBe(31)
+  })
+
+  it('writes no rows to the retired points table', async () => {
+    await run([frame()])
+    expect(await legacyPointCount()).toBe(0)
   })
 
   it('keeps a track that carries neither altitude nor timing', async () => {
     await run([frame({ altitudes: null, times: null })])
-    const points = await handle.db.select().from(trackpoints).all()
+    const track = await storedTrack()
 
-    expect(points).toHaveLength(4)
-    expect(points.every((p) => p.altitudeM === null && p.recordedAt === null)).toBe(true)
+    expect(track?.coordinates).toHaveLength(4)
+    // Absent for every point, and absent one character at a time rather than by the
+    // column being null — which is reserved for an activity with no track at all.
+    expect(track?.altitudeM.every((v) => v === null)).toBe(true)
+    expect(track?.secondsFromStart.every((v) => v === null)).toBe(true)
   })
 
   it('derives the offset from the coordinates, with DST', async () => {
@@ -139,7 +167,7 @@ describe('ingest', () => {
   it('stores a simplified polyline beside the full-resolution points', async () => {
     await run([frame()])
     expect((await rows())[0]?.polyline).toBeTruthy()
-    // The stored line is the map's; the trackpoints keep every sample.
+    // The stored line is the map's; `track_geometry` keeps every sample.
     expect(await pointCount()).toBe(4)
   })
 
@@ -365,8 +393,16 @@ describe('the fixtures the browser records', () => {
     ])
 
     expect(await pointCount()).toBe(items.length)
-    const first = (await handle.db.select().from(trackpoints).orderBy(trackpoints.seq).all())[0]
-    // Precision 6 is lossless, which is the claim the wire format rests on.
-    expect(first?.lon).toBeCloseTo(items[0]!.lng, 6)
+
+    // Precision 6 and a tenth of a metre are the claims the stored format rests on, so
+    // this checks every point rather than the first: half a unit in the last place is
+    // 5.6cm of coordinate and 5cm of altitude, against a receiver with 1-3m of error.
+    const track = await storedTrack()
+    for (const [i, item] of items.entries()) {
+      expect(track?.coordinates[i]?.[0]).toBeCloseTo(item.lat, 6)
+      expect(track?.coordinates[i]?.[1]).toBeCloseTo(item.lng, 6)
+      expect(track?.altitudeM[i]).toBeCloseTo(item.alt, 1)
+      expect(track?.secondsFromStart[i]).toBe(Math.round(item.t / 1000))
+    }
   })
 })
