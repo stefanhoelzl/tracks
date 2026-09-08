@@ -1,32 +1,45 @@
 import type { ActivityTrack } from '@tracks/core'
-import type { Leg } from '@tracks/routing'
+import type { LatLon, Leg, Place } from '@tracks/routing'
 import { PROFILE_LABELS } from '@tracks/routing'
 import { useMemo } from 'react'
 import { duration, km, metres } from '../lib/format.ts'
 import type { Plan } from '../lib/plan.ts'
 import { planTotals } from '../lib/plan-track.ts'
 import { profileOf } from './ElevationProfile.tsx'
-import styles from './PlanOverview.module.css'
+import styles from './PlanPanel.module.css'
 import { TrackOverview } from './TrackOverview.tsx'
+import { WaypointPanel } from './WaypointPanel.tsx'
 
 /**
- * The right panel while planning — where a selected activity's detail would be.
+ * The whole plan, in the panel a selected activity's detail would be in.
  *
- * The selection is shadowed rather than cleared: `activity=` stays in the query string
- * and this shows instead, so switching back restores the detail exactly as it was.
+ * **Only the right side changes with the mode.** The left panel is the filter in every
+ * mode, which keeps the sidebar exactly where it was and keeps it doing something while
+ * you plan — the tracks underneath are still narrowed by it, and planning against what
+ * you have already ridden is most of the reason to plan on this map. So the plan's
+ * numbers and the controls that change them are stacked here instead, in one scroll.
  *
- * It shares `TrackOverview` with that detail rather than resembling it. What a plan does
- * not have, it does not draw: no date, because it was never ridden, and no tags. The
- * engine and the profile sit where the source badge does, saying the same kind of thing
- * — where these numbers came from.
+ * Its top half shares `TrackOverview` with the activity detail rather than resembling
+ * it. What a plan does not have, it does not draw: no date, because it was never ridden,
+ * and no tags. The engine and the profile sit where the source badge does, saying the
+ * same kind of thing — where these numbers came from.
+ *
+ * Outputs above, inputs below, which is the order the activity detail already uses: what
+ * this is, then the collection you edit.
  */
-export function PlanOverview({
+export function PlanPanel({
   plan,
   legs,
   track,
   cursor,
+  pending,
+  error,
+  near,
   onCursor,
   onPlan,
+  onSelect,
+  onRemove,
+  onPick,
 }: {
   plan: Plan
   legs: Array<Leg | undefined>
@@ -34,8 +47,14 @@ export function PlanOverview({
   track: ActivityTrack
   /** The point the elevation cursor is on, shared with the map exactly as a track's is. */
   cursor: number | null
+  pending: boolean
+  error: string | null
+  near: () => LatLon | null
   onCursor: (index: number | null) => void
   onPlan: (plan: Plan) => void
+  onSelect: (index: number) => void
+  onRemove: (index: number) => void
+  onPick: (place: Place) => void
 }) {
   const stops = plan.waypoints.filter((waypoint) => waypoint.kind === 'poi')
 
@@ -99,6 +118,18 @@ export function PlanOverview({
             }
           />
         )}
+
+        <WaypointPanel
+          plan={plan}
+          legs={legs}
+          pending={pending}
+          error={error}
+          near={near}
+          onPlan={onPlan}
+          onSelect={onSelect}
+          onRemove={onRemove}
+          onPick={onPick}
+        />
       </div>
     </>
   )

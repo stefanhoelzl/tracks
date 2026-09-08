@@ -1,11 +1,9 @@
-.panel {
-  flex: 1;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+/* A section of the plan panel, not a panel: the scroll and the padding belong to the
+   body it sits in, so the plan's numbers and its controls scroll as one thing. */
+.section {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 4px 18px 18px;
 }
 
 .group {

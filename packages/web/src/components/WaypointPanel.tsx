@@ -11,13 +11,13 @@ import { Label } from './ui/Label.tsx'
 import styles from './WaypointPanel.module.css'
 
 /**
- * The left panel while planning, in place of the filters.
+ * Everything that *changes* a plan: where to add a place, how it is routed, and the
+ * stops themselves.
  *
- * One left panel whose content follows the mode, rather than two competing for a layout
- * that already says it wants 1100 px. The filter it replaces is still in effect on the
- * dimmed tracks underneath and still visible as the top bar's chips, so nothing here is
- * invisible-but-active — and coming back restores the sidebar untouched, because the
- * filter never left the query string.
+ * It sits under the plan's numbers in the right-hand panel rather than on the left. The
+ * left panel is the filter in every mode, so only one side of the map changes when the
+ * mode does — and the filter stays where it was, still narrowing the tracks underneath
+ * a plan, which is most of the reason to plan on this map at all.
  *
  * The list mirrors the leg structure rather than the waypoint array. Each **stop** is a
  * row carrying the distance and the climb to it; the shaping points inside a leg are
@@ -73,7 +73,7 @@ export function WaypointPanel({
   })
 
   return (
-    <div className={styles.panel}>
+    <div className={styles.section}>
       {error ? (
         <div className={styles.banner}>
           <strong>The router is not answering</strong>

@@ -303,9 +303,10 @@ describe('the app', () => {
     await renderApp()
 
     await waitFor(() => expect(screen.getByText('Vent')).toBeTruthy())
-    // The waypoint list takes the sidebar's side; the filter is still in effect on the
-    // tracks underneath and still visible as the top bar's chips.
-    expect(screen.queryByRole('region', { name: 'Sport' })).toBeNull()
+    // Only the right panel follows the mode: the filter sidebar is exactly where it was,
+    // still narrowing the tracks a plan is drawn over. Awaited because the plan comes
+    // from the fragment and is on screen before the registry has been fetched.
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy())
     expect(screen.getByLabelText('Search for a place')).toBeTruthy()
     // Nothing about the plan was ever requested.
     expect(requested.some((r) => r.includes('plan'))).toBe(false)
@@ -314,7 +315,8 @@ describe('the app', () => {
 
     // Leaving is the plan's only Clear control, so the fragment goes with the mode.
     expect(window.location.hash).toBe('')
-    await waitFor(() => expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy())
+    await waitFor(() => expect(screen.queryByLabelText('Search for a place')).toBeNull())
+    expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy()
   })
 
   it('writes a waypoint into the fragment, which is the only place a plan lives', async () => {

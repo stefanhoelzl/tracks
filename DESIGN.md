@@ -879,8 +879,9 @@ enough to justify one.
 ## Planning
 
 A third mode beside Activities and Analytics, and the first one that is a *place you go*
-rather than a panel over somewhere else: the waypoint list takes the sidebar's side, the
-route overview takes the list's, and the map runs between them as it always does.
+rather than a panel over somewhere else. **Only the right panel follows the mode**: the whole
+plan — its numbers, its controls and its stops — replaces the activity list, and the filter
+sidebar stays exactly where it is.
 
 Underneath it, everything you have already ridden, dimmed to resting opacity and made
 inert — no hover, no click. That is the reason to plan here rather than in Komoot: *have I
@@ -1040,7 +1041,7 @@ itself and it is named.
 
 ### Both panels
 
-The waypoint list mirrors the leg structure rather than the waypoint array. Each **POI is a
+The list of stops mirrors the leg structure rather than the waypoint array. Each **POI is a
 row** — name, distance and ascent — and the ROUTING points inside a leg are **inline ticks on
 the connector** between two rows, reorderable but not competing for attention. A plan with
 fifteen shaping points and two real places reads as the trip it is: *Hut · 12.4 km · 640 m up*.
@@ -1052,21 +1053,26 @@ stop behind the one you are pointing at reads negative on both — that far back
 less climbing done by then — and the row being measured from carries no numbers at all, which
 is what the first row always did.
 
-The overview reuses the single-activity view, by extraction rather than by pretence: the
-title block, the stat grid and the elevation profile come out of `DetailPanel` into a piece
-both modes render. A plan gets a name, four tiles — distance, ascent, descent, estimated
-time — and the profile. No tags and no date, because it was never ridden; the engine and
-profile sit where the source badge does. Building a synthetic `ActivityDetail` to reuse the
-component untouched was considered and rejected: it fabricates a `startedAt` and a `source`
-for something that has neither, and grows `if (isPlan)` branches anyway.
+The panel's top half reuses the single-activity view, by extraction rather than by pretence:
+the title block, the stat grid and the elevation profile come out of `DetailPanel` into a
+piece both modes render. A plan gets a name, four tiles — distance, ascent, descent,
+estimated time — and the profile. No tags and no date, because it was never ridden; the
+engine and profile sit where the source badge does. Building a synthetic `ActivityDetail` to
+reuse the component untouched was considered and rejected: it fabricates a `startedAt` and a
+`source` for something that has neither, and grows `if (isPlan)` branches anyway.
 
-The filter sidebar is simply not there while planning — one left panel, whose content
-follows the mode. The filter stays in effect on the dimmed tracks underneath and stays
-visible and removable as the top bar's chips, so nothing is invisible-but-active, and coming
-back restores the sidebar untouched because the filter never left the query string. A
-selected activity is shadowed the same way: `activity=` is left alone and the right panel
-just shows the plan instead. Planning shadows the other modes' state; only its own is
-destroyed by leaving.
+Under it, in the same scroll, sit the things that *change* a plan: the search field, the
+profile pills and the list of stops. Outputs above, inputs below — the order the activity
+detail already uses, where the tags you edit sit under the numbers you read.
+
+The **filter sidebar stays put in every mode**, and only the right panel changes. It was
+briefly the other way round — the waypoint list took the sidebar's side — which meant both
+panels changed at once and the filter was reduced to chips in the top bar. Left where it is,
+the sidebar is still doing something while you plan: the tracks a plan is drawn over are the
+ones it narrowed, and narrowing them is most of the reason to plan on this map rather than
+in Komoot. A selected activity is shadowed the same way: `activity=` is left alone and the
+right panel just shows the plan instead. Planning shadows the other modes' state; only its
+own is destroyed by leaving.
 
 The camera fits the plan **once, on first load**, padded past both panels — the same
 opening-fit-then-never-again rule the `bbox` filter settled on, for the same reason. A
@@ -1359,6 +1365,7 @@ will otherwise propose all of these again.
 | Silently beelining an unroutable leg | BRouter has a first-class beeline, so the failure could just disappear. It would fold a straight line across a glacier into the distance total with nothing saying so. |
 | Nominatim | The obvious OSM geocoder, whose usage policy forbids autocomplete — which is exactly what a search field that answers as you type is. |
 | Engine-native profile names in the fragment | Nothing to map and nothing to keep in sync; a new BRouter profile would appear in the UI for free. It also couples every shared link to the engine that made it, so swapping engines invalidates all of them. |
+| The waypoint list on the left | Shipped first, and reversed after using it. Putting the list where the sidebar was meant *both* panels changed when the mode did, and the filter — still narrowing the tracks a plan is drawn over — was reduced to chips in the top bar. Moving the whole plan into the right panel leaves one side of the map that never moves. |
 | A flat waypoint list | One reorderable list, kind shown by an icon. Simpler by every measure except the one that matters: a plan with fifteen shaping points reads as fifteen anonymous rows with the two real places buried among them. |
 | A separate `PlanPanel` | Free to diverge — a leg-by-leg breakdown, a surface summary — without the activity view having an opinion. Two panels that look alike and drift apart, which extracting the shared middle prevents outright. |
 | Reusing `DetailPanel` with a synthetic activity | Zero new UI code, at the price of fabricating a `startedAt`, a `source` and a tags array for something that was never ridden — and of the component growing `if (isPlan)` branches anyway. |

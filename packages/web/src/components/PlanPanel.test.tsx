@@ -3,7 +3,11 @@ import type { Leg, Waypoint } from '@tracks/routing'
 import { describe, expect, it, vi } from 'vitest'
 import { emptyPlan, type Plan } from '../lib/plan.ts'
 import { planTrack } from '../lib/plan-track.ts'
-import { PlanOverview } from './PlanOverview.tsx'
+import { PlanPanel } from './PlanPanel.tsx'
+
+vi.mock('../lib/routing.ts', () => ({
+  geocoder: { id: 'fake', search: async () => [], reverse: async () => null },
+}))
 
 const poi = (lon: number, name: string | null): Waypoint => ({ lon, lat: 47, kind: 'poi', name })
 
@@ -26,19 +30,25 @@ const leg = (): Leg => ({
 function overview(plan: Partial<Plan>, legs: Array<Leg | undefined> = []) {
   const onPlan = vi.fn()
   render(
-    <PlanOverview
+    <PlanPanel
       plan={{ ...emptyPlan(), ...plan }}
       legs={legs}
       track={planTrack(legs)}
       cursor={null}
+      pending={false}
+      error={null}
+      near={() => null}
       onCursor={vi.fn()}
       onPlan={onPlan}
+      onSelect={vi.fn()}
+      onRemove={vi.fn()}
+      onPick={vi.fn()}
     />,
   )
   return { onPlan }
 }
 
-describe('the plan overview', () => {
+describe('the plan panel', () => {
   it('has nothing to say below two stops', () => {
     overview({ waypoints: [poi(0, 'Vent')] })
 
