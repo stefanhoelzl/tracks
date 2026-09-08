@@ -75,6 +75,9 @@ importers:
       '@tracks/core':
         specifier: workspace:*
         version: link:../core
+      '@tracks/routing':
+        specifier: workspace:*
+        version: link:../routing
       '@tracks/server':
         specifier: workspace:*
         version: link:../server
