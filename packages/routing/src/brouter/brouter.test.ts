@@ -167,6 +167,27 @@ describe('BRouterRouter', () => {
     ).rejects.toBeInstanceOf(RouterError)
   })
 
+  it('names the host it could not reach, rather than repeating "Failed to fetch"', async () => {
+    server.use(http.get(ENDPOINT, () => HttpResponse.error()))
+
+    await expect(
+      new BRouterRouter().route([poi(11.3931, 47.2654), poi(11.3975, 47.2668)], 'trekking'),
+    ).rejects.toThrow(/Could not reach brouter\.de/)
+  })
+
+  it('lets an abort stay an abort, since that is the caller changing its mind', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      new BRouterRouter().route(
+        [poi(11.3931, 47.2654), poi(11.3975, 47.2668)],
+        'trekking',
+        controller.signal,
+      ),
+    ).rejects.not.toBeInstanceOf(RouterError)
+  })
+
   it('routes nothing when there are fewer than two POIs', async () => {
     expect(await new BRouterRouter().route([poi(11.39, 47.26, 'Alone')], 'trekking')).toEqual([])
     expect(await new BRouterRouter().route([shaping(11.39, 47.26)], 'trekking')).toEqual([])

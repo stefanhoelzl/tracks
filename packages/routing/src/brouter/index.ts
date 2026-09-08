@@ -131,7 +131,18 @@ export class BRouterRouter implements Router {
       format: 'geojson',
     })
 
-    const response = await fetch(`${this.endpoint}?${params}`, { signal })
+    let response: Response
+    try {
+      response = await fetch(`${this.endpoint}?${params}`, { signal })
+    } catch (cause) {
+      // An abort is the caller changing its mind, not a failure, and it must stay the
+      // exception react-query and the search field already recognise.
+      if (signal?.aborted) throw cause
+      // Otherwise the browser has told us "Failed to fetch" and nothing else — no
+      // status, no body, no distinction between offline, DNS and a blocked origin. A
+      // banner repeating that says less than naming the host it could not reach.
+      throw new RouterError(`Could not reach ${new URL(this.endpoint).host}`)
+    }
 
     if (!response.ok) {
       const body = (await response.text()).trim()

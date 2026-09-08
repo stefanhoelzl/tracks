@@ -1,5 +1,6 @@
 import type { LatLon, Leg, Place } from '@tracks/routing'
 import { PROFILE_LABELS, PROFILES } from '@tracks/routing'
+import { X } from 'lucide-react'
 import { useState } from 'react'
 import { km, metres } from '../lib/format.ts'
 import type { Plan } from '../lib/plan.ts'
@@ -35,6 +36,7 @@ export function WaypointPanel({
   near,
   onPlan,
   onSelect,
+  onRemove,
   onPick,
 }: {
   plan: Plan
@@ -47,6 +49,8 @@ export function WaypointPanel({
   near: () => LatLon | null
   onPlan: (plan: Plan) => void
   onSelect: (index: number) => void
+  /** Removing from the list, so a waypoint off screen is still reachable. */
+  onRemove: (index: number) => void
   onPick: (place: Place) => void
 }) {
   /** Which stop is being dragged, as a POI ordinal. Transient, and never in the URL. */
@@ -141,6 +145,14 @@ export function WaypointPanel({
                       </span>
                     ) : null}
                   </button>
+                  <button
+                    type="button"
+                    className={styles.remove}
+                    aria-label={`Remove ${waypoint.name ?? 'stop'}`}
+                    onClick={() => onRemove(index)}
+                  >
+                    <X size={12} strokeWidth={2.4} />
+                  </button>
                 </li>
               ) : (
                 <li key={index} className={styles.tick}>
@@ -150,6 +162,14 @@ export function WaypointPanel({
                     onClick={() => onSelect(index)}
                   >
                     Shaping point
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.remove}
+                    aria-label="Remove shaping point"
+                    onClick={() => onRemove(index)}
+                  >
+                    <X size={11} strokeWidth={2.4} />
                   </button>
                 </li>
               )

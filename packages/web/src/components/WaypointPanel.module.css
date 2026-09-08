@@ -90,6 +90,8 @@
 }
 
 .row {
+  display: flex;
+  align-items: center;
   border-radius: var(--radius-ctrl);
 }
 
@@ -140,8 +142,38 @@
 /* On the connector between two rows, not competing with them: a shaping point is a
    property of the leg above it rather than a place on the trip. */
 .tick {
+  display: flex;
+  align-items: center;
   margin-left: 11px;
   border-left: 1px solid var(--line-2);
+}
+
+.tickButton {
+  flex: 1;
+  text-align: left;
+}
+
+/* Quiet until the row is under the pointer: a delete you can hit by accident on a
+   list you are reading is worse than one you have to arrive at. */
+.remove {
+  display: flex;
+  flex-shrink: 0;
+  padding: 4px;
+  margin-right: 4px;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  opacity: 0;
+}
+
+.row:hover .remove,
+.tick:hover .remove,
+.remove:focus-visible {
+  opacity: 1;
+}
+
+.remove:hover {
+  background: var(--line);
+  color: var(--ink);
 }
 
 .tickButton {

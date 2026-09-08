@@ -366,14 +366,19 @@ export function App({ email }: { email: string }) {
               near={() => mapHandle.current?.centre() ?? null}
               onPlan={setPlan}
               onSelect={openWaypoint}
+              onRemove={(index) => {
+                setPin(null)
+                setPlan(removeWaypoint(plan, index))
+              }}
               // A search result raises the same pinned dialog a map click raises, with
               // the name already known — so a searched stop needs no reverse lookup.
-              onPick={(place) =>
-                setPin({
-                  at: { lat: place.lat, lon: place.lon },
-                  target: { state: 'new', leg: null, name: place.name },
-                })
-              }
+              // And the map goes there: a dialog pinned somewhere off screen is a
+              // dialog about nothing you can see.
+              onPick={(place) => {
+                const at = { lat: place.lat, lon: place.lon }
+                mapHandle.current?.flyTo(at)
+                setPin({ at, target: { state: 'new', leg: null, name: place.name } })
+              }}
             />
           ) : (
             <div className={styles.scroll}>

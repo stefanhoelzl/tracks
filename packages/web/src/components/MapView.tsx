@@ -71,6 +71,8 @@ export interface MapHandle {
   fitBounds: (bbox: [number, number, number, number]) => void
   /** Where the camera is pointing, so a search can be biased towards it. */
   centre: () => LatLon | null
+  /** Go and look at a place — what picking a search result means. */
+  flyTo: (at: LatLon) => void
 }
 
 /**
@@ -175,6 +177,14 @@ export function MapView({
       const at = map.current?.getCenter()
       return at ? { lat: at.lat, lon: at.lng } : null
     },
+    // Zooms in to a place worth looking at, and never back out: arriving from a
+    // valley-level view only to be pulled out to z13 would lose what you were reading.
+    flyTo: (at: LatLon) =>
+      map.current?.flyTo({
+        center: [at.lon, at.lat],
+        zoom: Math.max(map.current.getZoom(), 13),
+        duration: 700,
+      }),
     fitBounds: ([west, south, east, north]: [number, number, number, number]) =>
       map.current?.fitBounds(
         [

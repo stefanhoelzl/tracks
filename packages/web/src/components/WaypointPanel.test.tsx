@@ -39,6 +39,7 @@ const leg = (distanceM: number, ascentM: number): Leg => ({
 function panel(plan: Partial<Plan>, legs: Array<Leg | undefined> = [], props = {}) {
   const onPlan = vi.fn()
   const onSelect = vi.fn()
+  const onRemove = vi.fn()
   const onPick = vi.fn()
 
   render(
@@ -50,12 +51,13 @@ function panel(plan: Partial<Plan>, legs: Array<Leg | undefined> = [], props = {
       near={() => ({ lat: 47.26, lon: 11.39 })}
       onPlan={onPlan}
       onSelect={onSelect}
+      onRemove={onRemove}
       onPick={onPick}
       {...props}
     />,
   )
 
-  return { onPlan, onSelect, onPick }
+  return { onPlan, onSelect, onRemove, onPick }
 }
 
 describe('the waypoint panel', () => {
@@ -127,6 +129,18 @@ describe('the waypoint panel', () => {
     // panel never becomes a second way of committing a waypoint.
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ name: 'Vent' }))
     expect(onPlan).not.toHaveBeenCalled()
+  })
+
+  it('removes a waypoint from the list, so one off screen is still reachable', async () => {
+    const { onRemove } = panel({ waypoints: [poi(0, 'Vent'), shaping(1), poi(2, 'Hut')] }, [
+      leg(1000, 10),
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Vent' }))
+    expect(onRemove).toHaveBeenCalledWith(0)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove shaping point' }))
+    expect(onRemove).toHaveBeenCalledWith(1)
   })
 
   it('says when the engine is not answering, which is not a waypoint problem', () => {
