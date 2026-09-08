@@ -1,0 +1,61 @@
+.panel {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 4px 18px 18px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Five of them wrap onto two rows at this width, which is why they are pills rather
+   than one segmented strip: a strip that wraps stops reading as one control. */
+.profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.profile {
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--sunk);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.profile:hover {
+  background: var(--line);
+}
+
+.profileOn,
+.profileOn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: var(--radius-ctrl);
+  background: var(--sunk);
+}
+
+.empty strong {
+  font-size: var(--text-md);
+}
+
+.empty span {
+  font-size: var(--text-base);
+  color: var(--muted);
+  line-height: 1.5;
+}

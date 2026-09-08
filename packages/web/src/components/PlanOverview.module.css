@@ -1,0 +1,48 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 18px 10px;
+  flex-shrink: 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Where the activity detail puts its source badge, saying the same kind of thing:
+   where these numbers came from. */
+.engine {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 4px 18px 18px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: var(--radius-ctrl);
+  background: var(--sunk);
+}
+
+.empty strong {
+  font-size: var(--text-md);
+}
+
+.empty span {
+  font-size: var(--text-base);
+  color: var(--muted);
+  line-height: 1.5;
+}

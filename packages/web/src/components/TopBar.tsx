@@ -1,5 +1,5 @@
-import type { FacetsResponse, Filter, TagType } from '@tracks/core'
-import { Activity, ChartColumn, List, LogOut } from 'lucide-react'
+import type { FacetsResponse, Filter, Mode, TagType } from '@tracks/core'
+import { Activity, ChartColumn, List, LogOut, Route } from 'lucide-react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, km, metres } from '../lib/format.ts'
 import { FilterChips } from './FilterChips.tsx'
@@ -8,6 +8,13 @@ import type { ImportSource } from './ImportDialog.tsx'
 import styles from './TopBar.module.css'
 import { IconButton } from './ui/IconButton.tsx'
 import { Panel } from './ui/Panel.tsx'
+
+/** In the order they arrived, which is also the order they are reached for. */
+const MODES = [
+  { mode: 'activities', label: 'Activities', icon: List },
+  { mode: 'analytics', label: 'Analytics', icon: ChartColumn },
+  { mode: 'planning', label: 'Planning', icon: Route },
+] as const satisfies ReadonlyArray<{ mode: Mode; label: string; icon: typeof List }>
 
 /**
  * Name, the totals for whatever is selected right now, and the filter that selected
@@ -20,9 +27,10 @@ import { Panel } from './ui/Panel.tsx'
  * beside it scroll, because an action you cannot reach is worse than a filter term
  * you have to scroll to.
  *
- * Beside it is the analytics switch — two segments rather than a button, because the
- * panel it opens covers the list, so what you are choosing between is which of the two
- * you are reading. It is view state, so the choice survives a link.
+ * Beside it is the mode switch — segments rather than buttons, because each one covers
+ * the list, so what you are choosing between is which of them you are reading. Two of
+ * them until M8 added Planning, and the control was built to hold a set rather than a
+ * boolean. It is view state, so the choice survives a link.
  *
  * The account sits at the far end, and is one address and one way out. There is nothing
  * to administer: an account has no name, no picture and no settings, so what would be a
@@ -33,24 +41,24 @@ export function TopBar({
   filter,
   tagTypes,
   scale,
-  analytics,
+  mode,
   email,
   onChange,
   onClear,
   onImport,
-  onAnalytics,
+  onMode,
   onSignOut,
 }: {
   summary: FacetsResponse['summary'] | undefined
   filter: Filter
   tagTypes: TagType[]
   scale: ColourScale
-  analytics: boolean
+  mode: Mode
   email: string
   onChange: (next: Filter) => void
   onClear: () => void
   onImport: (source: ImportSource) => void
-  onAnalytics: (open: boolean) => void
+  onMode: (mode: Mode) => void
   onSignOut: () => void
 }) {
   return (
@@ -87,24 +95,18 @@ export function TopBar({
       {/* No group role: each segment names itself and says whether it is the one
           showing, which is everything a group label would have added. */}
       <div className={styles.views}>
-        <button
-          type="button"
-          className={[styles.view, analytics ? '' : styles.viewOn].join(' ')}
-          aria-pressed={!analytics}
-          onClick={() => onAnalytics(false)}
-        >
-          <List size={14} strokeWidth={2} />
-          Activities
-        </button>
-        <button
-          type="button"
-          className={[styles.view, analytics ? styles.viewOn : ''].join(' ')}
-          aria-pressed={analytics}
-          onClick={() => onAnalytics(true)}
-        >
-          <ChartColumn size={14} strokeWidth={2} />
-          Analytics
-        </button>
+        {MODES.map(({ mode: value, label, icon: Icon }) => (
+          <button
+            key={value}
+            type="button"
+            className={[styles.view, mode === value ? styles.viewOn : ''].join(' ')}
+            aria-pressed={mode === value}
+            onClick={() => onMode(value)}
+          >
+            <Icon size={14} strokeWidth={2} />
+            {label}
+          </button>
+        ))}
       </div>
 
       <ImportButton onPick={onImport} />

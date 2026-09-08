@@ -10,9 +10,11 @@ import { FilterSidebar } from './components/FilterSidebar.tsx'
 import { ImportDialog, type ImportSource } from './components/ImportDialog.tsx'
 import { MapChrome } from './components/MapChrome.tsx'
 import { type MapHandle, MapView } from './components/MapView.tsx'
+import { PlanOverview } from './components/PlanOverview.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { IconButton } from './components/ui/IconButton.tsx'
 import { Panel } from './components/ui/Panel.tsx'
+import { WaypointPanel } from './components/WaypointPanel.tsx'
 import {
   ApiFailure,
   useActivities,
@@ -40,7 +42,14 @@ function message(error: unknown): string | null {
 }
 
 export function App({ email }: { email: string }) {
-  const { filter, view, error: urlError, setFilter, setView, reset } = useUrlState()
+  const { filter, view, plan, error: urlError, setFilter, setView, setPlan, reset } = useUrlState()
+
+  /**
+   * Planning shadows the other modes rather than replacing their state. The filter is
+   * still filtering the tracks underneath, and `activity=` is left exactly as it was —
+   * only the plan is destroyed by leaving, and `setView` is where that happens.
+   */
+  const planning = view.mode === 'planning'
   const signOut = useSignOut()
 
   // Transient by design: which panels are folded and what the pointer is over say
@@ -204,12 +213,12 @@ export function App({ email }: { email: string }) {
           filter={filter}
           tagTypes={tagTypes.data?.tagTypes ?? []}
           scale={scale}
-          analytics={view.analytics}
+          mode={view.mode}
           email={email}
           onChange={setFilter}
           onClear={reset}
           onImport={setImporting}
-          onAnalytics={(analytics) => setView({ ...view, analytics })}
+          onMode={(mode) => setView({ ...view, mode })}
           onSignOut={() => signOut.mutate()}
         />
       </div>
@@ -221,35 +230,42 @@ export function App({ email }: { email: string }) {
           <div className={styles.panelHead}>
             <IconButton
               icon={PanelLeftClose}
-              label="Collapse filters"
+              label={planning ? 'Collapse waypoints' : 'Collapse filters'}
               size={16}
               onClick={() => setFiltersOpen(false)}
             />
           </div>
-          <div className={styles.scroll}>
-            <FilterSidebar
-              tagTypes={tagTypes.data?.tagTypes ?? []}
-              facets={facets.data}
-              filter={filter}
-              scale={scale}
-              activities={activities.data?.activities}
-              writing={tagWrite.isPending}
-              result={writeResult}
-              onChange={(next, mode) => {
-                // A filter change is the next action, so the previous write's line has
-                // said what it had to say.
-                setWriteResult(null)
-                setFilter(next, mode)
-              }}
-              onWrite={onWrite}
-            />
-          </div>
+          {/* One left panel, whose content follows the mode. The filter it replaces is
+              still in effect on the dimmed tracks and still visible as the top bar's
+              chips, so nothing becomes invisible-but-active. */}
+          {planning ? (
+            <WaypointPanel plan={plan} onPlan={setPlan} />
+          ) : (
+            <div className={styles.scroll}>
+              <FilterSidebar
+                tagTypes={tagTypes.data?.tagTypes ?? []}
+                facets={facets.data}
+                filter={filter}
+                scale={scale}
+                activities={activities.data?.activities}
+                writing={tagWrite.isPending}
+                result={writeResult}
+                onChange={(next, mode) => {
+                  // A filter change is the next action, so the previous write's line has
+                  // said what it had to say.
+                  setWriteResult(null)
+                  setFilter(next, mode)
+                }}
+                onWrite={onWrite}
+              />
+            </div>
+          )}
         </Panel>
       ) : (
         <Panel className={styles.railLeft}>
           <IconButton
             icon={PanelLeftOpen}
-            label="Show filters"
+            label={planning ? 'Show waypoints' : 'Show filters'}
             size={16}
             onClick={() => setFiltersOpen(true)}
           />
@@ -266,7 +282,9 @@ export function App({ email }: { email: string }) {
               onClick={() => setListOpen(false)}
             />
           </div>
-          {view.activity !== null ? (
+          {planning ? (
+            <PlanOverview plan={plan} onPlan={setPlan} />
+          ) : view.activity !== null ? (
             <DetailPanel
               detail={detail.data}
               tagTypes={tagTypes.data?.tagTypes ?? []}
@@ -310,7 +328,7 @@ export function App({ email }: { email: string }) {
         </Panel>
       )}
 
-      {view.analytics ? (
+      {view.mode === 'analytics' ? (
         <AnalyticsPanel
           // Every card is computed from these rows, which the list and the map have
           // already fetched — so opening the panel costs no request at all.
@@ -332,7 +350,7 @@ export function App({ email }: { email: string }) {
           onCalendarColour={(calendarColour) => setView({ ...view, calendarColour })}
           onColourBy={(colourBy) => setView({ ...view, colourBy })}
           onFilter={setFilter}
-          onClose={() => setView({ ...view, analytics: false })}
+          onClose={() => setView({ ...view, mode: 'activities' })}
         />
       ) : null}
 

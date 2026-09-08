@@ -180,6 +180,27 @@ export function formatFilter(filter: Filter): URLSearchParams {
 }
 
 /**
+ * The three things the app can be showing.
+ *
+ * `activities` is the default and is never written down, like every other default here.
+ */
+export const MODES = ['activities', 'analytics', 'planning'] as const
+
+export type Mode = (typeof MODES)[number]
+
+/**
+ * `?analytics=true` is still read, and still means what it meant.
+ *
+ * Links were shared with it in them for three milestones. Accepting it costs one line
+ * and writing it costs nothing, since `formatView` only ever emits `mode`.
+ */
+function modeOf(params: URLSearchParams): string {
+  const mode = params.get('mode')
+  if (mode !== null && mode !== '') return mode
+  return params.get('analytics') === 'true' ? 'analytics' : 'activities'
+}
+
+/**
  * Browser-only view state, kept out of `Filter` on purpose: the server has no use
  * for which type you are colouring by, and letting it into the filter would make it
  * a cache key for queries it cannot change.
@@ -202,13 +223,13 @@ const viewShape = z.object({
    */
   basemap: z.enum(['map', 'satellite']),
   /**
-   * The analytics panel, and the three choices it holds.
+   * Which of the three the app is showing.
    *
-   * View state rather than filter: none of it changes which activities match, all of
-   * it changes what a shared link shows. The charts are computed in the browser from
-   * rows it already has, so these never reach the server at all.
+   * A boolean until M8, when a third arrived and the question stopped being *analytics
+   * or not*. View state rather than filter: none of the modes change which activities
+   * match, all of them change what a shared link shows.
    */
-  analytics: z.boolean(),
+  mode: z.enum(MODES),
   bucket: z.enum(BUCKETS),
   metric: z.enum(METRICS),
   /**
@@ -233,7 +254,7 @@ export const viewSchema = z.preprocess((input) => {
     grouped: params.get('grouped') !== '0',
     // As is the vector map, so only satellite is.
     basemap: params.get('basemap') === 'satellite' ? 'satellite' : 'map',
-    analytics: params.get('analytics') === 'true',
+    mode: modeOf(params),
     bucket: params.get('bucket') ?? 'month',
     metric: params.get('metric') ?? 'distance',
     calendar: params.get('calendar'),
@@ -251,7 +272,7 @@ export function formatView(view: View): URLSearchParams {
   if (view.activity !== null) params.set('activity', String(view.activity))
   if (!view.grouped) params.set('grouped', '0')
   if (view.basemap === 'satellite') params.set('basemap', 'satellite')
-  if (view.analytics) params.set('analytics', 'true')
+  if (view.mode !== 'activities') params.set('mode', view.mode)
   if (view.bucket !== 'month') params.set('bucket', view.bucket)
   if (view.metric !== 'distance') params.set('metric', view.metric)
   if (view.calendar !== null) params.set('calendar', view.calendar)

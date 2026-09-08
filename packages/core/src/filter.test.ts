@@ -104,7 +104,7 @@ const VIEW: View = {
   activity: null,
   grouped: true,
   basemap: 'map',
-  analytics: false,
+  mode: 'activities',
   bucket: 'month',
   metric: 'distance',
   calendar: null,
@@ -121,20 +121,29 @@ describe('view state', () => {
     expect(parseView('')).toEqual(VIEW)
   })
 
-  it('carries the analytics panel and its three choices, writing no default', () => {
-    expect(parseView('analytics=true&bucket=week&metric=elevation&calendar=2024')).toMatchObject({
-      analytics: true,
+  it('carries the mode and the analytics choices, writing no default', () => {
+    expect(parseView('mode=analytics&bucket=week&metric=elevation&calendar=2024')).toMatchObject({
+      mode: 'analytics',
       bucket: 'week',
       metric: 'elevation',
       calendar: '2024',
     })
     // The panel's own state never reaches the server: the charts are computed from
     // rows the browser already has.
-    expect(formatView({ ...VIEW, analytics: true }).toString()).toBe('analytics=true')
+    expect(formatView({ ...VIEW, mode: 'analytics' }).toString()).toBe('mode=analytics')
+    expect(formatView({ ...VIEW, mode: 'planning' }).toString()).toBe('mode=planning')
     expect(formatView({ ...VIEW, bucket: 'month', metric: 'distance' }).toString()).toBe('')
     // The calendar's range picks itself from the data when it is not written down.
     expect(parseView('').calendar).toBeNull()
     expect(formatView({ ...VIEW, calendarColour: 'tag' }).toString()).toBe('cal_colour=tag')
+  })
+
+  it('still reads the boolean that came before the third mode', () => {
+    // Links were shared with `?analytics=true` in them for three milestones. Reading it
+    // costs a line; nothing writes it any more.
+    expect(parseView('analytics=true').mode).toBe('analytics')
+    expect(parseView('analytics=true&mode=planning').mode).toBe('planning')
+    expect(parseView('').mode).toBe('activities')
   })
 
   it('treats grouping as on unless the URL turns it off', () => {

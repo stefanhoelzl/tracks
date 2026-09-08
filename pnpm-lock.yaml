@@ -123,6 +123,9 @@ importers:
       '@tracks/core':
         specifier: workspace:*
         version: link:../core
+      '@tracks/routing':
+        specifier: workspace:*
+        version: link:../routing
       '@versatiles/style':
         specifier: ^5.13.1
         version: 5.13.1
