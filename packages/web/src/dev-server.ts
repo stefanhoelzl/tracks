@@ -25,16 +25,17 @@ import { users } from '../../server/src/schema.ts'
 /**
  * Three ways to develop, one variable that picks between them.
  *
- *   pnpm dev         the deployed database, through proton-env
+ *   pnpm dev         the deployed database, through secrets-env
  *   pnpm dev:local   `data/dev.db`, filled by `pnpm db:seed` or `pnpm db:pull`
  *
- * `pnpm dev` wraps itself in `proton-env`, which reads `.proton.yaml` — a map from
+ * `pnpm dev` wraps itself in `secrets-env`, which reads `.secrets.yaml` — a map from
  * variable names to items in a password manager — and injects them for the child
  * process. So the credential is never in the repository, never in a dotfile, and never
- * in shell history; what is in the repository is the *name* of where to find it, and
- * that is gitignored too because naming somebody's vault items is still telling.
+ * in shell history. The map itself is in the repository, because it holds no values —
+ * two `<vault>/<item>/<field>` references — so a fresh clone already knows where to
+ * look, and knowing where is no use without the vault.
  *
- * `.env` remains as the fallback for a machine without proton-env, read here rather
+ * `.env` remains as the fallback for a machine without secrets-env, read here rather
  * than by Vite, which loads env files for the browser bundle and not for the process
  * this runs in.
  *
@@ -62,7 +63,7 @@ if (!url) {
   throw new Error(
     'TRACKS_DB_URL is not set.\n' +
       '  pnpm dev:local    against data/dev.db — fill it with `pnpm db:seed` or `pnpm db:pull`\n' +
-      '  pnpm dev          against the deployed database, through proton-env\n' +
+      '  pnpm dev          against the deployed database, through secrets-env\n' +
       '                    (or TRACKS_DB_URL and TRACKS_DB_TOKEN in a gitignored .env)',
   )
 }
