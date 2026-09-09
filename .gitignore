@@ -4,10 +4,10 @@
 # of your manual tags.
 data/
 
-# How to reach the deployed database. `.proton.yaml` holds no secrets — it names
-# items in a password manager — but it names them, and this repository is public.
-# `.env` holds the real thing, for a machine without proton-env.
-.proton.yaml
+# How to reach the deployed database, for a machine without secrets-env. The
+# `.secrets.yaml` beside this file is tracked on purpose: it names vault items
+# rather than holding their values, so it is worth carrying. `.env` holds the
+# real thing, and is not.
 .env
 
 node_modules/

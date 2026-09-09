@@ -223,7 +223,7 @@ and never held past the run: you are asked again next time, which is the honest 
 having nowhere to keep them.
 
 That deletes a whole category of thing to get right. No environment variables, no
-proton-env, no OAuth flow, no token file, no rotation, and no process holding a session
+secrets-env, no OAuth flow, no token file, no rotation, and no process holding a session
 token it might log.
 
 Since M6 there is one credential the tool does keep, and it is yours. An account is an
