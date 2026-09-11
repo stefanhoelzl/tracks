@@ -1198,13 +1198,111 @@ someone's browser. A trivial fake `Router` returning straight lines drives every
 test, because a panel test that needs a fixture to render is a panel test that will be
 deleted.
 
+## Reference files
+
+A GPX somebody sent you, dropped on the map while you plan. It draws, with its tracks,
+its routes and its waypoints, over your own rides dimmed underneath — and that is the
+whole feature. Nothing is routed, nothing is converted, and the plan beside it is
+untouched.
+
+The question it answers is the one M8 said planning exists for. *Have I been up that
+valley?* is answered by looking; so is *does this club route go where I already went?*
+Planning here rather than in Komoot was always about what is underneath the thing you
+are drawing, and a foreign route is one more thing worth drawing over it.
+
+**Drag and drop is the whole way in**, with a line in the plan panel's empty state to
+say so. The Import dropdown keeps meaning exactly one thing — pull from a service,
+write to the server — and this writes nothing, reaches no server, and only makes sense
+in one mode. A link was considered and is not offered: every site with a route on it has
+a download button, and the alternative to a download is a fetch-anything relay on the
+edge, which would put the address of where you are going through the server that the
+fragment design exists to keep it away from.
+
+### It is not a plan, and that is the point
+
+The obvious feature is the other one: turn the file into waypoints and let BRouter draw
+it, so you can edit it. That was designed in full — a Douglas-Peucker seed, the file's
+`<wpt>`s projected onto the track as POIs, one leg per `<trk>`, and a manual *Tighten*
+loop measuring every file point against the routed line and inserting at the worst
+divergence until the two coincided — and then cut, because the reference alone answers
+the question and the rest is a router, a simplifier and a session UI in front of it. The
+fit loop is written down under *considered and rejected* rather than thrown away.
+
+What survived from it is one gesture. **Clicking a file's `<wpt>` raises the same
+`WaypointDialog` a map click raises**, with the name already filled in, so adopting
+somebody's hut or col into your own plan costs one click instead of a click and some
+typing. That is M8's own rule — one commit path, however the place was found. The lines
+themselves stay inert, like the tracks underneath, because every other click on this map
+means *put a waypoint here*.
+
+### A part, not a file
+
+One row per `<trk>` **and** per `<rte>`. The common file has one track and one row, and
+a six-day export loads as six rows you dismiss one at a time — *just show me day 3 and
+4*. Each row carries a colour dot, the part's name and its distance, and expands to its
+elevation profile, which is `ElevationProfile` reused exactly as the activity detail and
+the plan use it, cursor synced to the map included.
+
+No ascent figure. Nothing in this app computes ascent from points — every figure comes
+from a source or from BRouter's `filtered ascend` — and *self-computed metrics* has been
+rejected twice already. Distance is haversine, which has no filtering choice in it to
+get wrong.
+
+A `<rte>` is turn instructions rather than a drawing of the road, so it cuts every
+corner it comes to. Files that carry a token `<rte>` beside a good `<trk>` therefore show
+two rows for one route, which is the stated cost of not deciding for you which one you
+meant. The route's own points are drawn on its line, so it reads as sparse rather than
+as wrong.
+
+Colours are the palette `colour.ts` already hashes tag values into, so a row's dot is
+the legend and re-dropping a file gives the same colour. Full opacity above the dimmed
+activities and below the plan. The accent is not borrowed: it has always meant
+*interactive, never data*, and a reference is data.
+
+**Leaving planning clears them**, exactly as it clears the plan — the mode owns all its
+transient state and destroys it on the way out, which is why there is still no Clear
+control anywhere.
+
+### Streamed, and therefore unlimited
+
+The parser moved out of the Strava source into `lib/gpx-parser.ts` and grew: every
+`<trk>` and `<rte>` as a part, plus the file's `<wpt>`s. The activity import takes the
+first part and is otherwise unchanged.
+
+It also stopped using `DOMParser`, which reverses M3.5 and is worth saying why. Measured
+in Firefox on a 100 MB GPX, `parseFromString` blocks the main thread for **7 seconds** —
+not slowly but completely: zero frames render, the map cannot pan, and a spinner would
+sit frozen mid-animation, because it is synchronous and cannot yield. It leaves a DOM
+about twenty times the size of the file. `fast-xml-parser`, the thing it replaced, was
+worse on both counts.
+
+`saxes` is fed from the file's own stream, so the text never exists as a string at all.
+That is the part that matters: peak memory on the same file went from ~470 MB to ~55 MB,
+and what is left is the points themselves. Each chunk boundary is a yield, so frames
+keep rendering, progress is real and cancelling is a flag checked in the read loop.
+
+**So there is no size limit.** There was going to be one, and the measurements removed
+the reason for it: memory is now flat in file size and linear only in point count, which
+is bounded by what ends up on the map. Time still scales, so what a huge file gets
+instead of a refusal is a progress readout and a Cancel — which `DOMParser` could not
+have offered at any size.
+
+Points are thinned with `simplify`, at the same 10 m every activity is already stored
+at. The function moved to `packages/core` to be reachable from both sides. Drawing a
+reference at full resolution would give it a fidelity nothing else on the map has, for a
+line rendered at screen resolution either way.
+
+A dropped file that is not parseable, not a track file, or has no trackpoints is named
+and changes nothing — and in a multi-file drop the good files load and the bad ones are
+named, which is M3.5's rule about a bad frame, unchanged.
+
 ---
 
 ## Stack
 
 ```
 tracks/
-├─ packages/core     # tag grammar · THE filter serialization · the API contract
+├─ packages/core     # tag grammar · THE filter serialization · the API contract · simplify
 ├─ packages/server   # schema · timezone · simplifier · Hono REST API · ingest
 ├─ packages/routing  # the Router & Geocoder interfaces · BRouter · Photon
 ├─ packages/web      # React · MapLibre · ECharts · ActivitySources
@@ -1377,6 +1475,7 @@ inspected through a SQLite browser.
 | **M6** | Multi-tenancy | A `users` table, and an owner for every row that has one. `activities` and `tag_types` gain a `user_id`; `Scope` stops being the object that made facets cheap and becomes the boundary that keeps users apart, so a query that forgets whose data it is does not compile — including the by-id routes, which until now took an id and nothing else. Accounts are made by hand and carry no password until a first login sets one, and the identifier is an email address because an unguessable name is what makes that safe, not because anything is ever sent to it. Ids stay integers: a UUID in the trackpoint primary key would double the database to buy nothing. |
 | **M7** | Hosted on bunny.net | The move off the laptop. Bunny Database — managed libSQL — as one Frankfurt primary, and one Edge Script serving both the browser bundle and the API at `tracks.stho.net`, applied and deployed from CI. `better-sqlite3` goes, and with it the synchronous data layer; the import becomes one activity per request, one `batch()`, one transaction, which is what finally retires the run-long transaction and the module-level lock that guarded it. |
 | **M8** | Planning | A third mode, and the first new *kind* of data since M1 — which took no schema at all. A plan is a fragment in the address bar, so the milestone adds no migration, no route and no server code; `useUrlState` widens from `search` to `search + hash` and that is the whole of the plumbing. `packages/routing` gives the router and the geocoder the treatment `ActivitySource` got in M1, with BRouter and Photon behind them, and the POI/ROUTING split turns out to be BRouter's own `via`/`shaping` distinction wearing different names. Four commits — the interfaces, the mode shell, the map editing, the panels. |
+| **M9** | Reference files | A GPX dropped on the map while you plan, drawn with its tracks, its routes and its waypoints over the rides underneath — and nothing else: not routed, not converted, not a plan. The milestone that took the parser apart instead. `DOMParser` goes, because measured on a 100 MB file it blocks the main thread for seven seconds and cannot yield; `saxes` streamed off the file replaces it, which also took peak memory from ~470 MB to ~55 MB and removed the reason for the size limit this was going to need. `simplify` moves to core so a reference is thinned to the same 10 m as everything it is drawn beside. Three commits — the parser, the map and the drop, the panel. |
 
 ---
 
@@ -1464,6 +1563,17 @@ will otherwise propose all of these again.
 | *Colour by nothing* | A single-colour map answers no question the list does not answer better. The default is the registry's first type instead. |
 | Clusters as a circle layer | A circle layer paints one colour per feature, and a cluster is a mixture. Donut markers over the canvas, tallied by `clusterProperties` inside the clustering worker. |
 | A separate cluster-count layer | The donut carries its own number in the middle of the ring. |
+
+| Turning a dropped GPX into an editable plan | Designed in full before being cut: a Douglas-Peucker seed, the file's `<wpt>`s projected onto the track as POIs, one leg per part, and a manual **Tighten** loop that measured every file point against the routed line, inserted a shaping point at the worst divergence in every stretch off by more than half the worst gap, and so roughly halved the error per press. Nothing reached the fragment until Confirm, which was gated on the resulting URL fitting. Cut because the reference alone answers the question you plan here to ask, and the rest is a router, a simplifier and a session UI in front of it. Reversible: none of it is foreclosed. |
+| Re-routing an imported GPX freely | The cheap version of the above — simplify hard, let BRouter draw its own line through the result. It produces a route that is confidently *not* the one in the file, in the file's name. |
+| A link, or a Komoot tour URL | A foreign host sends no `Access-Control-Allow-Origin`, so the tab cannot fetch it, and the fix is a fetch-anything relay on the edge — an SSRF surface, and the address of where you are going transiting the server the fragment design keeps it away from. Komoot alone would work, being CORS-open with a client already here. Every site with a route on it has a download button. |
+| A row in the Import dropdown | Import means one thing: pull from a service, write to the server. This writes nothing and works in one mode. The empty state of the plan panel says it instead. |
+| A byte limit on a dropped file | Written into the design, then measured away. Streamed, peak memory is flat in file size — ~55 MB for a 100 MB GPX, of which the text is ~15 — so what a huge file costs is time, not safety. It gets a progress readout and a Cancel rather than a refusal and a number nobody can justify. |
+| Parsing in a Worker | The main thread would do nothing at all: smooth rather than merely responsive, and disposable memory. Measured at 50 ms of hitch against the streamed parser's ~100 ms, for a blob URL, a message protocol, a bundling step and a second place the parser lives. |
+| A hand-rolled scanner instead of a parser | Ten times faster again than `saxes`, and no dependency: a `trkpt` is a regular enough shape to find by hand. It is also hand-rolled XML in the module the activity import depends on — its own answer for comments, CDATA, quoting and entities, and a second implementation for TCX, which `saxes` reads with the same code. |
+| `<wpt>`s projected onto the track | Wanted by the fit loop, which needed them as leg-bounding POIs on the line. Without it they are drawn where the file puts them, which is where they are. |
+| Ascent for a dropped file | The file carries elevations, so it is a sum away. It is also the self-computed metric rejected twice already, and it would sit beside BRouter's `filtered ascend` for the same line and disagree with it. The profile is drawn; no number is claimed. |
+| References surviving a mode switch | Planning owns its transient state and destroys it on the way out, which is the rule that means there is no Clear button. A reference is transient state. |
 
 | A `routes` table | The obvious home for a plan, and the one that makes plans nameable, listable and portable between devices. It also wants a migration, a REST surface, a plans list in a UI with nowhere to put one, and an answer to whether the URL then carries an id or the waypoints. Deferred rather than refused — the fragment forecloses none of it. |
 | The plan in the query string | One channel instead of two, and no `hashchange` to subscribe to. Rejected for the one thing a fragment does that a query string cannot: never be transmitted. Length was the reason to expect a fight and turned out not to be one — polyline-encoded waypoints are ~6 characters each, against an ~8 KB edge request-line budget. |
