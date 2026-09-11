@@ -947,8 +947,6 @@ export function MapView({
 
   return (
     <>
-      {/** biome-ignore lint/a11y/noStaticElementInteractions: the map is a canvas, and
-           a drop target for files is not a control anything can focus or activate. */}
       <div ref={container} className={styles.map} data-testid="map" {...fileDrag} />
       {dropping ? (
         <div className={styles.dropZone} data-testid="drop-zone">

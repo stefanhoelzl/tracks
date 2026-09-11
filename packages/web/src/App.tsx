@@ -42,7 +42,7 @@ import {
   updateWaypoint,
 } from './lib/plan-ops.ts'
 import { planBounds, planTrack } from './lib/plan-track.ts'
-import { type Reference, readReference } from './lib/references.ts'
+import { type Reference, readReference, referenceBounds } from './lib/references.ts'
 import { geocoder, usePlanLegs } from './lib/routing.ts'
 import { useSignOut } from './lib/session.ts'
 import { titleOf, useDocumentTitle } from './lib/title.ts'
@@ -238,10 +238,20 @@ export function App({ email }: { email: string }) {
    * The extent of the activities is the wrong answer there — the plan is what you are
    * looking at, and the tracks behind it are context you dimmed on purpose.
    */
-  const routeExtent = useMemo(
-    () => (planning ? planBounds(plan.waypoints, legs) : null),
-    [planning, plan.waypoints, legs],
-  )
+  const routeExtent = useMemo(() => {
+    if (!planning) return null
+    const plan_ = planBounds(plan.waypoints, legs)
+    const files = referenceBounds(references)
+    if (!plan_ || !files) return plan_ ?? files
+    // Both, when both are there: while planning against somebody's route, *everything*
+    // means the pair of them — framing only your own half hides what you are aiming at.
+    return [
+      Math.min(plan_[0], files[0]),
+      Math.min(plan_[1], files[1]),
+      Math.max(plan_[2], files[2]),
+      Math.max(plan_[3], files[3]),
+    ] as [number, number, number, number]
+  }, [planning, plan.waypoints, legs, references])
 
   /**
    * Name a stop from whatever is there, after the fact.
@@ -351,6 +361,11 @@ export function App({ email }: { email: string }) {
           referencesLive.current = next
           return next
         })
+        // Framed as it lands, once — the rule the plan's own opening fit follows. A
+        // file that drew three countries away would be reported as broken before
+        // anything else about it.
+        const bounds = referenceBounds(loaded)
+        if (bounds) mapHandle.current?.fitBounds(bounds)
       } catch (error) {
         if (controller.signal.aborted) break
         failures.push(message(error) ?? `${file.name} could not be read`)
