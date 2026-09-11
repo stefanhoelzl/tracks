@@ -42,6 +42,7 @@ import {
   updateWaypoint,
 } from './lib/plan-ops.ts'
 import { planBounds, planTrack } from './lib/plan-track.ts'
+import { type Reference, readReference } from './lib/references.ts'
 import { geocoder, usePlanLegs } from './lib/routing.ts'
 import { useSignOut } from './lib/session.ts'
 import { titleOf, useDocumentTitle } from './lib/title.ts'
@@ -99,6 +100,24 @@ export function App({ email }: { email: string }) {
   /** The search result under the pointer, ringed on the map. Transient, like the pin. */
   const [preview, setPreview] = useState<LatLon | null>(null)
   const dwell = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  /**
+   * Dropped files, and the one still being read.
+   *
+   * In memory and nowhere else. A reference is the one thing here that is neither in
+   * the URL nor on the server: a file's points are two orders of magnitude past what a
+   * fragment can carry, and it is a thing you are looking at rather than making. A
+   * reload asks for the file again, which is the stated cost.
+   */
+  const [references, setReferences] = useState<Reference[]>([])
+  /** What is on screen, for the reader — which runs outside React's render. */
+  const referencesLive = useRef<Reference[]>([])
+  referencesLive.current = references
+  const [reading, setReading] = useState<{ name: string; progress: number | null } | null>(null)
+  const [readError, setReadError] = useState<string | null>(null)
+  /** Which reference row is expanded to its profile. One at a time. */
+  const [openReference, setOpenReference] = useState<string | null>(null)
+  const readAbort = useRef<AbortController | null>(null)
 
   const queryClient = useQueryClient()
 
@@ -300,6 +319,97 @@ export function App({ email }: { email: string }) {
 
   useEffect(() => () => clearTimeout(dwell.current), [])
 
+  /**
+   * Reading dropped files, one after another.
+   *
+   * Serial rather than parallel: each one is a stream being decoded and parsed on this
+   * thread, and three at once would interleave their chunks and make every one of them
+   * slower. A file that fails costs itself and is named — the ones beside it still
+   * load, which is M3.5's rule about a bad frame, unchanged.
+   */
+  const onDropFiles = useCallback(async (files: File[]) => {
+    if (readAbort.current) readAbort.current.abort(new Error('superseded'))
+    const controller = new AbortController()
+    readAbort.current = controller
+
+    const failures: string[] = []
+    for (const file of files) {
+      if (controller.signal.aborted) break
+      setReading({ name: file.name, progress: null })
+      try {
+        // The slots already on screen, so two references never land on one colour —
+        // read from the ref, because a file dropped beside this one has already added
+        // its own since this loop started.
+        const taken = new Set(referencesLive.current.map((reference) => reference.slot))
+        const loaded = await readReference(file, taken, {
+          signal: controller.signal,
+          onProgress: (read, total) =>
+            setReading({ name: file.name, progress: total === null ? null : read / total }),
+        })
+        setReferences((current) => {
+          const next = [...current, ...loaded]
+          referencesLive.current = next
+          return next
+        })
+      } catch (error) {
+        if (controller.signal.aborted) break
+        failures.push(message(error) ?? `${file.name} could not be read`)
+      }
+    }
+
+    if (readAbort.current === controller) {
+      readAbort.current = null
+      setReading(null)
+    }
+    setReadError(failures.length > 0 ? failures.join(' · ') : null)
+  }, [])
+
+  /** Stops the file being read. One flag, checked between chunks. */
+  const cancelRead = useCallback(() => {
+    readAbort.current?.abort(new Error('cancelled'))
+    readAbort.current = null
+    setReading(null)
+  }, [])
+
+  const dismissReference = useCallback((id: string) => {
+    setReferences((current) => current.filter((reference) => reference.id !== id))
+    setOpenReference((current) => (current === id ? null : current))
+  }, [])
+
+  /**
+   * The line the elevation cursor is about, when an open reference owns it.
+   *
+   * The cursor is one index and always has been; what changes here is which array it
+   * indexes into. Opening a row hands that array to the map so the marker lands on the
+   * reference rather than at the same offset along the plan.
+   */
+  const cursorTrack = useMemo(() => {
+    const open = references.find((reference) => reference.id === openReference)
+    return open ? open.points.map((point): [number, number] => [point.lon, point.lat]) : null
+  }, [references, openReference])
+
+  /** Opening a different line invalidates the cursor: it indexed into the old one. */
+  const openReferenceRow = useCallback((id: string | null) => {
+    setCursor(null)
+    setOpenReference(id)
+  }, [])
+
+  /**
+   * Leaving planning takes the references with it, exactly as it takes the plan.
+   *
+   * The mode owns its transient state and destroys it on the way out — the rule that
+   * means this app has no Clear button anywhere. Coming back is a fresh drop.
+   */
+  useEffect(() => {
+    if (planning) return
+    readAbort.current?.abort(new Error('left planning'))
+    readAbort.current = null
+    setReferences([])
+    setReading(null)
+    setReadError(null)
+    setOpenReference(null)
+  }, [planning])
+
   const editing = pin?.target.state === 'edit' ? pin.target.index : null
 
   const openWaypoint = useCallback(
@@ -386,6 +496,8 @@ export function App({ email }: { email: string }) {
         plan={plan}
         legs={legs}
         plannedTrack={planned.coordinates}
+        references={references}
+        cursorTrack={cursorTrack}
         pending={legsPending}
         preview={preview}
         pinAt={pin?.at ?? null}
@@ -423,6 +535,10 @@ export function App({ email }: { email: string }) {
           setPin(null)
           setPlan(addWaypoint(plan, { ...at, kind: 'routing', name: null }, index), 'replace')
         }}
+        // A file's mark raises the dialog a map click raises, with the name already
+        // known — so adopting somebody's hut needs no reverse lookup and no typing.
+        onReferenceWaypoint={(at, name) => dropPin(at, name)}
+        onDropFiles={onDropFiles}
       />
 
       <div className={styles.top} style={{ left: 16, right: 16 }}>
@@ -505,6 +621,13 @@ export function App({ email }: { email: string }) {
               pending={legsPending}
               error={legsError}
               near={() => mapHandle.current?.centre() ?? null}
+              references={references}
+              openReference={openReference}
+              reading={reading}
+              referenceError={readError}
+              onOpenReference={openReferenceRow}
+              onDismissReference={dismissReference}
+              onCancelRead={cancelRead}
               onCursor={setCursor}
               onPlan={setPlan}
               onSelect={openWaypoint}

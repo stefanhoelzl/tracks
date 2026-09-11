@@ -25,3 +25,45 @@
 .pinDialog {
   translate: -50% calc(-100% - 14px);
 }
+
+/*
+ * Where a dragged file lands.
+ *
+ * Over the map and under the panels, inset by the same gap they float in, so it reads
+ * as *this surface* rather than as a takeover of the window. `pointer-events: none`
+ * matters: the drop is handled by the map container underneath, and an overlay that
+ * swallowed `dragover` would make the drop target flicker on its own edge.
+ */
+.dropZone {
+  position: absolute;
+  inset: 16px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.dropCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 26px;
+  border-radius: var(--radius-panel);
+  background: var(--glass-hi);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.dropCard strong {
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-tighter);
+}
+
+.dropCard span {
+  font-size: var(--text-base);
+  color: var(--muted);
+}

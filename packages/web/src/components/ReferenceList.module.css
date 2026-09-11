@@ -1,0 +1,135 @@
+/* A section of the plan panel, not a panel: the scroll and the padding belong to the
+   body it sits in, exactly as the waypoint list does. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-ctrl);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 10px;
+}
+
+/* The whole row is the disclosure, not a chevron beside it: the row is what you want to
+   press, and a second target inside it to do the same thing is one to aim at. */
+.disclose {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 5px 0;
+  text-align: left;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* Only a route wears this. A track is the default and needs no label to say so. */
+.kind {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--sunk);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.distance {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--muted);
+}
+
+.body {
+  padding: 2px 8px 8px;
+  border-top: 1px solid var(--line);
+  background: var(--sunk);
+}
+
+.note {
+  padding: 10px 2px;
+  font-size: var(--text-base);
+  color: var(--muted);
+}
+
+.cancel {
+  flex: none;
+  padding: 4px 8px;
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.cancel:hover {
+  color: var(--accent-deep);
+}
+
+/* The only progress bar in the app, for the only thing in it that takes long enough to
+   need one — and it can animate at all because the parse yields between chunks. */
+.bar {
+  height: 4px;
+  margin: 0 10px 10px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+
+/* A file with no declared size: the bar says *working* rather than lying about how far. */
+.indeterminate {
+  width: 40%;
+  animation: slide 1100ms var(--ease) infinite;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+.error {
+  padding: 10px 12px;
+  border-radius: var(--radius-ctrl);
+  background: var(--sunk);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--ink-2);
+}

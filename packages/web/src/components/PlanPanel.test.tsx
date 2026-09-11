@@ -38,6 +38,13 @@ function overview(plan: Partial<Plan>, legs: Array<Leg | undefined> = []) {
       pending={false}
       error={null}
       near={() => null}
+      references={[]}
+      openReference={null}
+      reading={null}
+      referenceError={null}
+      onOpenReference={vi.fn()}
+      onDismissReference={vi.fn()}
+      onCancelRead={vi.fn()}
       onCursor={vi.fn()}
       onPlan={onPlan}
       onSelect={vi.fn()}
