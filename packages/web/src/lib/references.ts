@@ -151,6 +151,40 @@ function streamOf(file: File): ReadableStream<Uint8Array> | Promise<ReadableStre
   )
 }
 
+/**
+ * Everything these references cover, as `[west, south, east, north]`.
+ *
+ * A dropped file is framed once, when it lands — the same rule the plan's own opening
+ * fit follows, for the same reason. A file that drew somewhere off screen would be
+ * reported as broken before anything else about it.
+ */
+export function referenceBounds(
+  references: readonly Reference[],
+): [number, number, number, number] | null {
+  let west = Number.POSITIVE_INFINITY
+  let south = Number.POSITIVE_INFINITY
+  let east = Number.NEGATIVE_INFINITY
+  let north = Number.NEGATIVE_INFINITY
+
+  for (const reference of references) {
+    for (const point of reference.points) {
+      west = Math.min(west, point.lon)
+      east = Math.max(east, point.lon)
+      south = Math.min(south, point.lat)
+      north = Math.max(north, point.lat)
+    }
+    // The file's marks count too: one can sit well off the line it came with.
+    for (const waypoint of reference.waypoints) {
+      west = Math.min(west, waypoint.lon)
+      east = Math.max(east, waypoint.lon)
+      south = Math.min(south, waypoint.lat)
+      north = Math.max(north, waypoint.lat)
+    }
+  }
+
+  return Number.isFinite(west) ? [west, south, east, north] : null
+}
+
 /** Reads one dropped file. Rejects with a message the banner can show as it is. */
 export async function readReference(
   file: File,
