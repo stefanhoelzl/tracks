@@ -4,11 +4,20 @@ import type { LatLon, Leg } from '@tracks/routing'
 import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { type ReactNode, type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import {
+  type DragEvent,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import { activityColour, type ColourScale, emphasise } from '../lib/colour.ts'
 import { nearestIndex } from '../lib/geo.ts'
 import type { Plan } from '../lib/plan.ts'
 import { addWaypoint, insertionAt } from '../lib/plan-ops.ts'
+import type { Reference } from '../lib/references.ts'
 import { type Basemap, basemapStyle } from '../map/basemap.ts'
 import { ClusterMarkers } from '../map/clusters.ts'
 import {
@@ -42,6 +51,15 @@ import {
   showPlan,
   waypointFeatures,
 } from '../map/plan-layers.ts'
+import {
+  addReferenceLayers,
+  REFERENCE_POINTS_SOURCE,
+  REFERENCE_SOURCE,
+  REFERENCE_WPT_LAYER,
+  referenceFeatures,
+  referencePointFeatures,
+  showReferences,
+} from '../map/reference-layers.ts'
 import { geographicBbox } from '../map/viewport.ts'
 import styles from './MapView.module.css'
 
@@ -56,6 +74,11 @@ import styles from './MapView.module.css'
 
 /** The map is the filter while this is on, so it must not chase itself. */
 const MOVE_MS = 250
+
+/** A drag carrying files, rather than text or a dragged element from the page. */
+function hasFiles(event: DragEvent<HTMLElement>): boolean {
+  return [...event.dataTransfer.types].includes('Files')
+}
 
 const INITIAL = { center: [11.0, 47.5] as [number, number], zoom: 5 }
 
@@ -113,6 +136,8 @@ export function MapView({
   plan,
   legs,
   plannedTrack,
+  references,
+  cursorTrack,
   pending,
   preview,
   pin,
@@ -125,6 +150,8 @@ export function MapView({
   onWaypointClick,
   onWaypointMove,
   onShapingDrop,
+  onReferenceWaypoint,
+  onDropFiles,
 }: {
   ref?: Ref<MapHandle>
   tracks: TrackCollection | undefined
@@ -150,6 +177,16 @@ export function MapView({
   legs: Array<Leg | undefined>
   /** Every routed leg end to end — what the elevation cursor indexes into. */
   plannedTrack: Array<[number, number]>
+  /** Dropped files, drawn above the dimmed rides and below the plan. */
+  references: readonly Reference[]
+  /**
+   * What the elevation cursor indexes into, when it is not the plan.
+   *
+   * An open reference's profile shares the one cursor with everything else — it is one
+   * index, resolved from whichever end moved — but an index means nothing without the
+   * array it indexes. So the array comes with it rather than being assumed.
+   */
+  cursorTrack: Array<[number, number]> | null
   /** A leg is outstanding, which is what the dashed line pulses to say. */
   pending: boolean
   /** The search result under the pointer, drawn as a ring. Not part of the plan. */
@@ -170,6 +207,13 @@ export function MapView({
   onWaypointMove: (index: number, at: LatLon) => void
   /** A drag off the line: insert a shaping point at `index`, where it was let go. */
   onShapingDrop: (index: number, at: LatLon) => void
+  /**
+   * A click on a file's `<wpt>`: the same dialog a map click raises, with the name the
+   * file gave it already filled in. The only thing a reference does besides be drawn.
+   */
+  onReferenceWaypoint: (at: LatLon, name: string | null) => void
+  /** Files dropped on the map. Planning only; every other mode ignores them. */
+  onDropFiles: (files: File[]) => void
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
@@ -194,6 +238,15 @@ export function MapView({
    * not re-rendering a dialog sixty times a second.
    */
   const pinBox = useRef<HTMLDivElement>(null)
+
+  /**
+   * Whether a file is being dragged over the map.
+   *
+   * Counted rather than set, because `dragleave` fires for every child the pointer
+   * crosses on its way in — a boolean flickers the overlay off under the cursor.
+   */
+  const [dropping, setDropping] = useState(false)
+  const dragDepth = useRef(0)
 
   useImperativeHandle(ref, () => ({
     zoomBy: (delta: number) =>
@@ -249,6 +302,8 @@ export function MapView({
     onWaypointClick,
     onWaypointMove,
     onShapingDrop,
+    onReferenceWaypoint,
+    onDropFiles,
   })
   live.current = {
     grouped,
@@ -265,6 +320,8 @@ export function MapView({
     onWaypointClick,
     onWaypointMove,
     onShapingDrop,
+    onReferenceWaypoint,
+    onDropFiles,
   }
 
   /**
@@ -302,6 +359,7 @@ export function MapView({
           if (cancelled) return
           addTrackLayers(instance)
           addPlanLayers(instance)
+          addReferenceLayers(instance)
           clusters.current = new ClusterMarkers(instance)
           setReady(true)
         })
@@ -395,6 +453,15 @@ export function MapView({
     instance.on('mousedown', PLAN_POI_LAYER, grabWaypoint)
     instance.on('mousedown', PLAN_SHAPING_LAYER, grabWaypoint)
 
+    // The one clickable thing on a reference says so. The lines do not, because they
+    // are not: a click on one means "put a waypoint here", like everywhere else.
+    instance.on('mouseenter', REFERENCE_WPT_LAYER, () => {
+      if (live.current.planning && !drag.current) instance.getCanvas().style.cursor = 'pointer'
+    })
+    instance.on('mouseleave', REFERENCE_WPT_LAYER, () => {
+      if (!drag.current) instance.getCanvas().style.cursor = ''
+    })
+
     /**
      * Dragging the line pulls a shaping point out of it.
      *
@@ -477,6 +544,23 @@ export function MapView({
         return
       }
 
+      /**
+       * A file's own mark, which is the one thing on a reference that is clickable.
+       *
+       * Its *own* coordinates, taken from the feature rather than from the click, so
+       * adopting a hut puts the stop where the file put it rather than where the
+       * pointer landed. Checked after the plan's waypoints: yours wins a tie.
+       */
+      const onReference = instance.queryRenderedFeatures(event.point, {
+        layers: present([REFERENCE_WPT_LAYER]),
+      })
+      const mark = onReference[0]?.properties
+      if (mark && typeof mark.lat === 'number' && typeof mark.lon === 'number') {
+        const name = typeof mark.name === 'string' && mark.name !== '' ? mark.name : null
+        live.current.onReferenceWaypoint({ lat: mark.lat, lon: mark.lon }, name)
+        return
+      }
+
       live.current.onMapClick(at(event))
     })
 
@@ -536,6 +620,21 @@ export function MapView({
     if (!ready || !map.current) return
     map.current.getSource<GeoJSONSource>(PLAN_PREVIEW_SOURCE)?.setData(previewFeature(preview))
   }, [ready, preview])
+
+  // --- Dropped files --------------------------------------------------------
+
+  useEffect(() => {
+    if (!ready || !map.current) return
+    showReferences(map.current, planning)
+  }, [ready, planning])
+
+  useEffect(() => {
+    if (!ready || !map.current) return
+    map.current.getSource<GeoJSONSource>(REFERENCE_SOURCE)?.setData(referenceFeatures(references))
+    map.current
+      .getSource<GeoJSONSource>(REFERENCE_POINTS_SOURCE)
+      ?.setData(referencePointFeatures(references))
+  }, [ready, references])
 
   /**
    * The dashed line breathes while the router is still thinking.
@@ -620,6 +719,7 @@ export function MapView({
           if (styled.current !== basemap) return
           addTrackLayers(instance)
           addPlanLayers(instance)
+          addReferenceLayers(instance)
           clusters.current = new ClusterMarkers(instance)
           setReady(true)
         })
@@ -680,9 +780,9 @@ export function MapView({
     const source = map.current.getSource<GeoJSONSource>(CURSOR_SOURCE)
     if (!source) return
 
-    // Whichever track is on screen: while planning the detail is not drawn at all, so
-    // the cursor indexes into the plan instead — one mechanism, two sources.
-    const coordinates = planning ? plannedTrack : detail?.track.coordinates
+    // Whichever track the cursor belongs to: an open reference first, then the plan
+    // while planning, then the selected activity — one mechanism, three sources.
+    const coordinates = cursorTrack ?? (planning ? plannedTrack : detail?.track.coordinates)
     const point = cursor === null ? undefined : coordinates?.[cursor]
     source.setData({
       type: 'FeatureCollection',
@@ -690,7 +790,7 @@ export function MapView({
         ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: point } }]
         : [],
     })
-  }, [ready, cursor, detail, planning, plannedTrack])
+  }, [ready, cursor, detail, planning, plannedTrack, cursorTrack])
 
   // --- Camera ---------------------------------------------------------------
 
@@ -813,9 +913,51 @@ export function MapView({
     )
   }, [ready, filter.bbox, fitKey])
 
+  /**
+   * Files land on the map itself, which is the only surface that makes sense for them:
+   * a reference is a thing on the map, and planning is the only mode that has any.
+   */
+  const fileDrag = planning
+    ? {
+        onDragEnter: (event: DragEvent<HTMLDivElement>) => {
+          if (!hasFiles(event)) return
+          dragDepth.current += 1
+          setDropping(true)
+        },
+        onDragOver: (event: DragEvent<HTMLDivElement>) => {
+          if (!hasFiles(event)) return
+          // Without this the browser navigates to the file instead of handing it over.
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+        },
+        onDragLeave: () => {
+          dragDepth.current = Math.max(0, dragDepth.current - 1)
+          if (dragDepth.current === 0) setDropping(false)
+        },
+        onDrop: (event: DragEvent<HTMLDivElement>) => {
+          if (!hasFiles(event)) return
+          event.preventDefault()
+          dragDepth.current = 0
+          setDropping(false)
+          const files = [...event.dataTransfer.files]
+          if (files.length > 0) onDropFiles(files)
+        },
+      }
+    : {}
+
   return (
     <>
-      <div ref={container} className={styles.map} data-testid="map" />
+      {/** biome-ignore lint/a11y/noStaticElementInteractions: the map is a canvas, and
+           a drop target for files is not a control anything can focus or activate. */}
+      <div ref={container} className={styles.map} data-testid="map" {...fileDrag} />
+      {dropping ? (
+        <div className={styles.dropZone} data-testid="drop-zone">
+          <div className={styles.dropCard}>
+            <strong>Drop to add a reference</strong>
+            <span>GPX or TCX — drawn over your rides, never sent anywhere</span>
+          </div>
+        </div>
+      ) : null}
       {/* A sibling of the map, never a child of it: that is the whole fix for a click
           in the dialog also landing on the map behind it. */}
       {pin && pinAt ? (

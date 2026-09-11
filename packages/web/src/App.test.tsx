@@ -23,6 +23,9 @@ vi.mock('./components/MapView.tsx', () => ({
     tracks?: { features: unknown[] }
     pin?: React.ReactNode
     onMapClick?: (at: { lat: number; lon: number }) => void
+    references?: ReadonlyArray<{ name: string }>
+    onDropFiles?: (files: File[]) => void
+    onReferenceWaypoint?: (at: { lat: number; lon: number }, name: string | null) => void
   }) => {
     // The imperative half of the real component, so the calls the app makes through
     // the handle are visible here rather than vanishing into a null ref.
@@ -39,6 +42,23 @@ vi.mock('./components/MapView.tsx', () => ({
         </button>
         <button type="button" onClick={() => props.onMapClick?.({ lat: 47.3, lon: 11.5 })}>
           click elsewhere
+        </button>
+        <span data-testid="reference-count">{props.references?.length ?? 0} references</span>
+        {/* The drop itself is a DOM event on the real map container; what a test can
+            drive is the files it hands over. */}
+        <button
+          type="button"
+          onClick={() => props.onDropFiles?.([(globalThis as never as { DROPPED: File }).DROPPED])}
+        >
+          drop a file
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            props.onReferenceWaypoint?.({ lat: 46.9012, lon: 10.8701 }, 'Sesvennahütte')
+          }
+        >
+          click a file waypoint
         </button>
         {props.pin}
       </div>
@@ -443,5 +463,82 @@ describe('the app', () => {
     // A stop that appeared somewhere off screen is a stop you have to go and find.
     expect(flyTo).toHaveBeenCalledWith({ lat: 46.86, lon: 10.91 })
     await waitFor(() => expect(window.location.hash).toContain('poi=Vent'))
+  })
+
+  const gpx = (name: string, body: string) => {
+    const file = new File([body], name, { type: 'application/gpx+xml' })
+    ;(globalThis as never as { DROPPED: File }).DROPPED = file
+    return file
+  }
+
+  const ALPENCROSS = `<gpx xmlns="http://www.topografix.com/GPX/1/1">
+      <metadata><name>Alpencross</name></metadata>
+      <wpt lat="46.9012" lon="10.8701"><name>Sesvennahütte</name></wpt>
+      <trk><name>Day 3</name><trkseg>
+        <trkpt lat="46.83" lon="10.51"><ele>1500</ele></trkpt>
+        <trkpt lat="46.90" lon="10.87"><ele>2180</ele></trkpt>
+      </trkseg></trk>
+      <trk><name>Day 4</name><trkseg>
+        <trkpt lat="46.91" lon="10.89"><ele>2200</ele></trkpt>
+        <trkpt lat="46.94" lon="10.94"><ele>1650</ele></trkpt>
+      </trkseg></trk>
+    </gpx>`
+
+  it('draws a dropped file, one row per part, without touching the plan', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    gpx('alpencross.gpx', ALPENCROSS)
+    await userEvent.click(screen.getByRole('button', { name: 'drop a file' }))
+
+    // One row per <trk>, so a multi-day file reads as the trip it is.
+    await waitFor(() => expect(screen.getByText('Day 3')).toBeTruthy())
+    expect(screen.getByText('Day 4')).toBeTruthy()
+    expect(screen.getByTestId('reference-count').textContent).toBe('2 references')
+    // A reference is not a plan: nothing reached the fragment.
+    expect(window.location.hash).toBe('')
+  })
+
+  it('names a file it cannot read, and keeps the ones it can', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    gpx('holiday.jpg', 'this is not xml')
+    await userEvent.click(screen.getByRole('button', { name: 'drop a file' }))
+
+    await waitFor(() => expect(screen.getByText(/holiday\.jpg is not parseable XML/)).toBeTruthy())
+    expect(screen.getByTestId('reference-count').textContent).toBe('0 references')
+  })
+
+  it("adopts a file's waypoint into the plan, with the name already filled in", async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    await userEvent.click(screen.getByRole('button', { name: 'click a file waypoint' }))
+
+    // The same dialog a map click raises — one commit path, however the place was
+    // found. A new pin wears its name as the dialog's title; only an edit has a field.
+    expect(await screen.findByText('Sesvennahütte')).toBeTruthy()
+  })
+
+  it('takes the references with it when the mode is left', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    gpx('alpencross.gpx', ALPENCROSS)
+    await userEvent.click(screen.getByRole('button', { name: 'drop a file' }))
+    await waitFor(() => expect(screen.getByText('Day 3')).toBeTruthy())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Activities' }))
+
+    // Planning owns its transient state and destroys it on the way out — the rule that
+    // means there is no Clear button anywhere in this app.
+    await waitFor(() =>
+      expect(screen.getByTestId('reference-count').textContent).toBe('0 references'),
+    )
   })
 })

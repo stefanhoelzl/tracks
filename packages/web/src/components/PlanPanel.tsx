@@ -6,8 +6,10 @@ import { duration, km, metres } from '../lib/format.ts'
 import type { Plan } from '../lib/plan.ts'
 import { derivedName, type Placement } from '../lib/plan-ops.ts'
 import { planTotals } from '../lib/plan-track.ts'
+import type { Reference } from '../lib/references.ts'
 import { profileOf } from './ElevationProfile.tsx'
 import styles from './PlanPanel.module.css'
+import { ReferenceList } from './ReferenceList.tsx'
 import { TrackOverview } from './TrackOverview.tsx'
 import { WaypointPanel } from './WaypointPanel.tsx'
 
@@ -36,6 +38,13 @@ export function PlanPanel({
   pending,
   error,
   near,
+  references,
+  openReference,
+  reading,
+  referenceError,
+  onOpenReference,
+  onDismissReference,
+  onCancelRead,
   onCursor,
   onPlan,
   onSelect,
@@ -53,6 +62,15 @@ export function PlanPanel({
   pending: boolean
   error: string | null
   near: () => LatLon | null
+  /** Dropped files, drawn on the map and listed here. */
+  references: readonly Reference[]
+  /** Which reference row is expanded to its profile. One at a time. */
+  openReference: string | null
+  reading: { name: string; progress: number | null } | null
+  referenceError: string | null
+  onOpenReference: (id: string | null) => void
+  onDismissReference: (id: string) => void
+  onCancelRead: () => void
   onCursor: (index: number | null) => void
   onPlan: (plan: Plan) => void
   onSelect: (index: number) => void
@@ -86,7 +104,8 @@ export function PlanPanel({
             <strong>Nothing to route yet</strong>
             <span>
               Place a start and an end on the map, and the distance, the climb and the profile
-              appear here.
+              appear here. Or drop a GPX on the map to plan against somebody else's route — it is
+              drawn over your rides and never leaves the tab.
             </span>
           </div>
         ) : (
@@ -119,6 +138,21 @@ export function PlanPanel({
             }
           />
         )}
+
+        {/* Between the plan's numbers and the controls that change it: a reference is
+            neither an output of the plan nor an input to it, and it is what you look at
+            while deciding where the next stop goes. */}
+        <ReferenceList
+          references={references}
+          open={openReference}
+          cursor={cursor}
+          reading={reading}
+          error={referenceError}
+          onOpen={onOpenReference}
+          onCursor={onCursor}
+          onDismiss={onDismissReference}
+          onCancel={onCancelRead}
+        />
 
         <WaypointPanel
           plan={plan}
