@@ -584,6 +584,16 @@ in a docked column. Filters are on the left, the activity list on the right, and
 a slim rail so the map can be seen unobstructed. Filter state lives in the URL, so any view is
 bookmarkable.
 
+**The tab says what you are looking at**, as a ladder rather than a summary: an open activity
+wears its own title, a plan its name — or its two ends, which is already what the name field
+offers as a placeholder — and Analytics and Planning name themselves. Every one of them closes
+with `· Tracks`, so a truncated tab is still this app and a bookmark still reads. The filter is
+deliberately not in it: everything else in this section *is* the filter, and a tab rewriting
+itself on every pan, every tag and every keystroke in the search box would be noise in the tab
+strip rather than a label on it. So the whole vocabulary is an activity, a plan, `Analytics`,
+`Sign in` and `Tracks` — and the quiet case is the static title `index.html` already carries,
+which means the common one needs no write at all.
+
 The top bar carries the totals *and* the active filter, as a chip per term that removes
 its own term when clicked. The sidebar says what a filter could be; only the chips say what
 it is — and they stay visible when the sidebar is collapsed, which is exactly when you have

@@ -287,6 +287,9 @@ describe('the app', () => {
     await renderApp()
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Orla Perc' })).toBeTruthy())
+    // The one assertion that the title effect is wired at all — every rung of the
+    // ladder itself is exercised in `lib/title.test.tsx`, without rendering.
+    expect(document.title).toBe('Orla Perc · Tracks')
     expect(screen.getByText(/1 points at full resolution/)).toBeTruthy()
     // One sampled point is not a profile, and the panel says so rather than drawing
     // a chart of nothing or quietly dropping the group.
@@ -294,6 +297,7 @@ describe('the app', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /All activities/ }))
     expect(window.location.search).toBe('')
+    await waitFor(() => expect(document.title).toBe('Tracks'))
   })
 
   it('surfaces a failed request instead of an empty list', async () => {

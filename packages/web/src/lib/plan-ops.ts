@@ -24,6 +24,23 @@ export function poiIndices(waypoints: readonly Waypoint[]): number[] {
 }
 
 /**
+ * What the plan is, when nobody has named it — its two ends.
+ *
+ * The panel shows it as the name field's placeholder and the tab title falls back to
+ * it, so it lives here rather than in either: a plan named one way in the field and
+ * another way in the tab would be the kind of drift this file exists to prevent. Pure
+ * over the waypoints, since that is all it reads.
+ *
+ * Empty below two stops, which is also when there is no line yet and nothing to name.
+ */
+export function derivedName(plan: Plan): string {
+  const stops = plan.waypoints.filter((waypoint) => waypoint.kind === 'poi')
+  if (stops.length < 2) return ''
+
+  return `${stops[0]?.name ?? 'Start'} → ${stops[stops.length - 1]?.name ?? 'End'}`
+}
+
+/**
  * How many legs a plan has — one fewer than its POIs, and zero until there are two.
  *
  * Shaping points do not bound legs, which is the whole consequence of ROUTING being a
