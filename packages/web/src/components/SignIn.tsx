@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { useSignIn } from '../lib/session.ts'
+import { useDocumentTitle } from '../lib/title.ts'
 import styles from './SignIn.module.css'
 
 /**
@@ -16,6 +17,10 @@ export function SignIn() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const signIn = useSignIn()
+
+  // This renders above `App`, so it says so itself — and a session that lapses in a
+  // background tab changes that tab's title rather than leaving it on the activity.
+  useDocumentTitle('Sign in')
 
   const ready = email !== '' && password.length >= 8
 

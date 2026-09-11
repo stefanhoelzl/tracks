@@ -44,6 +44,7 @@ import {
 import { planBounds, planTrack } from './lib/plan-track.ts'
 import { geocoder, usePlanLegs } from './lib/routing.ts'
 import { useSignOut } from './lib/session.ts'
+import { titleOf, useDocumentTitle } from './lib/title.ts'
 import { useUrlState } from './lib/url.ts'
 
 /**
@@ -111,6 +112,23 @@ export function App({ email }: { email: string }) {
 
   const tagWrite = useTagWrite(filter)
   const activityTags = useActivityTags(view.activity)
+
+  /**
+   * The tab says what you are looking at.
+   *
+   * react-query's shape is flattened here rather than inside `titleOf`, so the ladder
+   * stays a statement about the app's state and knows nothing about fetching. `detail`
+   * is pending whenever it is disabled, which is why the selection is asked about
+   * first — an empty list would otherwise load forever in the tab strip.
+   */
+  useDocumentTitle(
+    titleOf({
+      mode: view.mode,
+      plan,
+      activity: detail.data?.activity ?? null,
+      pending: view.activity !== null && detail.isPending,
+    }),
+  )
 
   /**
    * What the last bulk write did, until the next action.

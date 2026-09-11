@@ -4,7 +4,7 @@ import { PROFILE_LABELS } from '@tracks/routing'
 import { useMemo } from 'react'
 import { duration, km, metres } from '../lib/format.ts'
 import type { Plan } from '../lib/plan.ts'
-import type { Placement } from '../lib/plan-ops.ts'
+import { derivedName, type Placement } from '../lib/plan-ops.ts'
 import { planTotals } from '../lib/plan-track.ts'
 import { profileOf } from './ElevationProfile.tsx'
 import styles from './PlanPanel.module.css'
@@ -71,12 +71,6 @@ export function PlanPanel({
     [track, totals.distanceM],
   )
 
-  /** What the plan is, when nobody has named it. Always current, and never in the URL. */
-  const derived =
-    stops.length >= 2
-      ? `${stops[0]?.name ?? 'Start'} → ${stops[stops.length - 1]?.name ?? 'End'}`
-      : ''
-
   return (
     <>
       <div className={styles.header}>
@@ -101,7 +95,9 @@ export function PlanPanel({
               <input
                 className={styles.name}
                 value={plan.name}
-                placeholder={derived}
+                // What the plan is when nobody has named it — and what the tab title
+                // falls back to, which is why it is not computed here.
+                placeholder={derivedName(plan)}
                 aria-label="Plan name"
                 onChange={(event) => onPlan({ ...plan, name: event.currentTarget.value })}
               />
