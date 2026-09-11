@@ -1,3 +1,16 @@
+/**
+ * Douglas-Peucker, for both sides.
+ *
+ * In core rather than in the server because it is exactly what core is for: a pure
+ * function with no dependency, run identically by whoever needs it. The server thins
+ * every track it stores; the browser thins a GPX somebody dropped as a planning
+ * reference, at the same tolerance — so a reference is drawn at the same fidelity as
+ * the rides underneath it rather than at one nothing else on the map has.
+ */
+
+/** What every track in this app is thinned to, on both sides. */
+export const TRACK_TOLERANCE_M = 10
+
 /** Metres per degree of latitude. Close enough anywhere for a 10 m tolerance. */
 const M_PER_DEG_LAT = 111_320
 
@@ -10,7 +23,7 @@ const M_PER_DEG_LAT = 111_320
  */
 export function simplify<P extends { lat: number; lon: number }>(
   points: P[],
-  toleranceM = 10,
+  toleranceM = TRACK_TOLERANCE_M,
 ): P[] {
   if (points.length <= 2) return points
 

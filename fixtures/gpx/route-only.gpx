@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="an old handheld" xmlns="http://www.topografix.com/GPX/1/1">
+  <rte>
+    <name>Timmelsjoch</name>
+    <rtept lat="46.8700" lon="11.0900"><ele>1200</ele><name>Sölden</name></rtept>
+    <rtept lat="46.9050" lon="11.1400"><ele>1900</ele></rtept>
+    <rtept lat="46.9100" lon="11.1900"><ele>2474</ele><name>Passhöhe</name></rtept>
+  </rte>
+</gpx>

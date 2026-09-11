@@ -6,13 +6,13 @@ import {
   type ImportFrame,
   mergeDerivedTags,
   parseTag,
+  simplify,
   type TagType,
   TRACK_PRECISION,
   validateTag,
 } from '@tracks/core'
 import { and, eq, isNotNull } from 'drizzle-orm'
 import type { Conn, Db } from './connect.ts'
-import { simplify } from './polyline.ts'
 import type { Owner } from './query.ts'
 import { createType, loadRegistry, seedFor } from './registry.ts'
 import { activities } from './schema.ts'

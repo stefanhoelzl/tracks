@@ -1,8 +1,8 @@
+import { parseTrackBytes } from '../../lib/gpx-parser.ts'
 import type { ActivitySource, SourceActivity, Track } from '../source.ts'
 import type { Archive } from './archive.ts'
 import { type ArchiveRow, readArchiveCsv } from './csv.ts'
 import { sportTags } from './sport.ts'
-import { parseTrackFile } from './track.ts'
 
 /**
  * Strava's bulk export, read out of the zip the user picked.
@@ -54,8 +54,12 @@ export class StravaZipSource implements ActivitySource {
     const bytes = await this.#archive.read(row.filename)
     if (!bytes) return null
 
+    // The parser reports everything the file said; an activity is one track, so this
+    // source takes the first part and ignores the rest. A Strava export writes one.
+    const part = (await parseTrackBytes(row.filename, bytes)).parts[0]
+    if (!part) return null
+
     // The parser reports what the file said; this source decides what it means.
-    const { points, sportRaw, title } = await parseTrackFile(row.filename, bytes)
-    return { points, tags: sportTags(sportRaw), title }
+    return { points: part.points, tags: sportTags(part.sportRaw), title: part.name }
   }
 }
