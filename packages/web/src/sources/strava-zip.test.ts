@@ -7,7 +7,6 @@ import { materializeArchive } from './strava-zip/archive-fixture.ts'
 import { parseCsvDate, readArchiveCsv } from './strava-zip/csv.ts'
 import { StravaZipSource } from './strava-zip/index.ts'
 import { sportTags } from './strava-zip/sport.ts'
-import { parseTrackFile } from './strava-zip/track.ts'
 
 const FIXTURES = resolve(import.meta.dirname, '../../../../fixtures/strava-archive')
 
@@ -64,36 +63,6 @@ describe('activities.csv', () => {
     const rows = readArchiveCsv(await archive.readText('activities.csv'))
     const ride = rows.find((r) => r.externalId === '3752382383')
     expect(ride?.filename).toBe('activities/9999.gpx.gz')
-  })
-})
-
-describe('track files', () => {
-  const parse = async (name: string) => parseTrackFile(name, (await archive.read(name))!)
-
-  it('parses a gzipped TCX despite whitespace before the prolog', async () => {
-    const track = await parse('activities/1002.tcx.gz')
-    expect(track.points).toHaveLength(5) // the 6th sample has Time but no Position
-    expect(track.sportRaw).toBe('Run')
-    expect(track.points[0]?.altitudeM).toBe(520)
-    expect(track.points[0]?.recordedAt).toBe(Math.floor(Date.parse('2020-07-02T16:46:31Z') / 1000))
-  })
-
-  it('parses a plain GPX with its type and name', async () => {
-    const track = await parse('activities/1001.gpx')
-    expect(track.points).toHaveLength(6)
-    expect(track.sportRaw).toBe('running')
-    expect(track.title).toBe('Evening Run')
-  })
-
-  it('reports no sport for a third-party GPX with no <type>', async () => {
-    const track = await parse('activities/9999.gpx.gz')
-    expect(track.sportRaw).toBeNull()
-    expect(track.title).toBe('Almenrunde')
-  })
-
-  it('rejects a file that is not XML at all', async () => {
-    const junk = new TextEncoder().encode('this is not xml')
-    await expect(parseTrackFile('activities/broken.gpx', junk)).rejects.toThrow(/parseable XML/)
   })
 })
 

@@ -1,6 +1,7 @@
 export * from './api.ts'
 export * from './filter.ts'
 export * from './import.ts'
+export * from './simplify.ts'
 export * from './stats.ts'
 export * from './tags.ts'
 export * from './track-codec.ts'

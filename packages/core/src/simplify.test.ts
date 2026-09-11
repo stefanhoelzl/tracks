@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { simplify } from './polyline.ts'
+import { simplify } from './simplify.ts'
 
 /** All the simplifier reads. It is generic now, so the test says only this much. */
 interface Point {
