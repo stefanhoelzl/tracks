@@ -55,10 +55,19 @@ index 963765ee..b1cd61b1 100644
     * Get the relevant target-node for the given source
     */
 diff --git a/brouter-mapaccess/src/main/java/btools/mapaccess/OsmNodesMap.java b/brouter-mapaccess/src/main/java/btools/mapaccess/OsmNodesMap.java
-index 83863d82..5e0ee611 100644
+index 83863d82..0e8a2228 100644
 --- a/brouter-mapaccess/src/main/java/btools/mapaccess/OsmNodesMap.java
 +++ b/brouter-mapaccess/src/main/java/btools/mapaccess/OsmNodesMap.java
-@@ -175,6 +175,43 @@ public final class OsmNodesMap {
+@@ -14,6 +14,8 @@ import btools.util.ByteArrayUnifier;
+ 
+ public final class OsmNodesMap {
+   private Map<OsmNode, OsmNode> hmap = new HashMap<>(4096);
++  // every node ever put, including those the search later removed or vanished: see dispose()
++  private List<OsmNode> created = new ArrayList<>(4096);
+ 
+   private ByteArrayUnifier abUnifier = new ByteArrayUnifier(16384, false);
+ 
+@@ -175,6 +177,47 @@ public final class OsmNodesMap {
      nodes2check = null;
    }
  
@@ -72,7 +81,10 @@ index 83863d82..5e0ee611 100644
 +  public void dispose() {
 +    java.util.Set<OsmNode> nodes = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<OsmNode, Boolean>());
 +    java.util.Set<OsmLink> links = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<OsmLink, Boolean>());
-+    List<OsmNode> stack = new ArrayList<>(hmap.values());
++    // Seeded from every node ever put, not just the map: nodes the search vanished were removed
++    // from it but can still hold a link to a hollow node, and nothing reachable points back.
++    List<OsmNode> stack = new ArrayList<>(created);
++    stack.addAll(hmap.values());
 +    while (!stack.isEmpty()) {
 +      OsmNode n = stack.remove(stack.size() - 1);
 +      if (!nodes.add(n)) {
@@ -93,6 +105,7 @@ index 83863d82..5e0ee611 100644
 +      n.firstlink = null;
 +    }
 +    hmap.clear();
++    created.clear();
 +    nodes2check = null;
 +    destination = null;
 +    endNode1 = null;
@@ -102,3 +115,11 @@ index 83863d82..5e0ee611 100644
    public void collectOutreachers() {
      nodes2check = new ArrayList<>(nodesCreated);
      nodesCreated = 0;
+@@ -236,6 +279,7 @@ public final class OsmNodesMap {
+    * @return the previous node if that id existed, else null
+    */
+   public OsmNode put(OsmNode node) {
++    created.add(node);
+     return hmap.put(node, node);
+   }
+ 

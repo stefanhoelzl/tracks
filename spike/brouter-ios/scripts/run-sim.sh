@@ -22,6 +22,9 @@ UDID=$(xcrun simctl list devices available -j |
   python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for r in d.values() for x in r if x['name']==sys.argv[1]))" "$DEVICE_NAME")
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+# Every candidate shares the bundle id, and an install keeps the data container: uninstall first,
+# or Documents/out still holds the GeoJSON of an earlier run and parity reads stale files.
+xcrun simctl uninstall "$UDID" "$BUNDLE" 2>/dev/null || true
 xcrun simctl install "$UDID" "$APP"
 
 ENVS=()

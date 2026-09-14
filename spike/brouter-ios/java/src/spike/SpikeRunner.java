@@ -70,12 +70,20 @@ public final class SpikeRunner {
         result[0] = route(segmentDir, profileDir, profile, lonlats, memoryclass);
       }
     }, "brouter", STACK_BYTES);
+    // route() catches Throwable, but a native exception J2ObjC does not map to one ends the thread
+    // without a result; name it instead of returning null.
+    thread.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+      @Override
+      public void uncaughtException(Thread t, Throwable e) {
+        result[0] = "error: routing thread died: " + e;
+      }
+    });
     thread.start();
     try {
       thread.join();
     } catch (InterruptedException e) {
       return "error: interrupted";
     }
-    return result[0];
+    return result[0] != null ? result[0] : "error: routing thread ended without a result";
   }
 }
