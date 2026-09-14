@@ -14,7 +14,8 @@ shift 2
 APP=$SPIKE/build/$CAND/SpikeHarness.app
 BUNDLE=eu.tracks.spike.brouter
 DEVICE_NAME=${SPIKE_DEVICE:-iPhone 17 Pro}
-RESULTS=$SPIKE/build/results/$CAND
+# SPIKE_RESULTS names the result set, so an experiment does not overwrite its candidate's baseline.
+RESULTS=$SPIKE/build/results/${SPIKE_RESULTS:-$CAND}
 mkdir -p "$RESULTS"
 
 UDID=$(xcrun simctl list devices available -j |

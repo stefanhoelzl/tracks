@@ -14,6 +14,18 @@ export JAVA_HOME=${JAVA_HOME_21:-$(/usr/libexec/java_home -v 21)}
 
 ROOTS=()
 while IFS= read -r r; do ROOTS+=("$r"); done < <("$SPIKE/scripts/fetch-brouter.sh")
+
+# Leak experiments (patches/j2objc/*.patch, named in J2OBJC_PATCHES) go onto a private copy of the
+# tree, so the shared checkout MobiVM builds from stays as it is.
+if [ -n "${J2OBJC_PATCHES:-}" ]; then
+  rm -rf "$BUILD/brouter-src"
+  rsync -a --exclude .git "$CACHE/brouter/" "$BUILD/brouter-src/"
+  for p in $J2OBJC_PATCHES; do
+    (cd "$BUILD/brouter-src" && patch -p1 --quiet < "$SPIKE/patches/j2objc/$p")
+    echo "applied patches/j2objc/$p"
+  done
+  ROOTS=("${ROOTS[@]/#$CACHE\/brouter\//$BUILD/brouter-src/}")
+fi
 SOURCEPATH=$(IFS=:; echo "${ROOTS[*]}")
 
 rm -rf "$BUILD/gen" "$BUILD/objs" "$BUILD/libbrouter.a"
@@ -23,7 +35,8 @@ echo "== $(wc -l < "$BUILD/sources.txt") Java files"
 
 echo "== translate"
 T0=$(date +%s)
-"$J2OBJC/j2objc" -d "$BUILD/gen" -sourcepath "$SOURCEPATH" -encoding UTF-8 @"$BUILD/sources.txt" 2>&1 | tee "$BUILD/translate.log"
+"$J2OBJC/j2objc" -d "$BUILD/gen" -sourcepath "$SOURCEPATH" -classpath "$J2OBJC/lib/j2objc_annotations.jar" \
+  -encoding UTF-8 @"$BUILD/sources.txt" 2>&1 | tee "$BUILD/translate.log"
 T1=$(date +%s)
 echo "translate: $((T1 - T0)) s, $(find "$BUILD/gen" -name '*.m' | wc -l) .m files"
 

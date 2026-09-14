@@ -1,0 +1,23 @@
+diff --git a/brouter-core/src/main/java/btools/router/RoutingEngine.java b/brouter-core/src/main/java/btools/router/RoutingEngine.java
+index 1ac94aaf..f9e46bf6 100644
+--- a/brouter-core/src/main/java/btools/router/RoutingEngine.java
++++ b/brouter-core/src/main/java/btools/router/RoutingEngine.java
+@@ -16,6 +16,8 @@ import java.util.Map;
+ import java.util.SortedSet;
+ import java.util.TreeSet;
+ 
++import com.google.j2objc.annotations.AutoreleasePool;
++
+ import btools.mapaccess.MatchedWaypoint;
+ import btools.mapaccess.NodesCache;
+ import btools.mapaccess.OsmLink;
+@@ -1971,7 +1973,8 @@ public class RoutingEngine extends Thread {
+     boolean memoryPanicMode = false;
+     boolean needNonPanicProcessing = false;
+ 
+-    for (; ; ) {
++    // J2ObjC: drain the autoreleased objects of each search step instead of at the end of the route
++    for (@AutoreleasePool int step = 0; ; step++) {
+       if (terminated) {
+         throw new IllegalArgumentException("operation killed by thread-priority-watchdog after " + (System.currentTimeMillis() - startTime) / 1000 + " seconds");
+       }

@@ -1,0 +1,104 @@
+diff --git a/brouter-core/src/main/java/btools/router/RoutingEngine.java b/brouter-core/src/main/java/btools/router/RoutingEngine.java
+index 1ac94aaf..14a85be4 100644
+--- a/brouter-core/src/main/java/btools/router/RoutingEngine.java
++++ b/brouter-core/src/main/java/btools/router/RoutingEngine.java
+@@ -335,6 +335,7 @@ public class RoutingEngine extends Thread {
+         if (hasInfo() && nodesCache != null) {
+           logInfo("NodesCache status before close=" + nodesCache.formatStatus());
+         }
++        nodesCache.nodesMap.dispose();
+         nodesCache.close();
+         nodesCache = null;
+       }
+@@ -835,6 +836,7 @@ public class RoutingEngine extends Thread {
+     } finally {
+       ProfileCache.releaseProfile(routingContext);
+       if (nodesCache != null) {
++        nodesCache.nodesMap.dispose();
+         nodesCache.close();
+         nodesCache = null;
+       }
+@@ -1811,6 +1813,10 @@ public class RoutingEngine extends Thread {
+     }
+     long maxmem = routingContext.memoryclass * 1024L * 1024L; // in MB
+ 
++    if (nodesCache != null) {
++      // the next cache re-uses the old one's files, never its graph
++      nodesCache.nodesMap.dispose();
++    }
+     nodesCache = new NodesCache(segmentDir, routingContext.expctxWay, routingContext.forceSecondaryData, maxmem, nodesCache, detailed);
+     islandNodePairs.clearTempPairs();
+   }
+diff --git a/brouter-mapaccess/src/main/java/btools/mapaccess/OsmLink.java b/brouter-mapaccess/src/main/java/btools/mapaccess/OsmLink.java
+index 963765ee..b1cd61b1 100644
+--- a/brouter-mapaccess/src/main/java/btools/mapaccess/OsmLink.java
++++ b/brouter-mapaccess/src/main/java/btools/mapaccess/OsmLink.java
+@@ -36,6 +36,20 @@ public class OsmLink {
+     n2 = target;
+   }
+ 
++  /**
++   * Drops every reference this link holds (see OsmNodesMap.dispose)
++   */
++  final void dispose() {
++    n1 = null;
++    n2 = null;
++    previous = null;
++    next = null;
++    reverselinkholder = null;
++    firstlinkholder = null;
++    descriptionBitmap = null;
++    geometry = null;
++  }
++
+   /**
+    * Get the relevant target-node for the given source
+    */
+diff --git a/brouter-mapaccess/src/main/java/btools/mapaccess/OsmNodesMap.java b/brouter-mapaccess/src/main/java/btools/mapaccess/OsmNodesMap.java
+index 83863d82..5e0ee611 100644
+--- a/brouter-mapaccess/src/main/java/btools/mapaccess/OsmNodesMap.java
++++ b/brouter-mapaccess/src/main/java/btools/mapaccess/OsmNodesMap.java
+@@ -175,6 +175,43 @@ public final class OsmNodesMap {
+     nodes2check = null;
+   }
+ 
++  /**
++   * Takes the node/link graph apart once a search is done with it.
++   *
++   * On the JVM dropping the map is enough. Under reference counting (J2ObjC) nodes and links point
++   * at each other, so the graph is never freed and every route leaks it. The walk collects first and
++   * clears afterwards, because a link sits in the link chains of both its nodes.
++   */
++  public void dispose() {
++    java.util.Set<OsmNode> nodes = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<OsmNode, Boolean>());
++    java.util.Set<OsmLink> links = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<OsmLink, Boolean>());
++    List<OsmNode> stack = new ArrayList<>(hmap.values());
++    while (!stack.isEmpty()) {
++      OsmNode n = stack.remove(stack.size() - 1);
++      if (!nodes.add(n)) {
++        continue;
++      }
++      for (OsmLink l = n.firstlink; l != null; l = l.getNext(n)) {
++        links.add(l);
++        OsmNode t = l.getTarget(n);
++        if (t != null && !nodes.contains(t)) {
++          stack.add(t);
++        }
++      }
++    }
++    for (OsmLink l : links) {
++      l.dispose();
++    }
++    for (OsmNode n : nodes) {
++      n.firstlink = null;
++    }
++    hmap.clear();
++    nodes2check = null;
++    destination = null;
++    endNode1 = null;
++    endNode2 = null;
++  }
++
+   public void collectOutreachers() {
+     nodes2check = new ArrayList<>(nodesCreated);
+     nodesCreated = 0;

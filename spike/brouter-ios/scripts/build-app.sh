@@ -38,7 +38,7 @@ case $CAND in
       JRE=(-ljre_emul -Xlinker -ObjC)
     else
       # 3.1's lean option: the core subset plus the pieces BRouter touches, dead-stripped.
-      JRE=(-ljre_core -ljre_util -ljre_io -ljre_file -ljre_security -Xlinker -dead_strip)
+      JRE=(-ljre_core -ljre_util -ljre_io -ljre_file -ljre_net -ljre_security -Xlinker -dead_strip)
     fi
     LINK=("$BUILD/obj/engine.o" "$BUILD/libbrouter.a" -L "$J2OBJC/lib/simulator" "${JRE[@]}"
       -liconv -lz -framework Security -framework Foundation)
