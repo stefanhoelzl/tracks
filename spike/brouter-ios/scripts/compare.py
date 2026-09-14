@@ -65,6 +65,10 @@ def compare(ref_path, cand_path):
         "props": {k: [ref_props.get(k), cand_props.get(k)] for k in PROPS},
     }
     result["props_equal"] = all(a == b for a, b in result["props"].values())
+    # "creator" carries OsmTrack.version, read from jar metadata that neither iOS runtime has
+    # (J2ObjC prints null, MobiVM 0.0); every other byte is expected to match.
+    strip = lambda p: [l for l in p.read_text().splitlines() if '"creator":' not in l]
+    result["bytes_identical_except_creator"] = strip(ref_path) == strip(cand_path)
     if not result["identical_geometry"]:
         result["hausdorff_m"] = round(max(directed(ref, cand), directed(cand, ref)), 1)
     return result

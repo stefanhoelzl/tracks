@@ -1,0 +1,28 @@
+diff --git a/brouter-core/src/main/java/btools/router/RoutingContext.java b/brouter-core/src/main/java/btools/router/RoutingContext.java
+index e44c6584..ad06ac45 100644
+--- a/brouter-core/src/main/java/btools/router/RoutingContext.java
++++ b/brouter-core/src/main/java/btools/router/RoutingContext.java
+@@ -84,15 +84,16 @@ public final class RoutingContext {
+   public AreaInfo ai;
+ 
+   private void setModel(String className) {
+-    if (className == null) {
++    // The models BRouter ships, named explicitly: ahead-of-time compilers (J2ObjC, MobiVM)
++    // strip classes that nothing references, so reflection would find none of them.
++    if (className == null || className.equals("btools.router.StdModel")) {
+       pm = new StdModel();
++    } else if (className.equals("btools.router.KinematicModel")) {
++      pm = new KinematicModel();
++    } else if (className.equals("btools.router.KinematicNoCostModel")) {
++      pm = new KinematicNoCostModel();
+     } else {
+-      try {
+-        Class<?> clazz = Class.forName(className);
+-        pm = (OsmPathModel) clazz.getDeclaredConstructor().newInstance();
+-      } catch (Exception e) {
+-        throw new RuntimeException("Cannot create path-model: " + e);
+-      }
++      throw new RuntimeException("Cannot create path-model: " + className);
+     }
+     initModel();
+   }

@@ -1,0 +1,14 @@
+<config>
+  <executableName>BRouterCore</executableName>
+  <imageName>BRouterCore</imageName>
+  <os>ios</os>
+  <arch>arm64-simulator</arch>
+  <target>xcframework</target>
+  <iosInfoPList>Info.plist.xml</iosInfoPList>
+  <!-- Nothing in the framework references the entry point: the Swift side finds it by name
+       through JNI, so the linker must be told to keep it and what it reaches. -->
+  <forceLinkClasses>
+    <pattern>spike.SpikeRunner</pattern>
+    <pattern>btools.**</pattern>
+  </forceLinkClasses>
+</config>
