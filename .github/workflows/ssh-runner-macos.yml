@@ -2,7 +2,7 @@
 # Run `ssh-runner init --update` after changing the config, then commit and push:
 # the workflow that runs is the one on GitHub, not the one in your working tree.
 # ssh-runner-template: 7
-# ssh-runner-config: 7311bbd815eab7ea
+# ssh-runner-config: 699d341508f41c37
 name: ssh-runner macos
 run-name: ssh-runner macos ${{ inputs.session_id }}
 
@@ -27,12 +27,12 @@ on:
       stop_after:
         description: Hard maximum session length, minutes.
         required: false
-        default: "90"
+        default: "340"
         type: string
       idle_timeout:
         description: Close after this many minutes with no ssh connection.
         required: false
-        default: "30"
+        default: "45"
         type: string
 
 permissions:
@@ -41,7 +41,7 @@ permissions:
 jobs:
   ssh-runner:
     runs-on: ${{ inputs.runs_on }}
-    timeout-minutes: 120
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v6
@@ -50,6 +50,18 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # J2ObjC 3.x needs JDK 21; MobiVM's compiler is run on 17. The last listed is the default.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+      # Toolchains built or downloaded by the spike (J2ObjC dist, MobiVM, rd5), kept between sessions.
+      - uses: actions/cache@v4
+        with:
+          path: ~/spike-cache
+          key: brouter-ios-spike-${{ runner.os }}-${{ runner.arch }}-v1
 
       - name: Start sshd and the cloudflared tunnel
         env:

@@ -1,5 +1,9 @@
 name: macos
 runs-on: macos-26
+# The BRouter-on-iOS spike builds J2ObjC from source (no binary releases since 3.x), which
+# does not fit the 90-minute default.
+stop-after: 340
+idle-timeout: 45
 steps:
   - uses: pnpm/action-setup@v6
   - uses: actions/setup-node@v7
@@ -7,7 +11,20 @@ steps:
       node-version: 24
       cache: pnpm
   - run: pnpm install --frozen-lockfile
+  # J2ObjC 3.x needs JDK 21; MobiVM's compiler is run on 17. The last listed is the default.
+  - uses: actions/setup-java@v5
+    with:
+      distribution: temurin
+      java-version: |
+        17
+        21
+  # Toolchains built or downloaded by the spike (J2ObjC dist, MobiVM, rd5), kept between sessions.
+  - uses: actions/cache@v4
+    with:
+      path: ~/spike-cache
+      key: brouter-ios-spike-${{ runner.os }}-${{ runner.arch }}-v1
 sync:
   delete: true
   # node_modules holds platform-native binaries (esbuild), so the runner keeps its own.
-  exclude: [.git, node_modules, dist, data, .secrets.yaml]
+  # spike/brouter-ios/build is the spike's runner-side output.
+  exclude: [.git, node_modules, dist, data, .secrets.yaml, spike/brouter-ios/build]
