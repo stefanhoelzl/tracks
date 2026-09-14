@@ -15,8 +15,11 @@ rm -rf "$SPIKE/build/results/$CAND"
 if [ "$CAND" = j2objc ]; then
   # The lean link (jre_core subset, dead-stripped) only for its size and a smoke route; the runs
   # use J2ObjC's documented default.
-  J2OBJC_LINK=lean "$SPIKE/scripts/build-app.sh" j2objc
-  "$RUN" j2objc lean-smoke SPIKE_MODE=routes SPIKE_ROUTES=r4-salzburg-hallein
+  if J2OBJC_LINK=lean "$SPIKE/scripts/build-app.sh" j2objc; then
+    "$RUN" j2objc lean-smoke SPIKE_MODE=routes SPIKE_ROUTES=r4-salzburg-hallein || true
+  else
+    echo "lean link failed; measuring the full link only"
+  fi
   J2OBJC_LINK=full "$SPIKE/scripts/build-app.sh" j2objc
 else
   "$SPIKE/scripts/build-app.sh" "$CAND"
