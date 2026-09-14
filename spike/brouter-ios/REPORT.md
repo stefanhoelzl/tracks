@@ -7,7 +7,117 @@ runtime and GC). There were no pass/fail limits; the numbers below are what the 
 
 _Measured 2026-09-14._
 
-<!-- NUMBERS -->
+## Comparison
+
+Simulator numbers on a GitHub `macos-26` runner (Apple M1 virtual, 3 cores, 7 GB) — one app launch per
+route, cold pass. "JVM (M1)" is the same `SpikeRunner` on HotSpot 17 on that runner, for scale.
+
+| | JVM (M1) | MobiVM 2.3.26 | J2ObjC 3.1 (as translated) | J2ObjC + leak patches |
+|---|---:|---:|---:|---:|
+| **Parity**, 6 routes | reference | identical ¹ | identical ¹ | <!-- E:parity --> |
+| **r1 27 km**, cold / warm | 1.8 s / 0.8 s ² | 2.0 s / 1.8 s | 4.6 s / 4.0 s | <!-- E:r1 --> |
+| **r2 176 km**, cold / warm | 9.3 s | 10.9 s / 12.5 s | 42.2 s / 38.6 s | <!-- E:r2 --> |
+| r6 306 km, cold | 16.0 s | 22.1 s | 80.8 s | — |
+| **Peak footprint** r1 / r2 | — | 65 / 107 MB | 427 MB / **3.2 GB** | <!-- E:peak --> |
+| Peak footprint r6 | — | 118 MB | **5.9 GB** | — |
+| Footprint, runtime up, no route | — | 12 MB | 16 MB | — |
+| **20× r1**: settled after run 1 → 20 | heap 5 → 5 MB | 64 → 109 MB (flat from run 8) | 145 → 669 MB (+27.6 MB every run) | <!-- E:rep1 --> |
+| **20× r2**: settled after run 1 → 20 | — | 76 → 105 MB (76–127, no trend) | 966 MB → 3.7 GB (+144 MB every run) | <!-- E:rep2 --> |
+| **App size increase** over an empty app | — | +7.6 MB (framework) | +42.9 MB (`-ObjC` full JRE) <!-- E:lean --> | same |
+| Source changes | — | 1 patch (no reflection) | 1 patch | + 2 patches |
+| Toolchain | — | 2 downloads, 1 `java` command | source build of J2ObjC, 2 workarounds | |
+
+¹ Byte-identical GeoJSON except `"creator"` (`BRouter-0.0` / `BRouter-null`: the version string comes
+from jar metadata). Checked by `scripts/compare.py` for geometry, elevation and all numeric properties,
+and line by line.
+² JVM warm = the 20-repeat median (JIT warmed up).
+
+Footprint is `phys_footprint`, sampled every 2 ms, as iOS jetsam counts it. The simulator enforces no
+limit; a 4 GB iPhone 12 kills an app at about 2 GB, a 6 GB device at about 3 GB.
+
+## Parity
+
+Every candidate output was compared with `fixtures/jvm`, which is itself byte-identical to brouter.de:
+
+| route | points | MobiVM | J2ObjC |
+|---|---:|---|---|
+| r1 Munich → Starnberg | 653 | identical | identical |
+| r2 Munich → Innsbruck | 4805 | identical | identical |
+| r3 Garmisch → Innsbruck | 2077 | identical | identical |
+| r4 Salzburg → Hallein | 282 | identical | identical |
+| r5 Rosenheim → Prien → Traunstein | 1691 | identical | identical |
+| r6 Munich → Bolzano | 9396 | identical | identical |
+
+Identical means: same coordinates and elevations in the same order, and equal `track-length`,
+`filtered ascend`, `plain-ascend`, `total-time`, `total-energy` and `cost`. Neither translation nor AOT
+compilation changed a single number — the integer-heavy core has no floating-point formatting on the
+hot path that differs between runtimes.
+
+## Memory
+
+**MobiVM** behaves like a JVM with a collector: footprint rises during a route, stays at what the GC
+heap grew to, and repeated routes reuse it. Over 20 repeats of r1 the settled footprint climbs to
+~105 MB by run 8 and then stays there; over 20 of r2 it moves between 76 and 127 MB with no trend.
+A 60-run r1 series held at 104–110 MB until run 50, then settled higher for the last ten runs
+(117–146 MB) — no leak of J2ObjC's kind, but not a perfectly flat line either. Nothing was needed to
+stop leaks.
+
+**J2ObjC** as translated leaks every route's whole road graph and peaks far above what a phone allows:
+
+- *The leak.* The settled footprint grows by the same amount after every run — 27.6 MB per r1,
+  ~144 MB per r2 — and never comes back. `cycle_finder` explains it: `OsmNode`, `OsmLink` and `OsmPath`
+  (through `OsmLinkHolder`) point at each other, and so do `BExpressionContext` and
+  `BExpressionMetaData`. BRouter's graph is cyclic by design (nodes know their links, links know both
+  nodes and the next link of each), and when `RoutingEngine` drops its `NodesCache` a tracing GC frees
+  it, reference counting never does.
+- *The peak.* r2 peaks at 3.2 GB and settles at 966 MB. The difference is garbage that only reference
+  counting's timing keeps alive (autoreleased temporaries live until the routing thread's pool drains)
+  plus the leaked graph itself. 3.2 GB for a 176 km route would be killed on every current iPhone.
+
+`cycle_finder` reported 59 cycles, 34 of them through BRouter types (18 types; `RoutingEngine` 28,
+mostly via `Thread` and JRE internals). It resolved JRE types against the host JDK despite
+`-Xbootclasspath`, so some of those paths run through JDK-only classes and overstate the count; the ones
+that matter are the graph cycles above, and the measurement confirms them.
+
+<!-- EXPERIMENTS -->
+
+## Open risks
+
+What the spike did not or could not measure:
+
+- **Real devices.** Everything ran on the simulator (arm64 code on a virtual M1). Device slices
+  (`iphone64` for J2ObjC, `arm64` for MobiVM) were not built, nothing was signed, and neither jetsam's
+  kill limit nor thermal throttling applied. A-series performance cores are faster than this runner's
+  virtual cores, so times should improve on a recent phone, but that is unmeasured, and so is battery.
+- **Memory headroom on device.** MobiVM's ~110–150 MB is comfortable against a ~2 GB limit, but the
+  60-run series ended above its plateau; a long session (hundreds of re-plans) and memory warnings were
+  not tested. `memoryclass` (128, as brouter.de) was not varied; it bounds `NodesCache` and is the knob
+  for trading memory against speed on longer routes.
+- **Garbage collection pauses.** MobiVM uses the conservative Boehm GC. Individual pause lengths were not
+  measured; they matter if routing ever shares a thread with UI or navigation updates.
+- **Larger areas.** One 5°×5° tile and routes inside it. Routes crossing tile edges, several tiles open
+  at once, and rd5 storage/downloads (a tile is ~200 MB) were not part of this.
+- **Other BRouter paths.** Only `trekking`, `alternativeidx=0`, no nogos, no round trips. Car profiles
+  take the `---model:` path the patch rewrites; nogo polygons, voice hints and other formats were not
+  exercised. `Locale$Builder` is a phantom class in MobiVM's runtime: a code path that reaches it would
+  fail at run time.
+- **Upgrades.** brouter.de runs 1.7.10 today. Each BRouter release has to be re-translated or re-compiled
+  and re-verified against the server; `scripts/compare.py` and the fixtures are the regression test,
+  but the J2ObjC leak patches touch core classes and would need rebasing.
+- **Toolchain continuity.**
+  - MobiVM: 46 commits in the last 12 months, 37 from one maintainer (dkimitsa); releases 2.3.24
+    (Nov 2025), 2.3.25 (Jun 2026), 2.3.26 (Aug 2026). The bus factor is one. It follows new Xcode
+    versions after the fact; a new Xcode or iOS SDK that breaks it blocks releases until it is fixed.
+  - J2ObjC: 216 commits in 12 months from a Google team, but the last tag is 3.1 (Aug 2025), there are no
+    binaries, the public make build ships a broken `cycle_finder`, and Xcode 26 already needs a warning
+    suppressed. Google builds it with Bazel internally; the public build is secondary.
+- **App Store and platform.** Neither build was submitted. MobiVM apps (mostly libGDX games) ship on the
+  store today; an embedded AOT runtime in a `.framework` next to a Swift app is less common. Neither
+  candidate targets watchOS the same way (J2ObjC can build `watchos64`; MobiVM cannot), which matters if a
+  Watch re-plan is ever wanted — Cartograph already does that.
+- **Licensing.** MobiVM's runtime and VM, which ship inside the app, are Apache 2.0 (the compiler is only
+  a build tool). J2ObjC is Apache 2.0; its JRE emulation includes OpenJDK/Android libcore code under their
+  own licenses. BRouter is MIT. No blocker found; not reviewed by counsel.
 
 ## Setup
 
