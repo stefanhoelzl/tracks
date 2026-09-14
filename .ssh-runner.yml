@@ -1,0 +1,13 @@
+name: macos
+runs-on: macos-26
+steps:
+  - uses: pnpm/action-setup@v6
+  - uses: actions/setup-node@v7
+    with:
+      node-version: 24
+      cache: pnpm
+  - run: pnpm install --frozen-lockfile
+sync:
+  delete: true
+  # node_modules holds platform-native binaries (esbuild), so the runner keeps its own.
+  exclude: [.git, node_modules, dist, data, .secrets.yaml]
