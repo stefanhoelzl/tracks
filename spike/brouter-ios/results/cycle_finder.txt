@@ -1,0 +1,1019 @@
+
+***** Found reference cycle *****
+OsmLink -> (OsmPath subtype of (field reverselinkholder with type OsmLinkHolder))
+OsmPath -> (field link with type OsmLink)
+----- Full Types -----
+Lbtools/mapaccess/OsmLink;
+Lbtools/router/OsmPath;
+
+***** Found reference cycle *****
+OsmNode -> (superclass OsmLink has (OsmNodeNamed subtype of (field n1 with type OsmNode)))
+OsmNodeNamed -> (superclass OsmLink has (field n1 with type OsmNode))
+----- Full Types -----
+Lbtools/mapaccess/OsmNode;
+Lbtools/router/OsmNodeNamed;
+
+***** Found reference cycle *****
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (field stackSampler with type StackSampler)
+StackSampler -> (superclass Thread has (field threadLocals with type ThreadLocalMap))
+ThreadLocalMap -> (field table with type Entry)
+Entry -> (superclass WeakReference<ThreadLocal<?>> has (superclass Reference<ThreadLocal<?>> has (field queue with type ReferenceQueue<? super ThreadLocal<?>>)))
+ReferenceQueue<? super ThreadLocal<?>> -> (field lock with type ReentrantLock)
+----- Full Types -----
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lbtools/util/StackSampler;
+Ljava/lang/ThreadLocal$ThreadLocalMap;
+Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/ThreadLocal<*>;>;
+
+***** Found reference cycle *****
+SoftReference<ReflectionData<?>> -> (superclass Reference<ReflectionData<?>> has (field referent with type ReflectionData<?>))
+ReflectionData<?> -> (field declaredFields with type Field)
+Field -> (field clazz with type Class<?>)
+Class<?> -> (field reflectionData with type SoftReference<ReflectionData<?>>)
+----- Full Types -----
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<*>;>;
+Ljava/lang/Class$ReflectionData<*>;
+Ljava/lang/reflect/Field;
+Ljava/lang/Class<*>;
+
+***** Found reference cycle *****
+Method -> (superclass Executable has (field parameterData with type ParameterData))
+ParameterData -> (field parameters with type Parameter)
+Parameter -> (Method subtype of (field executable with type Executable))
+----- Full Types -----
+Ljava/lang/reflect/Method;
+Ljava/lang/reflect/Executable$ParameterData;
+Ljava/lang/reflect/Parameter;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ? extends Object> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field classValueMap with type ClassValueMap)
+ClassValueMap -> (superclass WeakHashMap<Identity, Entry<?>> has (field queue with type ReferenceQueue<Object>))
+ReferenceQueue<Object> -> (field head with type Reference<? extends Object>)
+Reference<? extends Object> -> (field queue with type ReferenceQueue<? super ? extends Object>)
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-+Ljava/lang/Object;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ClassValue$ClassValueMap;
+Ljava/lang/ref/ReferenceQueue<Ljava/lang/Object;>;
+Ljava/lang/ref/Reference<+Ljava/lang/Object;>;
+
+***** Found reference cycle *****
+Class<<captured wildcard>> -> (field genericInfo with type ClassRepository)
+ClassRepository -> (Class<<captured wildcard>> subtype of (field superclass with type Type))
+----- Full Types -----
+Ljava/lang/Class<!CAP1!>;
+Lsun/reflect/generics/repository/ClassRepository;
+
+***** Found reference cycle *****
+CharsetDecoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field reflectionData with type SoftReference<ReflectionData<?>>)
+SoftReference<ReflectionData<?>> -> (superclass Reference<ReflectionData<?>> has (field queue with type ReferenceQueue<? super ReflectionData<?>>))
+ReferenceQueue<? super ReflectionData<?>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field cachedDecoder with type WeakReference<CharsetDecoder>)
+WeakReference<CharsetDecoder> -> (superclass Reference<CharsetDecoder> has (field referent with type CharsetDecoder))
+----- Full Types -----
+Ljava/nio/charset/CharsetDecoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<*>;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<*>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/lang/ref/WeakReference<Ljava/nio/charset/CharsetDecoder;>;
+
+***** Found reference cycle *****
+ClassValue<?> -> (field version with type Version<?>)
+Version<?> -> (field classValue with type ClassValue<?>)
+----- Full Types -----
+Ljava/lang/ClassValue<*>;
+Ljava/lang/ClassValue$Version<*>;
+
+***** Found reference cycle *****
+Node<String, BExpressionContext> -> (field value with type BExpressionContext)
+BExpressionContext -> (field meta with type BExpressionMetaData)
+BExpressionMetaData -> (HashMap<String, BExpressionContext> subtype of (field listeners with type Map<String, BExpressionContext>))
+HashMap<String, BExpressionContext> -> (field table with type Node<String, BExpressionContext>)
+----- Full Types -----
+Ljava/util/HashMap$Node<Ljava/lang/String;Lbtools/expressions/BExpressionContext;>;
+Lbtools/expressions/BExpressionContext;
+Lbtools/expressions/BExpressionMetaData;
+Ljava/util/HashMap<Ljava/lang/String;Lbtools/expressions/BExpressionContext;>;
+
+***** Found reference cycle *****
+NodesCache -> (field fileRows with type OsmFile)
+OsmFile -> (field is with type RandomAccessFile)
+RandomAccessFile -> (field channel with type FileChannel)
+FileChannel -> (superclass AbstractInterruptibleChannel has (RoutingEngine subtype of (field interrupted with type Thread)))
+RoutingEngine -> (field nodesCache with type NodesCache)
+----- Full Types -----
+Lbtools/mapaccess/NodesCache;
+Lbtools/mapaccess/OsmFile;
+Ljava/io/RandomAccessFile;
+Ljava/nio/channels/FileChannel;
+Lbtools/router/RoutingEngine;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ReflectionData<Character>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<Character> subtype of (field parameterTypes with type Type))
+Class<Character> -> (field reflectionData with type SoftReference<ReflectionData<Character>>)
+SoftReference<ReflectionData<Character>> -> (superclass Reference<ReflectionData<Character>> has (field queue with type ReferenceQueue<? super ReflectionData<Character>>))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<Ljava/lang/Character;>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<Ljava/lang/Character;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Character;>;>;
+
+***** Found reference cycle *****
+Reference<? extends ? super FileDescriptor> -> (field queue with type ReferenceQueue<? super ? extends ? super FileDescriptor>)
+ReferenceQueue<? super ? extends ? super FileDescriptor> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (FileOutputStream subtype of (field out with type OutputStream))
+FileOutputStream -> (field fd with type FileDescriptor)
+FileDescriptor -> (field cleanup with type PhantomCleanable<FileDescriptor>)
+PhantomCleanable<FileDescriptor> -> (superclass PhantomReference<FileDescriptor> has (superclass Reference<FileDescriptor> has (field queue with type ReferenceQueue<? super FileDescriptor>)))
+ReferenceQueue<? super FileDescriptor> -> (field head with type Reference<? extends ? super FileDescriptor>)
+----- Full Types -----
+Ljava/lang/ref/Reference<+-Ljava/io/FileDescriptor;>;
+Ljava/lang/ref/ReferenceQueue<-+-Ljava/io/FileDescriptor;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/io/FileOutputStream;
+Ljava/io/FileDescriptor;
+Ljdk/internal/ref/PhantomCleanable<Ljava/io/FileDescriptor;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/io/FileDescriptor;>;
+
+***** Found reference cycle *****
+AnnotationType -> (AbstractMap<String, Object> subtype of (field memberDefaults with type Map<String, Object>))
+AbstractMap<String, Object> -> (KeySetView<String, NamedPackage> subtype of (field keySet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field annotationType with type AnnotationType)
+----- Full Types -----
+Lsun/reflect/annotation/AnnotationType;
+Ljava/util/AbstractMap<Ljava/lang/String;Ljava/lang/Object;>;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+
+***** Found reference cycle *****
+ReflectionData<<captured wildcard>> -> (field declaredConstructors with type Constructor<<captured wildcard>>)
+Constructor<<captured wildcard>> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<<captured wildcard>> subtype of (field parameterTypes with type Type))
+Class<<captured wildcard>> -> (field reflectionData with type SoftReference<ReflectionData<<captured wildcard>>>)
+SoftReference<ReflectionData<<captured wildcard>>> -> (superclass Reference<ReflectionData<<captured wildcard>>> has (field referent with type ReflectionData<<captured wildcard>>))
+----- Full Types -----
+Ljava/lang/Class$ReflectionData<!CAP2!>;
+Ljava/lang/reflect/Constructor<!CAP2!>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<!CAP2!>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<!CAP2!>;>;
+
+***** Found reference cycle *****
+Node<String, PhysicalFile> -> (field value with type PhysicalFile)
+PhysicalFile -> (field ra with type RandomAccessFile)
+RandomAccessFile -> (field channel with type FileChannel)
+FileChannel -> (superclass AbstractInterruptibleChannel has (RoutingEngine subtype of (field interrupted with type Thread)))
+RoutingEngine -> (field nodesCache with type NodesCache)
+NodesCache -> (HashMap<String, PhysicalFile> subtype of (field fileCache with type Map<String, PhysicalFile>))
+HashMap<String, PhysicalFile> -> (field table with type Node<String, PhysicalFile>)
+----- Full Types -----
+Ljava/util/HashMap$Node<Ljava/lang/String;Lbtools/mapaccess/PhysicalFile;>;
+Lbtools/mapaccess/PhysicalFile;
+Ljava/io/RandomAccessFile;
+Ljava/nio/channels/FileChannel;
+Lbtools/router/RoutingEngine;
+Lbtools/mapaccess/NodesCache;
+Ljava/util/HashMap<Ljava/lang/String;Lbtools/mapaccess/PhysicalFile;>;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ? extends ? super ThreadGroup> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (field stackSampler with type StackSampler)
+StackSampler -> (superclass Thread has (field holder with type FieldHolder))
+FieldHolder -> (field group with type ThreadGroup)
+ThreadGroup -> (field weaks with type WeakReference<ThreadGroup>)
+WeakReference<ThreadGroup> -> (superclass Reference<ThreadGroup> has (field queue with type ReferenceQueue<? super ThreadGroup>))
+ReferenceQueue<? super ThreadGroup> -> (field head with type Reference<? extends ? super ThreadGroup>)
+Reference<? extends ? super ThreadGroup> -> (field queue with type ReferenceQueue<? super ? extends ? super ThreadGroup>)
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-+-Ljava/lang/ThreadGroup;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lbtools/util/StackSampler;
+Ljava/lang/Thread$FieldHolder;
+Ljava/lang/ThreadGroup;
+Ljava/lang/ref/WeakReference<Ljava/lang/ThreadGroup;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/ThreadGroup;>;
+Ljava/lang/ref/Reference<+-Ljava/lang/ThreadGroup;>;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ReflectionData<Integer>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<Integer> subtype of (field parameterTypes with type Type))
+Class<Integer> -> (field reflectionData with type SoftReference<ReflectionData<Integer>>)
+SoftReference<ReflectionData<Integer>> -> (superclass Reference<ReflectionData<Integer>> has (field queue with type ReferenceQueue<? super ReflectionData<Integer>>))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<Ljava/lang/Integer;>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<Ljava/lang/Integer;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Integer;>;>;
+
+***** Found reference cycle *****
+BExpressionContextNode -> (superclass BExpressionContext has (field meta with type BExpressionMetaData))
+BExpressionMetaData -> (HashMap<String, BExpressionContext> subtype of (field listeners with type Map<String, BExpressionContext>))
+HashMap<String, BExpressionContext> -> (field table with type Node<String, BExpressionContext>)
+Node<String, BExpressionContext> -> (BExpressionContextNode subtype of (field value with type BExpressionContext))
+----- Full Types -----
+Lbtools/expressions/BExpressionContextNode;
+Lbtools/expressions/BExpressionMetaData;
+Ljava/util/HashMap<Ljava/lang/String;Lbtools/expressions/BExpressionContext;>;
+Ljava/util/HashMap$Node<Ljava/lang/String;Lbtools/expressions/BExpressionContext;>;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ReflectionData<Boolean>> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<Boolean> subtype of (field parameterTypes with type Type))
+Class<Boolean> -> (field reflectionData with type SoftReference<ReflectionData<Boolean>>)
+SoftReference<ReflectionData<Boolean>> -> (superclass Reference<ReflectionData<Boolean>> has (field queue with type ReferenceQueue<? super ReflectionData<Boolean>>))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<Ljava/lang/Boolean;>;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<Ljava/lang/Boolean;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Boolean;>;>;
+
+***** Found reference cycle *****
+MethodRepository -> (Class<<captured wildcard>> subtype of (field returnType with type Type))
+Class<<captured wildcard>> -> (field cachedConstructor with type Constructor<<captured wildcard>>)
+Constructor<<captured wildcard>> -> (MethodRepository subtype of (field genericInfo with type ConstructorRepository))
+----- Full Types -----
+Lsun/reflect/generics/repository/MethodRepository;
+Ljava/lang/Class<!CAP2!>;
+Ljava/lang/reflect/Constructor<!CAP2!>;
+
+***** Found reference cycle *****
+ReflectionData<Integer> -> (field interfaces with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (MethodRepository subtype of (field genericInfo with type ConstructorRepository))
+MethodRepository -> (Class<Integer> subtype of (field returnType with type Type))
+Class<Integer> -> (field reflectionData with type SoftReference<ReflectionData<Integer>>)
+SoftReference<ReflectionData<Integer>> -> (superclass Reference<ReflectionData<Integer>> has (field referent with type ReflectionData<Integer>))
+----- Full Types -----
+Ljava/lang/Class$ReflectionData<Ljava/lang/Integer;>;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/MethodRepository;
+Ljava/lang/Class<Ljava/lang/Integer;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Integer;>;>;
+
+***** Found reference cycle *****
+FieldRepository -> (Class<Integer> subtype of (field genericType with type Type))
+Class<Integer> -> (field reflectionData with type SoftReference<ReflectionData<Integer>>)
+SoftReference<ReflectionData<Integer>> -> (superclass Reference<ReflectionData<Integer>> has (field referent with type ReflectionData<Integer>))
+ReflectionData<Integer> -> (field declaredFields with type Field)
+Field -> (field genericInfo with type FieldRepository)
+----- Full Types -----
+Lsun/reflect/generics/repository/FieldRepository;
+Ljava/lang/Class<Ljava/lang/Integer;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Integer;>;>;
+Ljava/lang/Class$ReflectionData<Ljava/lang/Integer;>;
+Ljava/lang/reflect/Field;
+
+***** Found reference cycle *****
+Continuation -> (Thread subtype of (field target with type Runnable))
+Thread -> (field cont with type Continuation)
+----- Full Types -----
+Ljdk/internal/vm/Continuation;
+Ljava/lang/Thread;
+
+***** Found reference cycle *****
+ReferenceQueue<? super Object> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field classValueMap with type ClassValueMap)
+ClassValueMap -> (superclass WeakHashMap<Identity, Entry<?>> has (field table with type Entry<Identity, Entry<?>>))
+Entry<Identity, Entry<?>> -> (superclass Reference<Object> has (field queue with type ReferenceQueue<? super Object>))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Object;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ClassValue$ClassValueMap;
+Ljava/util/WeakHashMap$Entry<Ljava/lang/ClassValue$Identity;Ljava/lang/ClassValue$Entry<*>;>;
+
+***** Found reference cycle *****
+Node -> (RoutingEngine subtype of (field waiter with type Thread))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field cachedDecoder with type WeakReference<CharsetDecoder>)
+WeakReference<CharsetDecoder> -> (superclass Reference<CharsetDecoder> has (field queue with type ReferenceQueue<? super CharsetDecoder>))
+ReferenceQueue<? super CharsetDecoder> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (field head with type Node))
+----- Full Types -----
+Ljava/util/concurrent/locks/AbstractQueuedSynchronizer$Node;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/lang/ref/WeakReference<Ljava/nio/charset/CharsetDecoder;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/nio/charset/CharsetDecoder;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+
+***** Found reference cycle *****
+ReflectionData<<captured wildcard>> -> (field interfaces with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (MethodRepository subtype of (field genericInfo with type ConstructorRepository))
+MethodRepository -> (Class<<captured wildcard>> subtype of (field returnType with type Type))
+Class<<captured wildcard>> -> (field reflectionData with type SoftReference<ReflectionData<<captured wildcard>>>)
+SoftReference<ReflectionData<<captured wildcard>>> -> (superclass Reference<ReflectionData<<captured wildcard>>> has (field referent with type ReflectionData<<captured wildcard>>))
+----- Full Types -----
+Ljava/lang/Class$ReflectionData<!CAP1!>;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/MethodRepository;
+Ljava/lang/Class<!CAP1!>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<!CAP1!>;>;
+
+***** Found reference cycle *****
+RoutingContext -> (KinematicNoCostModel subtype of (field pm with type OsmPathModel))
+KinematicNoCostModel -> (HashMap<String, String> subtype of (field params with type Map<String, String>))
+HashMap<String, String> -> (superclass AbstractMap<String, String> has (KeySetView<String, NamedPackage> subtype of (field keySet with type Set<String>)))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field reflectionData with type SoftReference<ReflectionData<?>>)
+SoftReference<ReflectionData<?>> -> (superclass Reference<ReflectionData<?>> has (field queue with type ReferenceQueue<? super ReflectionData<?>>))
+ReferenceQueue<? super ReflectionData<?>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (field routingContext with type RoutingContext)
+----- Full Types -----
+Lbtools/router/RoutingContext;
+Lbtools/router/KinematicNoCostModel;
+Ljava/util/HashMap<Ljava/lang/String;Ljava/lang/String;>;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<*>;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<*>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+
+***** Found reference cycle *****
+AbstractMap<String, Integer> -> (KeySetView<String, NamedPackage> subtype of (field keySet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<Integer> subtype of (field parameterTypes with type Type))
+Class<Integer> -> (AbstractMap<String, Integer> subtype of (field enumConstantDirectory with type Map<String, Integer>))
+----- Full Types -----
+Ljava/util/AbstractMap<Ljava/lang/String;Ljava/lang/Integer;>;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<Ljava/lang/Integer;>;
+
+***** Found reference cycle *****
+Constructor<<captured wildcard>> -> (MethodRepository subtype of (field genericInfo with type ConstructorRepository))
+MethodRepository -> (Class<<captured wildcard>> subtype of (field returnType with type Type))
+Class<<captured wildcard>> -> (field cachedConstructor with type Constructor<<captured wildcard>>)
+----- Full Types -----
+Ljava/lang/reflect/Constructor<!CAP1!>;
+Lsun/reflect/generics/repository/MethodRepository;
+Ljava/lang/Class<!CAP1!>;
+
+***** Found reference cycle *****
+ReflectionData<Long> -> (field declaredConstructors with type Constructor<Long>)
+Constructor<Long> -> (field clazz with type Class<Long>)
+Class<Long> -> (field reflectionData with type SoftReference<ReflectionData<Long>>)
+SoftReference<ReflectionData<Long>> -> (superclass Reference<ReflectionData<Long>> has (field referent with type ReflectionData<Long>))
+----- Full Types -----
+Ljava/lang/Class$ReflectionData<Ljava/lang/Long;>;
+Ljava/lang/reflect/Constructor<Ljava/lang/Long;>;
+Ljava/lang/Class<Ljava/lang/Long;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Long;>;>;
+
+***** Found reference cycle *****
+OsmTrack -> (AbstractMap<String, String> subtype of (field params with type Map<String, String>))
+AbstractMap<String, String> -> (KeySetView<String, NamedPackage> subtype of (field keySet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field reflectionData with type SoftReference<ReflectionData<?>>)
+SoftReference<ReflectionData<?>> -> (superclass Reference<ReflectionData<?>> has (field queue with type ReferenceQueue<? super ReflectionData<?>>))
+ReferenceQueue<? super ReflectionData<?>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (field foundTrack with type OsmTrack)
+----- Full Types -----
+Lbtools/router/OsmTrack;
+Ljava/util/AbstractMap<Ljava/lang/String;Ljava/lang/String;>;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<*>;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<*>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+
+***** Found reference cycle *****
+AbstractMap<String, BExpressionContext> -> (KeySetView<String, NamedPackage> subtype of (field keySet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field reflectionData with type SoftReference<ReflectionData<?>>)
+SoftReference<ReflectionData<?>> -> (superclass Reference<ReflectionData<?>> has (field queue with type ReferenceQueue<? super ReflectionData<?>>))
+ReferenceQueue<? super ReflectionData<?>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (field routingContext with type RoutingContext)
+RoutingContext -> (StdModel subtype of (field pm with type OsmPathModel))
+StdModel -> (field ctxNode with type BExpressionContextNode)
+BExpressionContextNode -> (superclass BExpressionContext has (field meta with type BExpressionMetaData))
+BExpressionMetaData -> (AbstractMap<String, BExpressionContext> subtype of (field listeners with type Map<String, BExpressionContext>))
+----- Full Types -----
+Ljava/util/AbstractMap<Ljava/lang/String;Lbtools/expressions/BExpressionContext;>;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<*>;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<*>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lbtools/router/RoutingContext;
+Lbtools/router/StdModel;
+Lbtools/expressions/BExpressionContextNode;
+Lbtools/expressions/BExpressionMetaData;
+
+***** Found reference cycle *****
+ReflectionData<Character> -> (field declaredMethods with type Method)
+Method -> (field clazz with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<Character> subtype of (field parameterTypes with type Type))
+Class<Character> -> (field reflectionData with type SoftReference<ReflectionData<Character>>)
+SoftReference<ReflectionData<Character>> -> (superclass Reference<ReflectionData<Character>> has (field referent with type ReflectionData<Character>))
+----- Full Types -----
+Ljava/lang/Class$ReflectionData<Ljava/lang/Character;>;
+Ljava/lang/reflect/Method;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<Ljava/lang/Character;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Character;>;>;
+
+***** Found reference cycle *****
+IOException -> (superclass Exception has (superclass Throwable has (field stackTrace with type StackTraceElement)))
+StackTraceElement -> (field declaringClassObject with type Class<?>)
+Class<?> -> (field reflectionData with type SoftReference<ReflectionData<?>>)
+SoftReference<ReflectionData<?>> -> (superclass Reference<ReflectionData<?>> has (field queue with type ReferenceQueue<? super ReflectionData<?>>))
+ReferenceQueue<? super ReflectionData<?>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (FileOutputStream subtype of (field out with type OutputStream))
+FileOutputStream -> (field fd with type FileDescriptor)
+FileDescriptor -> (Formatter subtype of (field parent with type Closeable))
+Formatter -> (field lastException with type IOException)
+----- Full Types -----
+Ljava/io/IOException;
+Ljava/lang/StackTraceElement;
+Ljava/lang/Class<*>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<*>;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<*>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/io/FileOutputStream;
+Ljava/io/FileDescriptor;
+Ljava/util/Formatter;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ? extends ? super Object> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field classValueMap with type ClassValueMap)
+ClassValueMap -> (superclass WeakHashMap<Identity, Entry<?>> has (field table with type Entry<Identity, Entry<?>>))
+Entry<Identity, Entry<?>> -> (superclass Reference<Object> has (field queue with type ReferenceQueue<? super Object>))
+ReferenceQueue<? super Object> -> (field head with type Reference<? extends ? super Object>)
+Reference<? extends ? super Object> -> (field queue with type ReferenceQueue<? super ? extends ? super Object>)
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-+-Ljava/lang/Object;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ClassValue$ClassValueMap;
+Ljava/util/WeakHashMap$Entry<Ljava/lang/ClassValue$Identity;Ljava/lang/ClassValue$Entry<*>;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Object;>;
+Ljava/lang/ref/Reference<+-Ljava/lang/Object;>;
+
+***** Found reference cycle *****
+BExpressionContextWay -> (superclass BExpressionContext has (field meta with type BExpressionMetaData))
+BExpressionMetaData -> (HashMap<String, BExpressionContext> subtype of (field listeners with type Map<String, BExpressionContext>))
+HashMap<String, BExpressionContext> -> (field table with type Node<String, BExpressionContext>)
+Node<String, BExpressionContext> -> (BExpressionContextWay subtype of (field value with type BExpressionContext))
+----- Full Types -----
+Lbtools/expressions/BExpressionContextWay;
+Lbtools/expressions/BExpressionMetaData;
+Ljava/util/HashMap<Ljava/lang/String;Lbtools/expressions/BExpressionContext;>;
+Ljava/util/HashMap$Node<Ljava/lang/String;Lbtools/expressions/BExpressionContext;>;
+
+***** Found reference cycle *****
+Module -> (field moduleInfoClass with type Class<?>)
+Class<?> -> (field module with type Module)
+----- Full Types -----
+Ljava/lang/Module;
+Ljava/lang/Class<*>;
+
+***** Found reference cycle *****
+NamedPackage -> (field module with type Module)
+Module -> (field descriptor with type ModuleDescriptor)
+ModuleDescriptor -> (KeySetView<String, NamedPackage> subtype of (field uses with type Set<String>))
+KeySetView<String, NamedPackage> -> (field value with type NamedPackage)
+----- Full Types -----
+Ljava/lang/NamedPackage;
+Ljava/lang/Module;
+Ljava/lang/module/ModuleDescriptor;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+
+***** Found reference cycle *****
+Executable -> (field parameterData with type ParameterData)
+ParameterData -> (field parameters with type Parameter)
+Parameter -> (field executable with type Executable)
+----- Full Types -----
+Ljava/lang/reflect/Executable;
+Ljava/lang/reflect/Executable$ParameterData;
+Ljava/lang/reflect/Parameter;
+
+***** Found reference cycle *****
+ReflectionData<Boolean> -> (field declaredFields with type Field)
+Field -> (field clazz with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (MethodRepository subtype of (field genericInfo with type ConstructorRepository))
+MethodRepository -> (Class<Boolean> subtype of (field returnType with type Type))
+Class<Boolean> -> (field reflectionData with type SoftReference<ReflectionData<Boolean>>)
+SoftReference<ReflectionData<Boolean>> -> (superclass Reference<ReflectionData<Boolean>> has (field referent with type ReflectionData<Boolean>))
+----- Full Types -----
+Ljava/lang/Class$ReflectionData<Ljava/lang/Boolean;>;
+Ljava/lang/reflect/Field;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/MethodRepository;
+Ljava/lang/Class<Ljava/lang/Boolean;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Boolean;>;>;
+
+***** Found reference cycle *****
+PrintStream -> (field lock with type InternalLock)
+InternalLock -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (PrintWriter subtype of (field infoLogWriter with type Writer))
+PrintWriter -> (field psOut with type PrintStream)
+----- Full Types -----
+Ljava/io/PrintStream;
+Ljdk/internal/misc/InternalLock;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Ljava/io/PrintWriter;
+
+***** Found reference cycle *****
+ReflectionData<? extends Annotation> -> (field declaredConstructors with type Constructor<? extends Annotation>)
+Constructor<? extends Annotation> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<? extends Annotation> subtype of (field parameterTypes with type Type))
+Class<? extends Annotation> -> (field reflectionData with type SoftReference<ReflectionData<? extends Annotation>>)
+SoftReference<ReflectionData<? extends Annotation>> -> (superclass Reference<ReflectionData<? extends Annotation>> has (field referent with type ReflectionData<? extends Annotation>))
+----- Full Types -----
+Ljava/lang/Class$ReflectionData<+Ljava/lang/annotation/Annotation;>;
+Ljava/lang/reflect/Constructor<+Ljava/lang/annotation/Annotation;>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<+Ljava/lang/annotation/Annotation;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<+Ljava/lang/annotation/Annotation;>;>;
+
+***** Found reference cycle *****
+AbstractMap<String, PhysicalFile> -> (KeySetView<String, NamedPackage> subtype of (field keySet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field reflectionData with type SoftReference<ReflectionData<?>>)
+SoftReference<ReflectionData<?>> -> (superclass Reference<ReflectionData<?>> has (field queue with type ReferenceQueue<? super ReflectionData<?>>))
+ReferenceQueue<? super ReflectionData<?>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (field nodesCache with type NodesCache)
+NodesCache -> (AbstractMap<String, PhysicalFile> subtype of (field fileCache with type Map<String, PhysicalFile>))
+----- Full Types -----
+Ljava/util/AbstractMap<Ljava/lang/String;Lbtools/mapaccess/PhysicalFile;>;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<*>;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<*>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lbtools/mapaccess/NodesCache;
+
+***** Found reference cycle *****
+Constructor<Integer> -> (MethodRepository subtype of (field genericInfo with type ConstructorRepository))
+MethodRepository -> (Class<Integer> subtype of (field returnType with type Type))
+Class<Integer> -> (field cachedConstructor with type Constructor<Integer>)
+----- Full Types -----
+Ljava/lang/reflect/Constructor<Ljava/lang/Integer;>;
+Lsun/reflect/generics/repository/MethodRepository;
+Ljava/lang/Class<Ljava/lang/Integer;>;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ReflectionData<<captured wildcard>>> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<<captured wildcard>> subtype of (field parameterTypes with type Type))
+Class<<captured wildcard>> -> (field reflectionData with type SoftReference<ReflectionData<<captured wildcard>>>)
+SoftReference<ReflectionData<<captured wildcard>>> -> (superclass Reference<ReflectionData<<captured wildcard>>> has (field queue with type ReferenceQueue<? super ReflectionData<<captured wildcard>>>))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<!CAP1!>;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<!CAP1!>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<!CAP1!>;>;
+
+***** Found reference cycle *****
+StackableScope -> (StackSampler subtype of (field owner with type Thread))
+StackSampler -> (superclass Thread has (field headStackableScopes with type StackableScope))
+----- Full Types -----
+Ljdk/internal/vm/StackableScope;
+Lbtools/util/StackSampler;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ReflectionData<? extends Annotation>> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<? extends Annotation> subtype of (field parameterTypes with type Type))
+Class<? extends Annotation> -> (field reflectionData with type SoftReference<ReflectionData<? extends Annotation>>)
+SoftReference<ReflectionData<? extends Annotation>> -> (superclass Reference<ReflectionData<? extends Annotation>> has (field queue with type ReferenceQueue<? super ReflectionData<? extends Annotation>>))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<+Ljava/lang/annotation/Annotation;>;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<+Ljava/lang/annotation/Annotation;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<+Ljava/lang/annotation/Annotation;>;>;
+
+***** Found reference cycle *****
+Entry<?> -> (superclass WeakReference<Version<?>> has (superclass Reference<Version<?>> has (field referent with type Version<?>)))
+Version<?> -> (field promise with type Entry<?>)
+----- Full Types -----
+Ljava/lang/ClassValue$Entry<*>;
+Ljava/lang/ClassValue$Version<*>;
+
+***** Found reference cycle *****
+Reference<? extends ? super CharsetDecoder> -> (field queue with type ReferenceQueue<? super ? extends ? super CharsetDecoder>)
+ReferenceQueue<? super ? extends ? super CharsetDecoder> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field cachedDecoder with type WeakReference<CharsetDecoder>)
+WeakReference<CharsetDecoder> -> (superclass Reference<CharsetDecoder> has (field queue with type ReferenceQueue<? super CharsetDecoder>))
+ReferenceQueue<? super CharsetDecoder> -> (field head with type Reference<? extends ? super CharsetDecoder>)
+----- Full Types -----
+Ljava/lang/ref/Reference<+-Ljava/nio/charset/CharsetDecoder;>;
+Ljava/lang/ref/ReferenceQueue<-+-Ljava/nio/charset/CharsetDecoder;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/lang/ref/WeakReference<Ljava/nio/charset/CharsetDecoder;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/nio/charset/CharsetDecoder;>;
+
+***** Found reference cycle *****
+OutputStreamWriter -> (field se with type StreamEncoder)
+StreamEncoder -> (FileOutputStream subtype of (field out with type OutputStream))
+FileOutputStream -> (field channel with type FileChannel)
+FileChannel -> (superclass AbstractInterruptibleChannel has (RoutingEngine subtype of (field interrupted with type Thread)))
+RoutingEngine -> (OutputStreamWriter subtype of (field infoLogWriter with type Writer))
+----- Full Types -----
+Ljava/io/OutputStreamWriter;
+Lsun/nio/cs/StreamEncoder;
+Ljava/io/FileOutputStream;
+Ljava/nio/channels/FileChannel;
+Lbtools/router/RoutingEngine;
+
+***** Found reference cycle *****
+Constructor<Character> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<Character> subtype of (field parameterTypes with type Type))
+Class<Character> -> (field cachedConstructor with type Constructor<Character>)
+----- Full Types -----
+Ljava/lang/reflect/Constructor<Ljava/lang/Character;>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<Ljava/lang/Character;>;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ReflectionData<<captured wildcard>>> -> (field lock with type ReentrantLock)
+ReentrantLock -> (field sync with type Sync)
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<<captured wildcard>> subtype of (field parameterTypes with type Type))
+Class<<captured wildcard>> -> (field reflectionData with type SoftReference<ReflectionData<<captured wildcard>>>)
+SoftReference<ReflectionData<<captured wildcard>>> -> (superclass Reference<ReflectionData<<captured wildcard>>> has (field queue with type ReferenceQueue<? super ReflectionData<<captured wildcard>>>))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<!CAP2!>;>;
+Ljava/util/concurrent/locks/ReentrantLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<!CAP2!>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<!CAP2!>;>;
+
+***** Found reference cycle *****
+HashMap<String, Integer> -> (superclass AbstractMap<String, Integer> has (KeySetView<String, NamedPackage> subtype of (field keySet with type Set<String>)))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<Integer> subtype of (field parameterTypes with type Type))
+Class<Integer> -> (HashMap<String, Integer> subtype of (field enumConstantDirectory with type Map<String, Integer>))
+----- Full Types -----
+Ljava/util/HashMap<Ljava/lang/String;Ljava/lang/Integer;>;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<Ljava/lang/Integer;>;
+
+***** Found reference cycle *****
+KinematicModel -> (field ctxNode with type BExpressionContextNode)
+BExpressionContextNode -> (superclass BExpressionContext has (HashMap<String, Integer> subtype of (field lookupNumbers with type Map<String, Integer>)))
+HashMap<String, Integer> -> (superclass AbstractMap<String, Integer> has (KeySetView<String, NamedPackage> subtype of (field keySet with type Set<String>)))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field reflectionData with type SoftReference<ReflectionData<?>>)
+SoftReference<ReflectionData<?>> -> (superclass Reference<ReflectionData<?>> has (field queue with type ReferenceQueue<? super ReflectionData<?>>))
+ReferenceQueue<? super ReflectionData<?>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (field routingContext with type RoutingContext)
+RoutingContext -> (KinematicModel subtype of (field pm with type OsmPathModel))
+----- Full Types -----
+Lbtools/router/KinematicModel;
+Lbtools/expressions/BExpressionContextNode;
+Ljava/util/HashMap<Ljava/lang/String;Ljava/lang/Integer;>;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<*>;>;
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<*>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lbtools/router/RoutingContext;
+
+***** Found reference cycle *****
+ThreadContainer -> (superclass StackableScope has (RoutingEngine subtype of (field owner with type Thread)))
+RoutingEngine -> (superclass Thread has (field container with type ThreadContainer))
+----- Full Types -----
+Ljdk/internal/vm/ThreadContainer;
+Lbtools/router/RoutingEngine;
+
+***** Found reference cycle *****
+Constructor<Boolean> -> (MethodRepository subtype of (field genericInfo with type ConstructorRepository))
+MethodRepository -> (Class<Boolean> subtype of (field returnType with type Type))
+Class<Boolean> -> (field cachedConstructor with type Constructor<Boolean>)
+----- Full Types -----
+Ljava/lang/reflect/Constructor<Ljava/lang/Boolean;>;
+Lsun/reflect/generics/repository/MethodRepository;
+Ljava/lang/Class<Ljava/lang/Boolean;>;
+
+***** Found reference cycle *****
+ReferenceQueue<? super ReflectionData<Long>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field cachedConstructor with type Constructor<?>)
+Constructor<?> -> (field genericInfo with type ConstructorRepository)
+ConstructorRepository -> (Class<Long> subtype of (field parameterTypes with type Type))
+Class<Long> -> (field reflectionData with type SoftReference<ReflectionData<Long>>)
+SoftReference<ReflectionData<Long>> -> (superclass Reference<ReflectionData<Long>> has (field queue with type ReferenceQueue<? super ReflectionData<Long>>))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/Class$ReflectionData<Ljava/lang/Long;>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/reflect/Constructor<*>;
+Lsun/reflect/generics/repository/ConstructorRepository;
+Ljava/lang/Class<Ljava/lang/Long;>;
+Ljava/lang/ref/SoftReference<Ljava/lang/Class$ReflectionData<Ljava/lang/Long;>;>;
+
+***** Found reference cycle *****
+ReferenceQueue<? super Version<?>> -> (CountedLock subtype of (field lock with type ReentrantLock))
+CountedLock -> (superclass ReentrantLock has (field sync with type Sync))
+Sync -> (superclass AbstractQueuedSynchronizer has (superclass AbstractOwnableSynchronizer has (RoutingEngine subtype of (field exclusiveOwnerThread with type Thread))))
+RoutingEngine -> (StreamEncoder subtype of (field infoLogWriter with type Writer))
+StreamEncoder -> (field encoder with type CharsetEncoder)
+CharsetEncoder -> (field charset with type Charset)
+Charset -> (KeySetView<String, NamedPackage> subtype of (field aliasSet with type Set<String>))
+KeySetView<String, NamedPackage> -> (Package subtype of (field value with type NamedPackage))
+Package -> (field packageInfo with type Class<?>)
+Class<?> -> (field classValueMap with type ClassValueMap)
+ClassValueMap -> (field cacheArray with type Entry<?>)
+Entry<?> -> (superclass WeakReference<Version<?>> has (superclass Reference<Version<?>> has (field queue with type ReferenceQueue<? super Version<?>>)))
+----- Full Types -----
+Ljava/lang/ref/ReferenceQueue<-Ljava/lang/ClassValue$Version<*>;>;
+Ljdk/internal/loader/NativeLibraries$CountedLock;
+Ljava/util/concurrent/locks/ReentrantLock$Sync;
+Lbtools/router/RoutingEngine;
+Lsun/nio/cs/StreamEncoder;
+Ljava/nio/charset/CharsetEncoder;
+Ljava/nio/charset/Charset;
+Ljava/util/concurrent/ConcurrentHashMap$KeySetView<Ljava/lang/String;Ljava/lang/NamedPackage;>;
+Ljava/lang/Package;
+Ljava/lang/Class<*>;
+Ljava/lang/ClassValue$ClassValueMap;
+Ljava/lang/ClassValue$Entry<*>;
+
+59 CYCLES FOUND.

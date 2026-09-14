@@ -1,0 +1,4 @@
+{"availableMB":0,"engine":"mobivm","event":"start","footprintMB":14.6,"memoryclass":128,"mode":"routes"}
+{"availableMB":0,"bytes":450121,"event":"route","footprintAfterMB":90.599999999999994,"footprintBeforeMB":14.9,"ledgerPeakMB":106.59999999999999,"ms":10866.9,"peakDuringMB":106.59999999999999,"route":"r2-munich-innsbruck","run":0}
+{"availableMB":0,"bytes":450121,"event":"route","footprintAfterMB":86.099999999999994,"footprintBeforeMB":90.099999999999994,"ledgerPeakMB":107.40000000000001,"ms":12467.4,"peakDuringMB":107.40000000000001,"route":"r2-munich-innsbruck","run":1}
+{"event":"done","footprintMB":85.599999999999994,"ledgerPeakMB":107.40000000000001}

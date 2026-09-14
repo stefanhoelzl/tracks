@@ -1,0 +1,4 @@
+{"availableMB":0,"engine":"j2objc","event":"start","footprintMB":17.800000000000001,"memoryclass":128,"mode":"routes"}
+{"availableMB":0,"bytes":77785,"event":"route","footprintAfterMB":128.40000000000001,"footprintBeforeMB":17.800000000000001,"ledgerPeakMB":887.10000000000002,"ms":6793.8000000000002,"peakDuringMB":887.10000000000002,"route":"r1-munich-starnberg","run":0}
+{"availableMB":0,"bytes":77785,"event":"route","footprintAfterMB":131.69999999999999,"footprintBeforeMB":128.5,"ledgerPeakMB":887.10000000000002,"ms":7933.5,"peakDuringMB":144.80000000000001,"route":"r1-munich-starnberg","run":1}
+{"event":"done","footprintMB":131.69999999999999,"ledgerPeakMB":887.10000000000002}

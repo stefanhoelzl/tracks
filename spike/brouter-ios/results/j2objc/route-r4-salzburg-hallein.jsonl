@@ -1,0 +1,4 @@
+{"availableMB":0,"engine":"j2objc","event":"start","footprintMB":18.199999999999999,"memoryclass":128,"mode":"routes"}
+{"availableMB":0,"bytes":29596,"event":"route","footprintAfterMB":53.799999999999997,"footprintBeforeMB":18.300000000000001,"ledgerPeakMB":124,"ms":1122.4000000000001,"peakDuringMB":124,"route":"r4-salzburg-hallein","run":0}
+{"availableMB":0,"bytes":29596,"event":"route","footprintAfterMB":65.700000000000003,"footprintBeforeMB":53.799999999999997,"ledgerPeakMB":124,"ms":839.79999999999995,"peakDuringMB":66.900000000000006,"route":"r4-salzburg-hallein","run":1}
+{"event":"done","footprintMB":65.700000000000003,"ledgerPeakMB":124}

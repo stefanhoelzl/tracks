@@ -7,30 +7,47 @@ runtime and GC). There were no pass/fail limits; the numbers below are what the 
 
 _Measured 2026-09-14._
 
+## Read
+
+**MobiVM looks viable; J2ObjC, as it stands, does not.** Both reproduce brouter.de exactly — every point,
+elevation and `filtered ascend` on all six routes — so parity does not decide it. MobiVM runs the core
+within 1.1–1.4× of HotSpot on the same machine (r1 2.0 s, r2 10.9 s), peaks at 65–118 MB, holds its
+footprint over repeated routes without any change to BRouter, adds 7.6 MB to the app, and builds from
+two Maven Central downloads and one command. J2ObjC is 2–4× slower than MobiVM, peaks at 3.2 GB on the
+176 km route (5.9 GB on 306 km) — past the ~2 GB jetsam limit of a 4 GB iPhone and every other current
+model — and leaks each route's road graph; a 64-line dispose patch reduced but did not stop the leak and
+made the peak worse, and draining autorelease pools per search step crashed. Making J2ObjC usable means
+re-engineering BRouter's memory model for reference counting and carrying that fork against upstream.
+What MobiVM still has to prove is on a device, not in the simulator: timing and memory on a 4 GB iPhone,
+GC pauses, and a signed arm64 build — and it rests on essentially one maintainer. Cartograph's Watch
+routing suggests they translated rather than embedded a VM; asking them remains worthwhile.
+
 ## Comparison
 
 Simulator numbers on a GitHub `macos-26` runner (Apple M1 virtual, 3 cores, 7 GB) — one app launch per
 route, cold pass. "JVM (M1)" is the same `SpikeRunner` on HotSpot 17 on that runner, for scale.
 
-| | JVM (M1) | MobiVM 2.3.26 | J2ObjC 3.1 (as translated) | J2ObjC + leak patches |
+| | JVM (M1) | MobiVM 2.3.26 | J2ObjC 3.1 (as translated) | J2ObjC + graph dispose (0002) |
 |---|---:|---:|---:|---:|
-| **Parity**, 6 routes | reference | identical ¹ | identical ¹ | <!-- E:parity --> |
-| **r1 27 km**, cold / warm | 1.8 s / 0.8 s ² | 2.0 s / 1.8 s | 4.6 s / 4.0 s | <!-- E:r1 --> |
-| **r2 176 km**, cold / warm | 9.3 s | 10.9 s / 12.5 s | 42.2 s / 38.6 s | <!-- E:r2 --> |
+| **Parity**, 6 routes | reference | identical ¹ | identical ¹ | r1, r2 identical ¹ |
+| **r1 27 km**, cold / warm | 1.8 s / 0.8 s ² | 2.0 s / 1.8 s | 4.6 s / 4.0 s | 6.8 s / 7.9 s |
+| **r2 176 km**, cold / warm | 9.3 s | 10.9 s / 12.5 s | 42.2 s / 38.6 s | 48.3 s / 45.5 s |
 | r6 306 km, cold | 16.0 s | 22.1 s | 80.8 s | — |
-| **Peak footprint** r1 / r2 | — | 65 / 107 MB | 427 MB / **3.2 GB** | <!-- E:peak --> |
+| **Peak footprint** r1 / r2 | — | 65 / 107 MB | 427 MB / **3.2 GB** | 887 MB / **4.0 GB** |
 | Peak footprint r6 | — | 118 MB | **5.9 GB** | — |
 | Footprint, runtime up, no route | — | 12 MB | 16 MB | — |
-| **20× r1**: settled after run 1 → 20 | heap 5 → 5 MB | 64 → 109 MB (flat from run 8) | 145 → 669 MB (+27.6 MB every run) | <!-- E:rep1 --> |
-| **20× r2**: settled after run 1 → 20 | — | 76 → 105 MB (76–127, no trend) | 966 MB → 3.7 GB (+144 MB every run) | <!-- E:rep2 --> |
-| **App size increase** over an empty app | — | +7.6 MB (framework) | +42.9 MB (`-ObjC` full JRE) <!-- E:lean --> | same |
-| Source changes | — | 1 patch (no reflection) | 1 patch | + 2 patches |
+| **20× r1**: settled after run 1 → 20 | heap 5 → 5 MB | 64 → 109 MB (flat from run 8) | 145 → 669 MB (+27.6 MB every run) | 128 → 196 MB (+3.6 MB every run) |
+| **20× r2**: settled after run 1 → 20 | — | 76 → 105 MB (76–127, no trend) | 966 MB → 3.7 GB (+144 MB every run) | 921 MB → 2.9 GB (+105 MB every run) |
+| **App size increase** over an empty app | — | +7.6 MB (framework) | +42.9 MB (`-ObjC`, whole JRE); +10.5 MB lean ³ | same |
+| Source changes | — | 1 patch (no reflection) | 1 patch | + 1 patch, 64 lines |
 | Toolchain | — | 2 downloads, 1 `java` command | source build of J2ObjC, 2 workarounds | |
 
 ¹ Byte-identical GeoJSON except `"creator"` (`BRouter-0.0` / `BRouter-null`: the version string comes
 from jar metadata). Checked by `scripts/compare.py` for geometry, elevation and all numeric properties,
 and line by line.
 ² JVM warm = the 20-repeat median (JIT warmed up).
+³ `-ljre_core -ljre_util -ljre_io -ljre_file -ljre_net -ljre_security -dead_strip`, no `-ObjC`; routes r4
+identically. Not used for the timed runs.
 
 Footprint is `phys_footprint`, sampled every 2 ms, as iOS jetsam counts it. The simulator enforces no
 limit; a 4 GB iPhone 12 kills an app at about 2 GB, a 6 GB device at about 3 GB.
@@ -79,7 +96,38 @@ mostly via `Thread` and JRE internals). It resolved JRE types against the host J
 `-Xbootclasspath`, so some of those paths run through JDK-only classes and overstate the count; the ones
 that matter are the graph cycles above, and the measurement confirms them.
 
-<!-- EXPERIMENTS -->
+### What it took to stop leaks
+
+**MobiVM: nothing.** No annotations, no cache clearing, no source change beyond the reflection patch.
+
+**J2ObjC: not stopped within the time box.** Two attempts, both kept as patches under
+`patches/j2objc/` and applied only to a private copy of the tree (`J2OBJC_PATCHES=…
+scripts/j2objc-build.sh`):
+
+1. **Take the graph apart when a search drops it** (`0002-dispose-node-graph.patch`, 64 lines in
+   `OsmLink`, `OsmNodesMap`, `RoutingEngine`). `OsmNodesMap.dispose()` collects every node and link
+   reachable from every node the map was ever given, then nulls all their references; `RoutingEngine`
+   calls it wherever it drops or replaces a `NodesCache`. On the JVM all six routes stay byte-identical.
+   In the simulator it cut r1's leak from 27.6 to 3.6 MB per run, but r2's only from 144 to ~105 MB per
+   run (a first version that walked from the map alone reached 112). It costs time — r1 4.6 → 6.8 s cold
+   — and raises the peak (r2 3.2 → 4.0 GB), because remembering every node keeps what the search
+   discarded alive until the route ends. What still leaks on long routes was not found; the next step
+   would be Instruments' Leaks and Allocations, not more reading of `cycle_finder` output.
+2. **Drain autoreleased objects every A\* step** (`0003-autorelease-pool-per-search-step.patch`,
+   `@AutoreleasePool` on the search loop). It crashes: the routing thread dies with
+   `-[BtoolsMapaccessNodesCache getLinkWithLong:withLong:]: unrecognized selector` — objects created
+   in one step and kept in the open set or in fields are released when the step's pool drains, and
+   their memory is reused. Making it safe means auditing every allocation in a ~300-line loop body.
+   Not pursued.
+
+`@Weak` annotations were not tried: nodes and links own each other in both directions and each link
+sits in two linked lists, so there is no natural weak edge; choosing one is a redesign of BRouter's
+graph for reference counting, which would then have to be carried on top of every upstream release.
+
+The peak is the larger problem either way. r2's 3.2 GB peak against 966 MB settled is transient garbage
+that a tracing GC collects during the search and reference counting only frees when the routing
+thread's pool drains at the end of the route.
+
 
 ## Open risks
 
@@ -193,7 +241,29 @@ One Java entry point, one C entry point, one Swift app:
   launches with `simctl launch --console-pty` and collects the output.
 
 Each route is measured in its own app launch (cold, then warm in the same process), so one route's
-caches never flatter the next.
+caches never flatter the next. `run-sim.sh` uninstalls before installing: all candidates share one
+bundle id, and a reinstall keeps `Documents`, which once let a crashed run's parity check read an
+earlier run's GeoJSON. The first leak-experiment round was discarded for that reason; the baseline
+passes were unaffected (every route in them produced and overwrote its file).
+
+## Reproduce
+
+```sh
+# Linux: JVM baseline against brouter.de (needs a JDK 17 and the rd5 in segments/)
+javac --release 11 -d cls -cp brouter-1.7.10-all.jar java/src/spike/SpikeRunner.java java/jvm/spike/JvmMain.java
+java -cp cls:brouter-1.7.10-all.jar spike.JvmMain segments brouter/misc/profiles2 routes.tsv out 20
+scripts/compare.py fixtures/brouter.de out
+
+# macOS runner (ssh-runner), from spike/brouter-ios; rd5 in ~/spike-cache/segments, J2ObjC dist built
+scripts/mobivm-build.sh && scripts/measure.sh mobivm
+scripts/j2objc-build.sh && scripts/measure.sh j2objc
+J2OBJC_PATCHES=0002-dispose-node-graph.patch scripts/j2objc-build.sh && SPIKE_RESULTS=j2objc-dispose scripts/measure.sh j2objc quick
+scripts/build-app.sh stub
+scripts/summarize.py build
+```
+
+`results/` keeps the raw `SPIKE` lines of every run behind the tables (`*.jsonl`), bundle sizes, the JVM
+run on the M1 (`jvm-m1.txt`) and `cycle_finder`'s output with `scripts/cycles.py`'s summary.
 
 ## Build recipes
 
@@ -217,7 +287,9 @@ between sessions). `scripts/fetch-brouter.sh` checks out v1.7.10 and applies `pa
    `libtool -static` → `libbrouter.a` (2.5 MB).
 3. **Link**: `scripts/build-app.sh j2objc` — `libbrouter.a` + `-ljre_emul -ObjC -liconv -lz
    -framework Security` (J2ObjC's documented default), or `J2OBJC_LINK=lean` for
-   `-ljre_core -ljre_util -ljre_security -dead_strip` without `-ObjC`.
+   `-ljre_core -ljre_util -ljre_io -ljre_file -ljre_net -ljre_security -dead_strip` without `-ObjC`
+   (+10.5 MB instead of +42.9 MB; the first attempt without `jre_io`/`jre_file`/`jre_net` failed to link
+   on `RandomAccessFile`, `FileWriter` and `URLDecoder`).
 
 Source changes: `patches/0001-path-model-without-reflection.patch` only — `RoutingContext.setModel`
 names BRouter's three path models instead of `Class.forName`, since the linker strips classes nothing

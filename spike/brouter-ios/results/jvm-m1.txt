@@ -1,0 +1,26 @@
+r1-munich-starnberg 1770 ms
+r2-munich-innsbruck 9259 ms
+r3-garmisch-innsbruck 863 ms
+r4-salzburg-hallein 205 ms
+r5-rosenheim-prien-traunstein 444 ms
+r6-munich-bolzano 15993 ms
+repeat 0 826 ms heapUsedMB=5
+repeat 1 832 ms heapUsedMB=5
+repeat 2 913 ms heapUsedMB=5
+repeat 3 777 ms heapUsedMB=5
+repeat 4 822 ms heapUsedMB=5
+repeat 5 821 ms heapUsedMB=5
+repeat 6 803 ms heapUsedMB=5
+repeat 7 919 ms heapUsedMB=5
+repeat 8 1092 ms heapUsedMB=5
+repeat 9 1047 ms heapUsedMB=5
+repeat 10 1068 ms heapUsedMB=5
+repeat 11 787 ms heapUsedMB=5
+repeat 12 806 ms heapUsedMB=5
+repeat 13 797 ms heapUsedMB=5
+repeat 14 834 ms heapUsedMB=5
+repeat 15 779 ms heapUsedMB=5
+repeat 16 776 ms heapUsedMB=5
+repeat 17 850 ms heapUsedMB=5
+repeat 18 779 ms heapUsedMB=5
+repeat 19 796 ms heapUsedMB=5

@@ -1,0 +1,4 @@
+{"availableMB":0,"engine":"mobivm","event":"start","footprintMB":14.1,"memoryclass":128,"mode":"routes"}
+{"availableMB":0,"bytes":29595,"event":"route","footprintAfterMB":38,"footprintBeforeMB":14.699999999999999,"ledgerPeakMB":38,"ms":444,"peakDuringMB":37.899999999999999,"route":"r4-salzburg-hallein","run":0}
+{"availableMB":0,"bytes":29595,"event":"route","footprintAfterMB":37,"footprintBeforeMB":37.399999999999999,"ledgerPeakMB":38,"ms":290.60000000000002,"peakDuringMB":38,"route":"r4-salzburg-hallein","run":1}
+{"event":"done","footprintMB":37,"ledgerPeakMB":38}
