@@ -2,7 +2,7 @@
 # Run `ssh-runner init --update` after changing the config, then commit and push:
 # the workflow that runs is the one on GitHub, not the one in your working tree.
 # ssh-runner-template: 7
-# ssh-runner-config: 371580330c113249
+# ssh-runner-config: d0f951d786bb6cd0
 name: ssh-runner macos
 run-name: ssh-runner macos ${{ inputs.session_id }}
 
@@ -48,15 +48,20 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
+          # No pnpm cache: nothing on main installs with pnpm on macOS, so there is none to reuse.
+          package-manager-cache: false
       - run: pnpm install --frozen-lockfile
-      # The iOS app: Gradle builds the Kotlin framework inside the Xcode build, Kotlin/Native's toolchain is the
-      # same cache CI's jobs use, and XcodeGen regenerates app/iosApp/iosApp.xcodeproj from project.yml.
+      # The iOS app: Gradle builds the Kotlin framework inside the Xcode build, and XcodeGen regenerates
+      # app/iosApp/iosApp.xcodeproj from project.yml.
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
-      - uses: actions/cache@v6
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: true
+      # Kotlin/Native's toolchain, from the cache CI's ios job keeps under the same key.
+      - uses: actions/cache/restore@v6
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
