@@ -11,12 +11,20 @@ kotlin {
     // linuxX64 is native code that CI can run without a Mac.
     jvm()
     linuxX64()
-    iosSimulatorArm64()
-    iosArm64()
+
+    // The iOS app links this module as one static framework. BRouter is a dependency, not an export, so
+    // the Swift side sees `OnDeviceRouter` and the codecs rather than every converted class.
+    listOf(iosSimulatorArm64(), iosArm64()).forEach {
+        it.binaries.framework {
+            baseName = "Shared"
+            isStatic = true
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.serialization.json)
+            implementation(project(":brouter"))
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

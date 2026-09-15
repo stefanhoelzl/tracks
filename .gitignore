@@ -24,3 +24,9 @@ app/**/.kotlin/
 app/**/build/
 app/**/.intellijPlatform/
 app/local.properties
+app/iosApp/**/xcuserdata/
+
+# The device flow's (ios-device skill): the runner's archive, and the app and IPA pulled back.
+/artifacts/
+/build/ios-device/
+ios-device-out/

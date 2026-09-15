@@ -1,0 +1,5 @@
+runner-profile: macos
+build: xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release -destination generic/platform=iOS -archivePath artifacts/Tracks.xcarchive CODE_SIGNING_ALLOWED=NO archive
+archive: artifacts/Tracks.xcarchive
+project: app/iosApp/iosApp.xcodeproj
+configuration: Release

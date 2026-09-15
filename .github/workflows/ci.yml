@@ -78,6 +78,26 @@ jobs:
 
       - run: ./gradlew :shared:jvmTest :shared:linuxX64Test :brouter:jvmTest :brouter:linuxX64ReleaseTest
 
+  # The iOS shell builds: Xcode, with the Kotlin framework built inside it, for the simulator
+  # and unsigned. Nothing is run here — the engine is tested on Linux above, and measured on a
+  # real phone by hand (app/brouter/README.md). macOS minutes are free on a public repository.
+  ios:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
+      - run: >-
+          xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug
+          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+
   deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

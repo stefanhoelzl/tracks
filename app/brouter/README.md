@@ -89,6 +89,37 @@ server's files.
 `ParityTest` compares line by line, ignoring the `creator` line. It runs on the JVM and on native Linux (the
 release binary: an unoptimised one takes minutes over the long routes); `TRACKS_BROUTER_ROUTES=id,id` narrows it.
 
+## On a real phone
+
+Measured 2026-09-15 with `app/iosApp/measure.sh`: the iOS shell (Release, Kotlin/Native static framework,
+routing on a 2 MB thread) on an **iPhone SE (2nd gen)** — iPhone12,8, A13, **3 GB**, iOS 26.6.2 — over USB,
+screen on, on a desk. No 4 GB phone was at hand; the SE2 has less memory and a smaller body to shed heat, so it
+is the harder case. Simulator numbers are the spike's (GitHub `macos-26`, virtual M1, iPhone 17 Pro simulator).
+
+**All 17 parity routes routed on the phone are byte-identical to brouter.de** (`creator` aside).
+
+| route | SE2 cold / warm | SE2 peak footprint | simulator cold / warm | simulator peak |
+|---|---:|---:|---:|---:|
+| trekking-munich-starnberg, 27 km | 1.00 / 0.87 s | 44 MB | 1.6 / 0.9 s | 54 MB |
+| trekking-munich-innsbruck, 176 km | 8.61 / 8.52 s¹ | 67 MB | 9.4 / 9.2 s | 76 MB |
+| road-munich-bormio, 280 km | 11.61 / 11.90 s | 78 MB | — | — |
+| trekking-munich-bolzano, 306 km | 17.27 / 17.47 s | 92 MB | 16.9 s | 101 MB |
+| the other 13 | 0.14 – 3.79 s | ≤ 52 MB | — | — |
+
+¹ The warm run is from a second launch, on a phone still `serious` from the series below; its cold run there
+took 8.64 s, so a hot start costs this route little.
+
+- **Memory is not the risk.** Memory available to the app (`os_proc_available_memory`) never fell below
+  2,008 MB, against a peak of 108 MB in the worst series below.
+- **Heat is, and it is bounded.** Twenty 176 km routes back to back went from 8.24 to 10.90 s (+32 %), `fair` from
+  the 7th and `serious` from the 12th. Ten 306 km routes straight after, on a phone already `serious`, went from
+  19.6 to 24.9 s and held there: **+43 % over cold**. That is seven minutes of continuous routing; re-planning a
+  leg is one route and then idle. Plan the UI for the hot numbers: ~11 s for 176 km, ~25 s for 306 km.
+- **Peaks crept on the long series:** 87 → 108 MB over ten 306 km routes, where the memory left after a
+  collection moved between 46 and 99 MB without a trend. Harmless at this size; M16's pass over memory and GC
+  pauses on the phone should look at it again.
+- The app is 2.9 MB, engine and framework included.
+
 ## Known and accepted
 
 - `synchronized` is a no-op on Native. One thread routes and nothing reads the engine while it does.
