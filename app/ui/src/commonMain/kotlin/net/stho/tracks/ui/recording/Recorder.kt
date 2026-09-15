@@ -58,6 +58,8 @@ class Recorder(
     private val scope: CoroutineScope,
     /** The title of a ride with no plan: its date, as the platform writes one. */
     private val dateTitle: (epochMillis: Long) -> String = { Instant.fromEpochMilliseconds(it).toString().take(10) },
+    /** A ride was saved: the upload queue's cue to try now. */
+    private val onSaved: () -> Unit = {},
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
     @OptIn(ExperimentalUuidApi::class)
     private val newId: () -> String = { Uuid.random().toString() },
@@ -120,6 +122,7 @@ class Recorder(
         val stopped = state.value as? RecorderState.Stopped ?: error("nothing to save")
         rides.append(stopped.id, Entry.Saved(title.trim().ifEmpty { stopped.title }, sport))
         mutableState.value = next()
+        onSaved()
     }
 
     /** Deletes the stopped ride's journal. */

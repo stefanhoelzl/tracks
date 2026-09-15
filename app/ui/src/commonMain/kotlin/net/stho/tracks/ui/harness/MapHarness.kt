@@ -33,6 +33,8 @@ import net.stho.tracks.ui.resources.Res
 import net.stho.tracks.ui.sensors.RideReplay
 import net.stho.tracks.ui.sensors.Sensors
 import net.stho.tracks.ui.theme.Tokens
+import net.stho.tracks.ui.upload.UploadQueue
+import net.stho.tracks.ui.upload.UploadStatus
 
 /** The ride the harness replays when it is given none: the first 6 km out of Garmisch, with one stop. */
 suspend fun bundledRide(): RideReplay = RideReplay.gpx(Res.readBytes("files/rides/garmisch.gpx").decodeToString())
@@ -41,7 +43,7 @@ suspend fun bundledRide(): RideReplay = RideReplay.gpx(Res.readBytes("files/ride
  * M11's only screen: the map, fed by [sensors], with [plan] drawn on it.
  *
  * Not the riding screen (M14) — just enough around the map to exercise it: the heading-up and north-up toggle, follow
- * and overview, a readout of what the sensors and the last tap said, and — given a [recorder] — recording's controls.
+ * and overview, a readout of what the sensors and the last tap said, and — given a [recorder] and an [upload] queue — recording's controls and the queue's.
  */
 @Composable
 fun MapHarness(
@@ -49,6 +51,7 @@ fun MapHarness(
     plan: List<Coordinate>,
     modifier: Modifier = Modifier.fillMaxSize(),
     recorder: Recorder? = null,
+    upload: UploadQueue? = null,
     onIdle: () -> Unit = {},
 ) {
     val style by produceState<MapStyle?>(null) { value = MapStyle.colorful() }
@@ -79,6 +82,7 @@ fun MapHarness(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            upload?.let { UploadStatus(it) }
             recorder?.let { RecordingControls(it) }
             Pill {
                 val f = fix

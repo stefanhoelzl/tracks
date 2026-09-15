@@ -37,9 +37,17 @@ kotlin {
             // Imported only under net.stho.tracks.ui.map; nothing outside it names a MapLibre type.
             implementation(libs.maplibre.compose)
         }
+        // The HTTP engine the upload runs on: the JDK's client in the harness, NSURLSession on the phone.
+        jvmMain.dependencies {
+            implementation(libs.ktor.client.java)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }
