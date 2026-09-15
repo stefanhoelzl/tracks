@@ -1,26 +1,9 @@
 package net.stho.tracks.ui.plans
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.zIndex
-import kotlin.math.abs
-import kotlin.math.roundToInt
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,10 +17,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import kotlin.math.abs
 import net.stho.tracks.plan.Format
 import net.stho.tracks.plan.Leg
 import net.stho.tracks.plan.Plan
@@ -54,7 +50,7 @@ import net.stho.tracks.ui.theme.Type
  *
  * Each row carries the distance and the climb to it, measured from the row that is selected: *how far is the hut from
  * here*. With nothing selected they are measured from the start. A tap selects a row; its × removes it; a long press
- * picks a stop up to move it.
+ * picks a stop up to move it, and the stops it passes make room where it will land.
  */
 @Composable
 fun StopList(
@@ -69,38 +65,55 @@ fun StopList(
     carried: StopDrag? = null,
 ) {
     val readings = readingsFrom(legs, base)
-    var stop = -1
     var drag by remember(carried) { mutableStateOf(carried) }
-    // Where each stop's row sits in the list, by ordinal: what a carried row is dropped against.
-    val rows = remember { mutableStateMapOf<Int, Pair<Float, Float>>() }
+    // Where each stop's row starts in the list, by ordinal, as laid out: what a carried stop is dropped against.
+    val tops = remember { mutableStateMapOf<Int, Float>() }
+    var listHeight by remember { mutableFloatStateOf(0f) }
 
-    fun target(carry: StopDrag): Int {
-        val (top, height) = rows[carry.stop] ?: return carry.stop
-        val centre = top + height / 2 + carry.offsetPx
-        return rows.minByOrNull { (_, row) -> abs(row.first + row.second / 2 - centre) }?.key ?: carry.stop
+    /** A stop and the shaping points leading out of it, which move as one. */
+    fun blockHeight(ordinal: Int): Float {
+        val top = tops[ordinal] ?: return 0f
+        return (tops[ordinal + 1] ?: listHeight) - top
     }
 
-    var listHeight by remember { mutableFloatStateOf(0f) }
-    val density = LocalDensity.current
+    fun target(carry: StopDrag): Int {
+        val top = tops[carry.stop] ?: return carry.stop
+        val centre = top + blockHeight(carry.stop) / 2 + carry.offsetPx
+        return tops.keys.minByOrNull { abs((tops[it] ?: 0f) + blockHeight(it) / 2 - centre) } ?: carry.stop
+    }
 
-    Box(modifier) {
-    Column(Modifier.fillMaxWidth().onSizeChanged { listHeight = it.height.toFloat() }) {
+    /** How far a block moves while another is carried: out of the way of where the carried one will land. */
+    fun shift(ordinal: Int): Float {
+        val carry = drag ?: return 0f
+        if (ordinal == carry.stop) return carry.offsetPx
+        val to = target(carry)
+        val room = blockHeight(carry.stop)
+        return when {
+            to > carry.stop && ordinal in carry.stop + 1..to -> -room
+            to < carry.stop && ordinal in to until carry.stop -> room
+            else -> 0f
+        }
+    }
+
+    Column(modifier.onSizeChanged { listHeight = it.height.toFloat() }) {
+        var stop = -1
         plan.waypoints.forEachIndexed { index, waypoint ->
+            if (waypoint.kind == WaypointKind.Poi) stop += 1
+            val ordinal = stop
+            val lifted = drag?.stop == ordinal && ordinal >= 0
+            // The carried stop follows the finger; the others ease aside.
+            val moved = if (lifted) shift(ordinal) else animateFloatAsState(shift(ordinal), label = "stop $ordinal").value
+            val placement = Modifier
+                .zIndex(if (lifted) 1f else 0f)
+                .graphicsLayer { translationY = if (ordinal >= 0) moved else 0f }
+
             if (waypoint.kind == WaypointKind.Poi) {
-                stop += 1
-                val ordinal = stop
                 val reading = readings.getOrNull(ordinal)
-                val lifted = drag?.stop == ordinal
                 Row(
-                    Modifier
-                        .onGloballyPositioned { rows[ordinal] = it.positionInParent().y to it.size.height.toFloat() }
-                        .zIndex(if (lifted) 1f else 0f)
-                        .graphicsLayer {
-                            translationY = if (lifted) drag?.offsetPx ?: 0f else 0f
-                            shadowElevation = if (lifted) 8.dp.toPx() else 0f
-                        }
-                        // A long press picks a stop up — a plain drag scrolls the sheet — and it carries the
-                        // shaping points leading out of it, as on the web.
+                    placement
+                        .onGloballyPositioned { tops[ordinal] = it.positionInParent().y }
+                        .graphicsLayer { shadowElevation = if (lifted) 8.dp.toPx() else 0f }
+                        // A long press picks a stop up — a plain drag scrolls the sheet.
                         .pointerInput(ordinal, plan) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = { drag = StopDrag(ordinal, 0f) },
@@ -119,7 +132,14 @@ fun StopList(
                             )
                         }
                         .fillMaxWidth()
-                        .background(if (ordinal == base) Tokens.accentSoft else Tokens.surface, Shapes.control)
+                        .background(
+                            when {
+                                lifted -> Tokens.surface
+                                ordinal == base -> Tokens.accentSoft
+                                else -> Tokens.surface
+                            },
+                            Shapes.control,
+                        )
                         .clickable { if (ordinal == base) onEdit(index) else onBase(ordinal) }
                         .padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -134,7 +154,7 @@ fun StopList(
                         modifier = Modifier.weight(1f),
                     )
                     // The row measured from carries no numbers; a gap that did not route is a dash, not a guess.
-                    if (reading != null) {
+                    if (reading != null && drag == null) {
                         BasicText(
                             if (reading.incomplete) "—" else "${Format.km(reading.distanceM)} km · ${Format.metres(reading.ascentM)} m up",
                             style = Type.mono,
@@ -144,7 +164,7 @@ fun StopList(
                 }
             } else {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 16.dp),
+                    placement.fillMaxWidth().padding(start = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(Modifier.width(2.dp).padding(vertical = 2.dp).background(Tokens.line2))
@@ -157,26 +177,6 @@ fun StopList(
                 }
             }
         }
-    }
-
-    // Where the carried stop lands: above the stop it is moved before, or below the block of the stop it is moved after.
-    drag?.let { carry ->
-        val to = target(carry)
-        if (to != carry.stop) {
-            val y = if (to < carry.stop) rows[to]?.first else rows[to + 1]?.first ?: listHeight
-            if (y != null) {
-                val half = with(density) { 1.5.dp.toPx() }
-                Box(
-                    Modifier
-                        .offset { IntOffset(0, (y - half).roundToInt()) }
-                        .zIndex(2f)
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(Tokens.accent, Shapes.pill),
-                )
-            }
-        }
-    }
     }
 }
 
