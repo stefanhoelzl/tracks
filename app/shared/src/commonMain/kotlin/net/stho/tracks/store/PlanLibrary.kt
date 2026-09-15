@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.stho.tracks.plan.Leg
 import net.stho.tracks.plan.Plan
 import net.stho.tracks.plan.PlanFragment
 import net.stho.tracks.plan.stretches
@@ -82,6 +83,20 @@ class PlanLibrary(
         routeMissing(copy.id)
         return copy
     }
+
+    /**
+     * Saves an edited plan over [id], newest again; whatever legs it still lacks route here from now on. [plan] must
+     * already be as its link carries it, which an editor's plan always is.
+     */
+    suspend fun save(id: String, plan: Plan, legs: List<Leg?>): StoredPlan {
+        val stored = StoredPlan(id, now(), plan, legs)
+        write(stored)
+        routeMissing(id)
+        return stored
+    }
+
+    /** Saves an edited plan as a new one, leaving the plan it was edited from as it was. */
+    suspend fun saveAsNew(plan: Plan, legs: List<Leg?>): StoredPlan = save(newId(), plan, legs)
 
     suspend fun delete(id: String) {
         jobs.remove(id)?.cancelAndJoin()

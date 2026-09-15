@@ -30,8 +30,15 @@ import {
 import { descentOf, type Leg, PROFILES, stretches, type Waypoint } from '@tracks/routing'
 import { lonlatsOf, PROFILE_FILES, routedLeg } from '../routing/src/brouter/index.ts'
 import { placesFrom, reverseParams, searchParams } from '../routing/src/photon/index.ts'
+import { gradeColour } from '../web/src/lib/chart-theme.ts'
 import { duration, km, metres } from '../web/src/lib/format.ts'
-import { nearestOnPath } from '../web/src/lib/geo.ts'
+import {
+  cumulativeDistances,
+  drawnIndices,
+  gradients,
+  nearestInSorted,
+  nearestOnPath,
+} from '../web/src/lib/geo.ts'
 import { DEFAULT_PROFILE, formatPlan, type Plan, parsePlan } from '../web/src/lib/plan.ts'
 import {
   addWaypoint,
@@ -943,6 +950,93 @@ function formatFixture() {
   }
 }
 
+/** The elevation profile's measurements and ramp, so the phone draws a plan's terrain as the web does. */
+function terrainFixture() {
+  const lonLat = (points: Pair[]) => points.map(([lat, lon]): Pair => [lon, lat])
+  const next = random(11)
+  let height = 700
+  const climb = lonLat(walk(200, 12))
+  const climbHeights = climb.map((_, i) => {
+    height += (next() - 0.3) * 3
+    return i % 47 === 20 ? null : Number(height.toFixed(1))
+  })
+
+  const tracks: Array<{
+    name: string
+    coordinates: Pair[]
+    altitudeM: Array<number | null>
+    reportedM: number | null
+  }> = [
+    {
+      name: 'a climb with dropouts',
+      coordinates: climb,
+      altitudeM: climbHeights,
+      reportedM: 3050,
+    },
+    {
+      name: 'sampled coarser than the window',
+      coordinates: [
+        [11.0, 47.0],
+        [11.002, 47.0],
+        [11.004, 47.001],
+        [11.006, 47.002],
+      ],
+      altitudeM: [700, 712, 730, 731],
+      reportedM: null,
+    },
+    {
+      name: 'dropouts at both ends',
+      coordinates: lonLat(walk(30, 13)),
+      altitudeM: [null, null, ...Array.from({ length: 26 }, (_, i) => 600 + i), null, null],
+      reportedM: null,
+    },
+    {
+      name: 'flat',
+      coordinates: lonLat(walk(60, 14)),
+      altitudeM: Array.from({ length: 60 }, () => 500),
+      reportedM: 1000,
+    },
+  ]
+
+  const nearest: Array<[number[], number]> = [
+    [[], 5],
+    [[0], 5],
+    [[0, 10, 20], 5],
+    [[0, 10, 20], 4.9],
+    [[0, 10, 20], 15],
+    [[0, 10, 20], 25],
+    [[0, 10, 20], -3],
+    [[0, 10, 10, 20], 10],
+  ]
+
+  return {
+    tracks: tracks.map((track) => {
+      const distances = cumulativeDistances(track.coordinates, track.reportedM)
+      const measured = track.altitudeM.filter((value): value is number => value !== null)
+      // As ElevationProfile.tsx sets them: sub-pixel relief, and a cursor step of at most 50 m.
+      const tolerance = Math.max(1, (Math.max(...measured) - Math.min(...measured)) * (1 / 400))
+      const cap = Math.min(50, (distances[distances.length - 1] ?? 0) / 40)
+      return {
+        ...track,
+        distances,
+        gradients: gradients(distances, track.altitudeM),
+        tolerance,
+        cap,
+        drawn: drawnIndices(distances, track.altitudeM, tolerance, cap),
+      }
+    }),
+    nearest: nearest.map(([values, target]) => ({
+      values,
+      target,
+      index: nearestInSorted(values, target),
+    })),
+    grades: [-20, -8, -4, 0, 0.1, 2, 4, 6, 8, 10, 11.5, 13, 15, 30].map((gradient) => ({
+      gradient,
+      colour: gradeColour(gradient),
+    })),
+  }
+}
+
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
 
 export function generateAppFixtures(): Record<string, string> {
@@ -956,6 +1050,7 @@ export function generateAppFixtures(): Record<string, string> {
     'photon.json': json(photonFixture()),
     'numbers.json': json(numbersFixture()),
     'format.json': json(formatFixture()),
+    'terrain.json': json(terrainFixture()),
   }
 }
 

@@ -65,6 +65,16 @@ fun stretches(waypoints: List<Waypoint>): List<List<Waypoint>> {
     return out
 }
 
+/** What a leg was routed for: its waypoints' positions and kinds, and the profile. Names do not move a line. */
+internal fun legKey(stretch: List<Waypoint>, profile: Profile): String =
+    stretch.joinToString("|", prefix = "${profile.wire}|") { "${it.lat},${it.lon},${it.kind}" }
+
+/** The same leg, between ends that may have been renamed since it was routed. */
+internal fun Leg.withEnds(from: Waypoint, to: Waypoint): Leg = when (this) {
+    is RoutedLeg -> copy(from = from, to = to)
+    is FailedLeg -> copy(from = from, to = to)
+}
+
 /**
  * Descent, from ascent and the two ends: over any path `descent = ascent - (end - start)`, so the second readout is
  * derived from the first and the two cannot contradict each other.
