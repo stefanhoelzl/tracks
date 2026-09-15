@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.recording.Entry
 import net.stho.tracks.recording.JournalWriter
 import net.stho.tracks.recording.MAX_ACCURACY_M
@@ -67,6 +68,11 @@ class Recorder(
     private val mutableState = MutableStateFlow(next())
     val state: StateFlow<RecorderState> = mutableState.asStateFlow()
 
+    private val mutableTrack = MutableStateFlow<List<Coordinate>>(emptyList())
+
+    /** Where the ride has been: every fix kept, from the start — or the journal, when continued — until it is saved or discarded. */
+    val track: StateFlow<List<Coordinate>> = mutableTrack.asStateFlow()
+
     private var id: String? = null
     private var writer: JournalWriter? = null
     private var collecting: Job? = null
@@ -79,7 +85,7 @@ class Recorder(
         check(state.value == RecorderState.Idle) { "already recording" }
         val started = Entry.Started(newId(), clock(), plan, profile)
         writer = rides.start(started)
-        record(started.id, Tally(), paused = false)
+        record(started.id, Tally(), emptyList(), paused = false)
     }
 
     fun pause() = mark(Entry.Paused(clock()), paused = true)
@@ -103,6 +109,7 @@ class Recorder(
         if (ride.fixes.isEmpty()) {
             // Stopped before the first fix: there is no ride to ask about.
             rides.delete(ride.id)
+            mutableTrack.value = emptyList()
             mutableState.value = next()
         } else {
             mutableState.value = draft(ride)
@@ -114,13 +121,14 @@ class Recorder(
         val interrupted = state.value as? RecorderState.Interrupted ?: error("nothing to continue")
         val ride = rides.get(interrupted.id)
         writer = rides.reopen(ride.id)
-        record(ride.id, Tally.of(ride.entries), paused = ride.state == Ride.State.Paused)
+        record(ride.id, Tally.of(ride.entries), ride.fixes.map { it.fix.at }, paused = ride.state == Ride.State.Paused)
     }
 
     /** Queues the stopped ride for upload. */
     fun save(title: String, sport: String) {
         val stopped = state.value as? RecorderState.Stopped ?: error("nothing to save")
         rides.append(stopped.id, Entry.Saved(title.trim().ifEmpty { stopped.title }, sport))
+        mutableTrack.value = emptyList()
         mutableState.value = next()
         onSaved()
     }
@@ -129,6 +137,7 @@ class Recorder(
     fun discard() {
         val stopped = state.value as? RecorderState.Stopped ?: error("nothing to discard")
         rides.delete(stopped.id)
+        mutableTrack.value = emptyList()
         mutableState.value = next()
     }
 
@@ -138,9 +147,10 @@ class Recorder(
         flushedAt = clock()
     }
 
-    private fun record(rideId: String, from: Tally, paused: Boolean) {
+    private fun record(rideId: String, from: Tally, track: List<Coordinate>, paused: Boolean) {
         id = rideId
         tally = from
+        mutableTrack.value = track
         this.paused = paused
         flushedAt = clock()
         publish()
@@ -159,6 +169,8 @@ class Recorder(
         if (paused) return
         writer.append(entry)
         tally.add(entry)
+        // A copy a second: fine for a harness, and for M14 to make incremental when the riding screen draws it.
+        if (entry is Entry.Located) mutableTrack.value = mutableTrack.value + entry.fix.at
         if (clock() - flushedAt >= FLUSH_MS) flush()
         publish()
     }

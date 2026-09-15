@@ -68,14 +68,17 @@ class RecorderTest {
         val recording = assertIs<RecorderState.Recording>(recorder.state.value)
         assertEquals(300.0, recording.distanceM, 1.0)
         assertEquals(30.0, recording.climbedM!!, 1.0)
+        assertEquals(61, recorder.track.value.size)
 
         recorder.stop()
         val stopped = assertIs<RecorderState.Stopped>(recorder.state.value)
         assertEquals("3 Jul 2026", stopped.title)
         assertEquals("bike", stopped.sport)
 
+        assertEquals(61, recorder.track.value.size)
         recorder.save("  ", "hike")
         assertEquals(RecorderState.Idle, recorder.state.value)
+        assertEquals(emptyList(), recorder.track.value)
 
         val frame = RideFrame.of(Rides(dir).get(stopped.id))
         assertEquals("3 Jul 2026", frame.title)
@@ -123,6 +126,7 @@ class RecorderTest {
         advanceTimeBy(60_000)
         second.continueRide()
         runCurrent()
+        assertEquals(kept, second.track.value.size)
         (20..30).forEach { ride(sensors, it) }
         second.stop()
         assertIs<RecorderState.Stopped>(second.state.value)
