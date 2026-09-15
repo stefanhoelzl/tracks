@@ -1,16 +1,18 @@
-import { colorful, satellite } from '@versatiles/style'
+import { satellite } from '@versatiles/style'
 import mlcontour from 'maplibre-contour'
 import type { StyleSpecification } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
 // `?worker&url` bundles the worker *and its imports*, then hands back the URL — see below.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
+import { HILLSHADE, TILES, washedColorful } from './colorful.ts'
 
 /**
  * The basemap, in one module.
  *
  * Swapping providers or dropping to a locally-served VersaTiles container is meant
  * to be a one-line change, which only stays true while every tile URL and every
- * style decision lives here.
+ * style decision lives here — or in `colorful.ts`, which holds the vector style's
+ * decisions apart from MapLibre so the phone can be given the same style.
  */
 
 /**
@@ -28,28 +30,11 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
  */
 maplibregl.setWorkerUrl(workerUrl)
 
-const TILES = 'https://tiles.versatiles.org'
-
 /** Terrarium-encoded, 512 px, z0–12. The same source feeds hillshade and contours. */
 const ELEVATION = `${TILES}/tiles/elevation/{z}/{x}/{y}`
 
 /** The same server's raster imagery, WebP. */
 const SATELLITE = `${TILES}/tiles/satellite/{z}/{x}/{y}`
-
-/**
- * VersaTiles' own hillshade, tuned down.
- *
- * Relief has to stay under everything: a warm highlight and a cool shadow at low
- * exaggeration reads as terrain without competing with the landcover beneath it or
- * with a line drawn on top.
- */
-const HILLSHADE = {
-  shadowColor: '#4a5a63',
-  highlightColor: '#fffaf0',
-  accentColor: '#8a9691',
-  exaggeration: 0.35,
-  illuminationDirection: 315,
-} as const
 
 /** Contours appear only when the terrain is worth reading, and never label the overview. */
 const CONTOUR_MIN_ZOOM = 11
@@ -111,18 +96,7 @@ export async function basemapStyle(kind: Basemap = 'map'): Promise<StyleSpecific
 }
 
 async function vectorStyle(): Promise<StyleSpecification> {
-  const style = await colorful({
-    baseUrl: TILES,
-    hillshade: HILLSHADE,
-    // Barely held back. An earlier pass desaturated this by a third to keep the
-    // tracks dominant, and took the terrain down with it — woodland, scrub and rock
-    // are most of what a map of the Alps has to say. A slight wash towards the paper
-    // the app is drawn on is enough to seat it under the lines.
-    recolor: { saturate: -0.05, gamma: 1.02, blend: 0.06, blendColor: '#eef1ee' },
-    language: 'en',
-  })
-
-  return style as StyleSpecification
+  return (await washedColorful()) as StyleSpecification
 }
 
 /** Contours are generated from the DEM, so they belong to whatever is underneath. */
