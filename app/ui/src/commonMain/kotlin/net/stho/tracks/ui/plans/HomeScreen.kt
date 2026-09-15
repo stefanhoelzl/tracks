@@ -64,7 +64,7 @@ private val SHEET_PEEK = 150.dp
 /**
  * Home: the map centred on you, under a sheet of the plans on this phone, newest first.
  *
- * A tap on a plan opens it. Its ⋯ menu copies it or shares its link; a swipe to the left deletes it. Nothing here starts
+ * A tap on a plan opens it. Its ⋯ menu edits it, copies it or shares its link; a swipe to the left deletes it. Nothing here starts
  * a ride — riding is M14, and a control that does nothing yet is not drawn.
  */
 @Composable
@@ -76,6 +76,7 @@ fun HomeScreen(
     notice: String?,
     onPaste: () -> Unit,
     onOpen: (String) -> Unit,
+    onEdit: (String) -> Unit,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -152,6 +153,7 @@ fun HomeScreen(
                             stored = stored,
                             routing = routing[stored.id],
                             onOpen = { onOpen(stored.id) },
+                            onEdit = { onEdit(stored.id) },
                             onCopy = { onCopy(stored.id) },
                             onShare = { onShare(stored.id) },
                             onDelete = { onDelete(stored.id) },
@@ -168,6 +170,7 @@ private fun PlanRow(
     stored: StoredPlan,
     routing: PlanRouting?,
     onOpen: () -> Unit,
+    onEdit: () -> Unit,
     onCopy: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
@@ -223,6 +226,11 @@ private fun PlanRow(
                         properties = PopupProperties(focusable = true),
                     ) {
                         Column(Modifier.padding(end = 8.dp).background(Tokens.surface, Shapes.panel).width(180.dp)) {
+                            MenuItem("Edit") {
+                                menu = false
+                                onEdit()
+                            }
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
                             MenuItem("Copy") {
                                 menu = false
                                 onCopy()

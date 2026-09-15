@@ -16,11 +16,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import net.stho.tracks.places.PhotonGeocoder
 import net.stho.tracks.plan.PlanLink
+import net.stho.tracks.routing.LegRouting
+import net.stho.tracks.store.PlanEditor
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.StoredPlan
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.plans.HomeScreen
+import net.stho.tracks.ui.plans.PlanEditorScreen
 import net.stho.tracks.ui.plans.PlanPreview
 import net.stho.tracks.ui.sensors.Sensors
 
@@ -53,14 +57,17 @@ suspend fun PlanLibrary.receiveLink(text: String?): Intake {
 }
 
 /**
- * The app: home, and the plan a tap opened.
+ * The app: home, the plan a tap opened, and the editor.
  *
- * [links] is text arriving from outside — a universal link, or the harness's `--paste`. Loading a plan never starts
- * anything: it lands in the list.
+ * [router] must be the one the [library] routes with — there is one engine, and one route runs at a time. [links] is
+ * text arriving from outside: a universal link, or the harness's `--paste`. Loading a plan never starts anything: it
+ * lands in the list.
  */
 @Composable
 fun TracksApp(
     library: PlanLibrary,
+    router: LegRouting,
+    geocoder: PhotonGeocoder,
     sensors: Sensors,
     platform: AppPlatform,
     modifier: Modifier = Modifier.fillMaxSize(),
@@ -72,6 +79,7 @@ fun TracksApp(
     val plans by library.plans.collectAsState()
     val routing by library.routing.collectAsState()
     var open by remember { mutableStateOf<String?>(null) }
+    var editing by remember { mutableStateOf<PlanEditor?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -98,21 +106,52 @@ fun TracksApp(
         library.find(id)?.let { platform.share(PlanLink.format(it.plan)) }
     }
 
+    fun edit(id: String) {
+        library.find(id)?.let { editing = PlanEditor(it, router, scope) }
+    }
+
+    val editor = editing
     val opened = open?.let { id -> plans.firstOrNull { it.id == id } }
-    if (opened != null) {
-        PlanPreview(
+    when {
+        editor != null -> PlanEditorScreen(
+            style = style,
+            editor = editor,
+            geocoder = geocoder,
+            fix = fix,
+            onCancel = {
+                editor.close()
+                editing = null
+            },
+            onSave = {
+                scope.launch {
+                    open = editor.save(library).id
+                    editing = null
+                }
+            },
+            onCopy = {
+                scope.launch {
+                    open = editor.saveAsNew(library).id
+                    editing = null
+                }
+            },
+            modifier = modifier,
+            onIdle = onIdle,
+        )
+
+        opened != null -> PlanPreview(
             style = style,
             stored = opened,
             routing = routing[opened.id],
             fix = fix,
             onBack = { open = null },
+            onEdit = { edit(opened.id) },
             onCopy = { scope.launch { open = library.copy(opened.id)?.id ?: open } },
             onShare = { share(opened.id) },
             modifier = modifier,
             onIdle = onIdle,
         )
-    } else {
-        HomeScreen(
+
+        else -> HomeScreen(
             style = style,
             fix = fix,
             plans = plans,
@@ -120,6 +159,7 @@ fun TracksApp(
             notice = notice,
             onPaste = { intake(platform.clipboardText()) },
             onOpen = { open = it },
+            onEdit = ::edit,
             onCopy = { id -> scope.launch { library.copy(id) } },
             onShare = ::share,
             onDelete = { id -> scope.launch { library.delete(id) } },

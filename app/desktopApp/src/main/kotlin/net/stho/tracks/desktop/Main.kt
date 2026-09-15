@@ -27,7 +27,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.withContext
+import net.stho.tracks.places.PhotonGeocoder
 import net.stho.tracks.routing.LegRouter
+import net.stho.tracks.ui.net.JvmHttp
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.AppPlatform
@@ -79,9 +81,11 @@ fun main(args: Array<String>) {
     val rides = option("--rides")?.let(::File) ?: File(System.getProperty("user.home"), ".local/share/tracks-harness/rides")
     val server = option("--server")
 
+    // One engine: the library's background routing and the editor's share it, one route at a time.
+    val router = LegRouter(segments, profiles, Dispatchers.IO)
     val library = PlanLibrary(
         store = PlanStore(data.resolve("plans").absolutePath.toPath(), FileSystem.SYSTEM),
-        router = LegRouter(segments, profiles, Dispatchers.IO),
+        router = router,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
         io = Dispatchers.IO,
         now = System::currentTimeMillis,
@@ -120,6 +124,8 @@ fun main(args: Array<String>) {
                 replay?.let { ride ->
                     TracksApp(
                         library = library,
+                        router = router,
+                        geocoder = remember { PhotonGeocoder(JvmHttp) },
                         sensors = remember(ride) { ReplaySensors(ride, from, speedup) },
                         platform = DesktopPlatform,
                         links = remember { pastes.asFlow() },

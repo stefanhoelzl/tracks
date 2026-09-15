@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -33,9 +34,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.stho.tracks.codec.Coordinate
+import kotlinx.coroutines.awaitCancellation
+import net.stho.tracks.places.PhotonGeocoder
+import net.stho.tracks.plan.moveWaypoint
+import net.stho.tracks.store.PlanEditor
 import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.plans.HomeScreen
+import net.stho.tracks.ui.plans.PlanEditorScreen
 import net.stho.tracks.ui.plans.PlanPreview
 import okio.FileSystem
 import okio.Path.Companion.toPath
@@ -75,7 +81,7 @@ private const val PIXEL_TOLERANCE = 0.0003
 private const val TAP_TOLERANCE_PX = 2.0
 
 /** What a scene draws: the map on its own, or one of the app's screens over it. */
-private enum class Screen { Map, Home, Preview }
+private enum class Screen { Map, Home, Preview, Editor, EditorRouting }
 
 private class Scene(
     val name: String,
@@ -93,6 +99,8 @@ private val PLANS = DIRECTORY.resolve("fixture/plans")
 private val SCENES = listOf(
     Scene("home", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Home),
     Scene("preview", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Preview),
+    Scene("editor", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Editor),
+    Scene("editor-routing", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorRouting),
     Scene("follow", second = 185, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("stop-compass", second = 950, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("north-up", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp, FOLLOW_ZOOM) }),
@@ -213,6 +221,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         notice = null,
                         onPaste = {},
                         onOpen = {},
+                        onEdit = {},
                         onCopy = {},
                         onShare = {},
                         onDelete = {},
@@ -224,10 +233,36 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         routing = null,
                         fix = fix,
                         onBack = {},
+                        onEdit = {},
                         onCopy = {},
                         onShare = {},
                         onIdle = onIdle,
                     )
+                    Screen.Editor, Screen.EditorRouting -> {
+                        val scope = rememberCoroutineScope()
+                        val editor = remember {
+                            // An engine that never answers: whatever an edit touches stays routing, drawn still.
+                            val stored = plans.first { it.plan.name == "Partnachklamm" }
+                            PlanEditor(stored, { _, _ -> awaitCancellation() }, scope).also { editor ->
+                                if (scene.screen == Screen.EditorRouting) {
+                                    val plan = editor.state.value.plan
+                                    val stadium = plan.waypoints[2]
+                                    editor.update(moveWaypoint(plan, 2, Coordinate(stadium.lat + 0.003, stadium.lon - 0.004)))
+                                }
+                            }
+                        }
+                        PlanEditorScreen(
+                            style = style,
+                            editor = editor,
+                            geocoder = remember { PhotonGeocoder({ error("no network in a scene") }) },
+                            fix = fix,
+                            onCancel = {},
+                            onSave = {},
+                            onCopy = {},
+                            pulse = false,
+                            onIdle = onIdle,
+                        )
+                    }
                 }
             }
         }
