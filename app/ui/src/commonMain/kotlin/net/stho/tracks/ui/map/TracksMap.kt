@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.sp
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
 import net.stho.tracks.codec.Coordinate
@@ -105,6 +108,12 @@ sealed interface MapCamera {
         val zoom: Double = 15.5,
         val inset: PaddingValues = PaddingValues(0.dp),
     ) : MapCamera
+
+    /**
+     * Centre on the rider's first fix at [zoom], in what [inset] leaves of the map, and then leave the map to the
+     * person using it: a map that re-centres every second cannot be panned or zoomed.
+     */
+    data class Centre(val zoom: Double = 13.0, val inset: PaddingValues = PaddingValues(0.dp)) : MapCamera
 
     /** Fit [points], north-up, clear of [inset] — whatever is drawn over the map's edges. */
     data class Overview(val points: List<Coordinate>, val inset: PaddingValues = PaddingValues(32.dp)) : MapCamera
@@ -305,6 +314,7 @@ private fun MapLibreMap(
                 bearing = mapBearing(camera.orientation, fix, heading, previous = 0.0),
             )
             is MapCamera.Overview -> CameraPosition(target = Position(at.lon, at.lat), zoom = 13.0)
+            is MapCamera.Centre -> CameraPosition(target = Position(at.lon, at.lat), zoom = camera.zoom)
         }
     }
 
@@ -430,22 +440,30 @@ private fun MapLibreMap(
     }
 
     // Exactly one camera effect, keyed on the state, reading its inputs through snapshotFlow: a new fix every second
-    // must not cancel and restart the effect, or the camera never finishes an animation.
+    // must not cancel and restart the effect, or the camera never finishes an animation. The camera is acted on when
+    // it changes; only Follow also moves with the fixes — and even then keeps whatever zoom the map was given.
     LaunchedEffect(state) {
-        snapshotFlow { Triple(currentCamera, currentFix, currentHeading) }.collectLatest { (camera, fix, heading) ->
+        snapshotFlow { currentCamera }.collectLatest { camera ->
             when (camera) {
-                is MapCamera.Follow -> if (fix != null) {
-                    val bearing = mapBearing(camera.orientation, fix, heading, previous = state.cameraPosition.bearing)
-                    val inset = camera.inset
-                    val aim = insetTarget(
-                        at = fix.at,
-                        zoom = camera.zoom,
-                        bearingDeg = bearing,
-                        downDp = (inset.calculateBottomPadding() - inset.calculateTopPadding()).value / 2.0,
-                        rightDp = (inset.calculateRightPadding(layoutDirection) - inset.calculateLeftPadding(layoutDirection)).value / 2.0,
-                    )
+                is MapCamera.Follow -> {
+                    var first = true
+                    snapshotFlow { currentFix to currentHeading }.collectLatest { (fix, heading) ->
+                        if (fix == null) return@collectLatest
+                        val zoom = if (first) camera.zoom else state.cameraPosition.zoom
+                        first = false
+                        val bearing = mapBearing(camera.orientation, fix, heading, previous = state.cameraPosition.bearing)
+                        val aim = insetTarget(fix.at, zoom, bearing, camera.inset, layoutDirection)
+                        state.animateCameraPosition(
+                            CameraPosition(target = Position(aim.lon, aim.lat), zoom = zoom, bearing = bearing),
+                            duration = FOLLOW_MS.milliseconds,
+                        )
+                    }
+                }
+                is MapCamera.Centre -> {
+                    val fix = snapshotFlow { currentFix }.filterNotNull().first()
+                    val aim = insetTarget(fix.at, camera.zoom, 0.0, camera.inset, layoutDirection)
                     state.animateCameraPosition(
-                        CameraPosition(target = Position(aim.lon, aim.lat), zoom = camera.zoom, bearing = bearing),
+                        CameraPosition(target = Position(aim.lon, aim.lat), zoom = camera.zoom),
                         duration = FOLLOW_MS.milliseconds,
                     )
                 }
@@ -506,6 +524,15 @@ private fun MapLibreMap(
     }
 }
 
+private fun insetTarget(at: Coordinate, zoom: Double, bearing: Double, inset: PaddingValues, direction: LayoutDirection) =
+    insetTarget(
+        at = at,
+        zoom = zoom,
+        bearingDeg = bearing,
+        downDp = (inset.calculateBottomPadding() - inset.calculateTopPadding()).value / 2.0,
+        rightDp = (inset.calculateRightPadding(direction) - inset.calculateLeftPadding(direction)).value / 2.0,
+    )
+
 /** The name of the place labelled nearest a tap, from the map's own labels: English where the tiles have it. */
 private suspend fun nameAt(state: MapState, at: DpOffset): String? {
     val reach = DpRect(at.x - NAME_REACH, at.y - NAME_REACH, at.x + NAME_REACH, at.y + NAME_REACH)
@@ -542,6 +569,10 @@ private fun WaypointHandles(
     waypoints.forEachIndexed { index, mark ->
         val screen = runCatching { state.screenLocationFromPosition(Position(mark.at.lon, mark.at.lat)) }.getOrNull() ?: return@forEachIndexed
         var dragged by remember(index, mark) { mutableStateOf(screen) }
+        fun finish() {
+            val at = state.positionFromScreenLocation(dragged) ?: mark.at.let { Position(it.lon, it.lat) }
+            currentOnDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), true)
+        }
         Box(
             Modifier
                 .offset(screen.x - HANDLE_SIZE / 2, screen.y - HANDLE_SIZE / 2)
@@ -550,10 +581,10 @@ private fun WaypointHandles(
                 .pointerInput(index, mark) {
                     detectDragGestures(
                         onDragStart = { dragged = screen },
-                        onDragEnd = {
-                            val at = state.positionFromScreenLocation(dragged) ?: return@detectDragGestures
-                            currentOnDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), true)
-                        },
+                        onDragEnd = { finish() },
+                        // A drag the platform takes back — the map claiming the gesture, a system swipe — still ends:
+                        // left unfinished, the plan would stay drawn as straight lines and never route again.
+                        onDragCancel = { finish() },
                         onDrag = { change, amount ->
                             change.consume()
                             dragged = DpOffset(dragged.x + amount.x.toDp(), dragged.y + amount.y.toDp())

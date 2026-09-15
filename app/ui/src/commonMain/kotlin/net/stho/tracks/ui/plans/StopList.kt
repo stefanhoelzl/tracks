@@ -14,6 +14,13 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.zIndex
 import kotlin.math.abs
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -73,7 +80,11 @@ fun StopList(
         return rows.minByOrNull { (_, row) -> abs(row.first + row.second / 2 - centre) }?.key ?: carry.stop
     }
 
-    Column(modifier) {
+    var listHeight by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+
+    Box(modifier) {
+    Column(Modifier.fillMaxWidth().onSizeChanged { listHeight = it.height.toFloat() }) {
         plan.waypoints.forEachIndexed { index, waypoint ->
             if (waypoint.kind == WaypointKind.Poi) {
                 stop += 1
@@ -146,6 +157,26 @@ fun StopList(
                 }
             }
         }
+    }
+
+    // Where the carried stop lands: above the stop it is moved before, or below the block of the stop it is moved after.
+    drag?.let { carry ->
+        val to = target(carry)
+        if (to != carry.stop) {
+            val y = if (to < carry.stop) rows[to]?.first else rows[to + 1]?.first ?: listHeight
+            if (y != null) {
+                val half = with(density) { 1.5.dp.toPx() }
+                Box(
+                    Modifier
+                        .offset { IntOffset(0, (y - half).roundToInt()) }
+                        .zIndex(2f)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .background(Tokens.accent, Shapes.pill),
+                )
+            }
+        }
+    }
     }
 }
 
