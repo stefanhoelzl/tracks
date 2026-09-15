@@ -22,50 +22,62 @@ import platform.darwin.NSObject
  * The phone's own [Sensors]: CoreLocation's position and compass, while the app is in the foreground.
  *
  * Background location belongs to recording (M15), and so does the barometer: [pressures] is empty until then.
- * Each flow owns its own CLLocationManager, started when collected and stopped when the collector goes, on the main
- * thread, whose run loop CoreLocation delivers to.
+ * Each flow owns a [Listener], started when collected and stopped when the collector goes, on the main thread, whose
+ * run loop CoreLocation delivers to.
  */
-@OptIn(ExperimentalForeignApi::class)
 class LocationSensors : Sensors {
     override val fixes: Flow<Fix> = callbackFlow {
-        val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
-            override fun locationManager(manager: CLLocationManager, didUpdateLocations: List<*>) {
-                (didUpdateLocations.lastOrNull() as? CLLocation)?.let { trySend(it.fix()) }
-            }
-        }
-        val manager = CLLocationManager().apply {
-            this.delegate = delegate
+        val listener = Listener(onLocation = { trySend(it.fix()) })
+        listener.manager.apply {
             desiredAccuracy = kCLLocationAccuracyBest
             activityType = CLActivityTypeFitness
             requestWhenInUseAuthorization()
             startUpdatingLocation()
         }
-        awaitClose {
-            manager.stopUpdatingLocation()
-            manager.delegate = null
-        }
+        awaitClose { listener.stop() }
     }.flowOn(Dispatchers.Main)
 
     override val headings: Flow<Heading> = callbackFlow {
-        val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
-            override fun locationManager(manager: CLLocationManager, didUpdateHeading: CLHeading) {
-                // True north needs a location fix; until there is one, iOS reports -1 and magnetic north is what there is.
-                val degrees = didUpdateHeading.trueHeading.takeIf { it >= 0 } ?: didUpdateHeading.magneticHeading
-                trySend(Heading(degrees, (didUpdateHeading.timestamp.timeIntervalSince1970 * 1000).toLong()))
-            }
-        }
-        val manager = CLLocationManager().apply {
-            this.delegate = delegate
+        val listener = Listener(onHeading = { heading ->
+            // True north needs a location fix; until there is one, iOS reports -1 and magnetic north is what there is.
+            val degrees = heading.trueHeading.takeIf { it >= 0 } ?: heading.magneticHeading
+            trySend(Heading(degrees, (heading.timestamp.timeIntervalSince1970 * 1000).toLong()))
+        })
+        listener.manager.apply {
             headingFilter = 1.0
             startUpdatingHeading()
         }
-        awaitClose {
-            manager.stopUpdatingHeading()
-            manager.delegate = null
-        }
+        awaitClose { listener.stop() }
     }.flowOn(Dispatchers.Main)
 
     override val pressures: Flow<Pressure> = emptyFlow()
+}
+
+/**
+ * A CLLocationManager and its delegate, in one object that something holds.
+ *
+ * CLLocationManager keeps its delegate weakly. A delegate that only the manager points to is, to Kotlin/Native,
+ * garbage: it is collected, and every update goes to nobody, silently. Whoever holds a Listener holds both.
+ */
+private class Listener(
+    private val onLocation: (CLLocation) -> Unit = {},
+    private val onHeading: (CLHeading) -> Unit = {},
+) : NSObject(), CLLocationManagerDelegateProtocol {
+    val manager = CLLocationManager().also { it.delegate = this }
+
+    override fun locationManager(manager: CLLocationManager, didUpdateLocations: List<*>) {
+        (didUpdateLocations.lastOrNull() as? CLLocation)?.let(onLocation)
+    }
+
+    override fun locationManager(manager: CLLocationManager, didUpdateHeading: CLHeading) {
+        onHeading(didUpdateHeading)
+    }
+
+    fun stop() {
+        manager.stopUpdatingLocation()
+        manager.stopUpdatingHeading()
+        manager.delegate = null
+    }
 }
 
 /** CoreLocation marks a value it does not have with a negative accuracy or a negative value. */
