@@ -14,7 +14,7 @@ plugins {
  * stand-in for the Java APIs the core uses; `net/stho/tracks/brouter` is the app's way in.
  */
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 
     jvm()
     linuxX64 {

@@ -2,7 +2,7 @@
 # Run `ssh-runner init --update` after changing the config, then commit and push:
 # the workflow that runs is the one on GitHub, not the one in your working tree.
 # ssh-runner-template: 7
-# ssh-runner-config: d0f951d786bb6cd0
+# ssh-runner-config: ced349137dfcf154
 name: ssh-runner macos
 run-name: ssh-runner macos ${{ inputs.session_id }}
 
@@ -56,7 +56,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 25
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: true

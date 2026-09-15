@@ -58,7 +58,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 25
       - uses: gradle/actions/setup-gradle@v6
 
       # Kotlin/Native's prebuilt compiler and its LLVM toolchain, about a gigabyte that
@@ -88,7 +88,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 25
       - uses: gradle/actions/setup-gradle@v6
       - uses: actions/cache@v6
         with:

@@ -17,12 +17,11 @@ object URLDecoder {
                     val bytes = ArrayList<Byte>()
                     while (i < s.length && s[i] == '%') {
                         if (i + 2 >= s.length) throw IllegalArgumentException("URLDecoder: Incomplete trailing escape (%) pattern")
-                        // the JDK parses the two characters with Integer.parseInt(.., 16): a leading '+' is a sign
-                        val v = if (s[i + 1] == '+') hex(s[i + 2]) else {
-                            val hi = hex(s[i + 1])
-                            val lo = hex(s[i + 2])
-                            if (hi < 0 || lo < 0) -1 else (hi shl 4) or lo
-                        }
+                        // Both characters must be hex digits. Up to JDK 21 the JDK parsed them with
+                        // Integer.parseInt(.., 16), so a leading '+' passed as a sign; JDK 25 rejects it.
+                        val hi = hex(s[i + 1])
+                        val lo = hex(s[i + 2])
+                        val v = if (hi < 0 || lo < 0) -1 else (hi shl 4) or lo
                         if (v < 0) throw IllegalArgumentException("URLDecoder: Illegal hex characters in escape (%) pattern")
                         bytes.add(v.toByte())
                         i += 3
