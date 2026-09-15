@@ -12,6 +12,12 @@ import net.stho.tracks.plan.Leg
 import net.stho.tracks.plan.Profile
 import net.stho.tracks.plan.Waypoint
 
+/** Routes one leg of a plan: its POI-to-POI stretch, on one profile. */
+fun interface LegRouting {
+    /** Throws [NoRoutingData] when there are no tiles for it here, and [RouterError] when the engine is refusing. */
+    suspend fun route(stretch: List<Waypoint>, profile: Profile): Leg
+}
+
 /**
  * The on-device router, for coroutines.
  *
@@ -25,11 +31,11 @@ class LegRouter(
     private val segmentDir: String,
     private val profileDir: String,
     private val dispatcher: CoroutineDispatcher,
-) {
+) : LegRouting {
     private val engine = Mutex()
 
     /** Throws [NoRoutingData] when the device has no tiles for the leg; see [OnDeviceRouter.leg]. */
-    suspend fun route(stretch: List<Waypoint>, profile: Profile): Leg = engine.withLock {
+    override suspend fun route(stretch: List<Waypoint>, profile: Profile): Leg = engine.withLock {
         coroutineScope {
             val cancel = RouteCancel()
             val routing = async(dispatcher) {

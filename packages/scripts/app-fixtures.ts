@@ -30,6 +30,7 @@ import {
 import { descentOf, type Leg, PROFILES, stretches, type Waypoint } from '@tracks/routing'
 import { lonlatsOf, PROFILE_FILES, routedLeg } from '../routing/src/brouter/index.ts'
 import { placesFrom, reverseParams, searchParams } from '../routing/src/photon/index.ts'
+import { duration, km, metres } from '../web/src/lib/format.ts'
 import { nearestOnPath } from '../web/src/lib/geo.ts'
 import { DEFAULT_PROFILE, formatPlan, type Plan, parsePlan } from '../web/src/lib/plan.ts'
 import {
@@ -913,6 +914,35 @@ function numbersFixture() {
   }
 }
 
+/** A plan's numbers as the web prints them, so the phone's list and tiles read the same. */
+function formatFixture() {
+  const distances: Array<[number | null, number]> = [
+    [null, 1],
+    [0, 1],
+    [1, 1],
+    [49, 1],
+    [50, 1],
+    [51, 1],
+    [999, 0],
+    [1049, 1],
+    [1050, 1],
+    [1051, 1],
+    [12345.678, 2],
+    [176000.5, 1],
+    [-250, 1],
+    [0.4, 0],
+    [5e6, 1],
+  ]
+  const heights = [null, 0, 0.4, 0.5, -0.5, -0.4, 999.5, 1000, 1827.3, 12345678, -1827]
+  const durations = [null, 0, 29.4, 29.5, 59.5, 3599.5, 3600, 9180, 45296, 100000]
+
+  return {
+    km: distances.map(([value, digits]) => ({ value, digits, text: km(value, digits) })),
+    metres: heights.map((value) => ({ value, text: metres(value) })),
+    durations: durations.map((value) => ({ value, text: duration(value) })),
+  }
+}
+
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
 
 export function generateAppFixtures(): Record<string, string> {
@@ -925,6 +955,7 @@ export function generateAppFixtures(): Record<string, string> {
     'brouter.json': json(brouterFixture()),
     'photon.json': json(photonFixture()),
     'numbers.json': json(numbersFixture()),
+    'format.json': json(formatFixture()),
   }
 }
 
