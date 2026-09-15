@@ -1,15 +1,9 @@
 package net.stho.tracks.ui.recording
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,15 +12,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import net.stho.tracks.recording.SPORTS
 import net.stho.tracks.ui.harness.Button
+import net.stho.tracks.ui.harness.Field
+import net.stho.tracks.ui.harness.Label
 import net.stho.tracks.ui.harness.Pill
-import net.stho.tracks.ui.theme.Tokens
+import net.stho.tracks.ui.harness.Sheet
+import net.stho.tracks.ui.harness.Title
 
 /**
  * Recording's own controls: record, pause and stop, the offer to continue an interrupted ride, and the Save sheet.
@@ -71,18 +65,9 @@ fun SaveRideSheet(stopped: RecorderState.Stopped, onSave: (title: String, sport:
     var title by remember(stopped.id) { mutableStateOf(stopped.title) }
     var sport by remember(stopped.id) { mutableStateOf(stopped.sport) }
 
-    Column(
-        Modifier.fillMaxWidth().background(Tokens.surface, RoundedCornerShape(14.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        BasicText("Save ride?", style = TextStyle(color = Tokens.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold))
-        BasicTextField(
-            value = title,
-            onValueChange = { title = it },
-            singleLine = true,
-            textStyle = TextStyle(color = Tokens.ink, fontSize = 15.sp),
-            modifier = Modifier.fillMaxWidth().border(1.dp, Tokens.line2, RoundedCornerShape(9.dp)).padding(horizontal = 10.dp, vertical = 8.dp),
-        )
+    Sheet {
+        Title("Save ride?")
+        Field(title, onValueChange = { title = it })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SPORTS.forEach { value ->
                 Button(value.replaceFirstChar { it.uppercase() }, quiet = value != sport) { sport = value }
@@ -94,9 +79,6 @@ fun SaveRideSheet(stopped: RecorderState.Stopped, onSave: (title: String, sport:
         }
     }
 }
-
-@Composable
-private fun Label(text: String) = BasicText(text, style = TextStyle(color = Tokens.ink, fontSize = 13.sp))
 
 private fun kilometres(metres: Double): String {
     val tenths = (metres / 100).roundToInt()

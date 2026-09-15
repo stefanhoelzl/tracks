@@ -30,6 +30,10 @@ import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.sensors.ReplaySensors
 import net.stho.tracks.ui.sensors.RideReplay
 import net.stho.tracks.ui.sensors.shared
+import net.stho.tracks.ui.upload.UploadQueue
+import net.stho.tracks.ui.upload.tracksHttpClient
+import net.stho.tracks.upload.FileSessionStore
+import net.stho.tracks.upload.TracksApi
 import okio.Path.Companion.toOkioPath
 
 /** An iPhone's logical size, so what fits here fits there. */
@@ -45,6 +49,9 @@ val PHONE = DpSize(393.dp, 852.dp)
  *     --shot <png>     capture the window to this file, then exit
  *     --shot-at <s>    how many seconds after launch to capture (default 20)
  *     --rides <dir>    where recorded rides are journaled (default ~/.local/share/tracks-harness/rides)
+ *     --server <url>   the Tracks that saved rides upload to: http://[::1]:5173 for `pnpm dev:local`, which listens
+ *                      on IPv6 loopback only. No default, so it is never tracks.stho.net by accident: without it,
+ *                      nothing uploads.
  *
  * The click and the capture go through the screen: see Screen.kt. **--tap-at and --shot are for the screenshots
  * container only** — on a desktop they capture and click the real screen, which is not to be done.
@@ -61,6 +68,7 @@ fun main(args: Array<String>) {
     val shot = option("--shot")?.let(::File)
     val shotAt = option("--shot-at")?.toDouble() ?: 20.0
     val rides = option("--rides")?.let(::File) ?: File(System.getProperty("user.home"), ".local/share/tracks-harness/rides")
+    val server = option("--server")
 
     configureDesktopMap()
     application {
@@ -87,11 +95,16 @@ fun main(args: Array<String>) {
             DesktopMapHost(window) {
                 val replay by produceState<RideReplay?>(null) { value = gpx?.let(RideReplay::gpx) ?: bundledRide() }
                 val scope = rememberCoroutineScope()
+                val store = remember { Rides(rides.toOkioPath()) }
+                // The session beside the rides, in a file: the harness has no Keychain.
+                val queue = remember {
+                    server?.let { UploadQueue(store, TracksApi(tracksHttpClient(), it), FileSessionStore(rides.toOkioPath().parent!! / "session"), scope) }
+                }
                 replay?.let { ride ->
                     // One replay for the map and the recorder: collected twice, it would be two rides.
                     val sensors = remember(ride) { ReplaySensors(ride, from, speedup).shared(scope) }
-                    val recorder = remember(sensors) { Recorder(Rides(rides.toOkioPath()), sensors, scope, dateTitle = ::localDate) }
-                    MapHarness(sensors = sensors, plan = ride.track, recorder = recorder)
+                    val recorder = remember(sensors) { Recorder(store, sensors, scope, dateTitle = ::localDate, onSaved = { queue?.kick() }) }
+                    MapHarness(sensors = sensors, plan = ride.track, recorder = recorder, upload = queue)
                 }
             }
         }
