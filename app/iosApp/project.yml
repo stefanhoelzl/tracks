@@ -31,6 +31,11 @@ targets:
         buildPhase: resources
       - path: ../brouter/parity/routes.tsv
         buildPhase: resources
+    # Universal links: tracks.stho.net serves the apple-app-site-association file that names this app (M12).
+    entitlements:
+      path: iosApp/iosApp.entitlements
+      properties:
+        com.apple.developer.associated-domains: [applinks:tracks.stho.net]
     info:
       path: iosApp/Info.plist
       properties:
