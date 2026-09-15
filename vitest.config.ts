@@ -24,6 +24,7 @@ export default defineConfig({
             'packages/server/src/**/*.test.ts',
             'packages/edge/src/**/*.test.ts',
             'packages/routing/src/**/*.test.ts',
+            'packages/scripts/**/*.test.ts',
           ],
           environment: 'node',
         },

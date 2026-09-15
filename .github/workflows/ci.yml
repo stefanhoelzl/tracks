@@ -41,6 +41,32 @@ jobs:
       # deploy after the fact.
       - run: pnpm build
 
+  # The iPhone app's shared Kotlin, on the JVM and as native Linux code. No secrets, like
+  # `test`, and not something `deploy` waits for: nothing the edge serves is built here.
+  # That the Kotlin still agrees with the TypeScript is checked from both sides — `test`
+  # fails when the fixtures are stale, this fails when the Kotlin disagrees with them.
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Kotlin/Native's prebuilt compiler and its LLVM toolchain, about a gigabyte that
+      # would otherwise download on every run. Keyed on the versions, which pin it.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
+
+      - run: ./gradlew :shared:jvmTest :shared:linuxX64Test
+
   deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
