@@ -12,14 +12,10 @@ kotlin {
     jvm()
     linuxX64()
 
-    // The iOS app links this module as one static framework. BRouter is a dependency, not an export, so
-    // the Swift side sees `OnDeviceRouter` and the codecs rather than every converted class.
-    listOf(iosSimulatorArm64(), iosArm64()).forEach {
-        it.binaries.framework {
-            baseName = "Shared"
-            isStatic = true
-        }
-    }
+    // The iOS app's framework is built by :ui, which exports this module. BRouter is a dependency, not
+    // an export, so the Swift side sees `OnDeviceRouter` and the codecs rather than every converted class.
+    iosSimulatorArm64()
+    iosArm64()
 
     sourceSets {
         commonMain.dependencies {

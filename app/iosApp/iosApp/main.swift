@@ -190,29 +190,35 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
   func application(
     _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    let label = UILabel()
-    label.text = "Tracks — BRouter \(OnDeviceRouter.shared.engineVersion)"
-    label.textAlignment = .center
-    let controller = UIViewController()
-    controller.view = label
-    controller.view.backgroundColor = .systemBackground
     window = UIWindow(frame: UIScreen.main.bounds)
-    window?.rootViewController = controller
-    window?.makeKeyAndVisible()
 
     // Where tiles are pushed to (measure.sh), and where downloaded ones will land (M13). AFC cannot create it.
     try? FileManager.default.createDirectory(atPath: Paths().segments, withIntermediateDirectories: true)
 
-    if let mode = ProcessInfo.processInfo.environment["TRACKS_MEASURE"] {
-      label.text = "measuring: \(mode)"
-      // A measurement is minutes of back-to-back routing; auto-lock would suspend it.
-      application.isIdleTimerDisabled = true
-      // Routing never belongs on the main thread. The engine no longer recurses deeply (pass 06), so this is
-      // not the 16 MB the spike needed; 2 MB leaves margin over iOS's 512 KB default for secondary threads.
-      let thread = Thread { measure(mode: mode, paths: Paths()) }
-      thread.stackSize = 2 * 1024 * 1024
-      thread.start()
+    guard let mode = ProcessInfo.processInfo.environment["TRACKS_MEASURE"] else {
+      // The app: the Compose UI, which is the map (M11).
+      window?.rootViewController = MainViewControllerKt.MainViewController()
+      window?.makeKeyAndVisible()
+      return true
     }
+
+    // A measurement shows one line and no map, so the map's memory and GPU work stay out of the numbers.
+    let label = UILabel()
+    label.text = "measuring: \(mode)"
+    label.textAlignment = .center
+    let controller = UIViewController()
+    controller.view = label
+    controller.view.backgroundColor = .systemBackground
+    window?.rootViewController = controller
+    window?.makeKeyAndVisible()
+
+    // A measurement is minutes of back-to-back routing; auto-lock would suspend it.
+    application.isIdleTimerDisabled = true
+    // Routing never belongs on the main thread. The engine no longer recurses deeply (pass 06), so this is
+    // not the 16 MB the spike needed; 2 MB leaves margin over iOS's 512 KB default for secondary threads.
+    let thread = Thread { measure(mode: mode, paths: Paths()) }
+    thread.stackSize = 2 * 1024 * 1024
+    thread.start()
     return true
   }
 }
