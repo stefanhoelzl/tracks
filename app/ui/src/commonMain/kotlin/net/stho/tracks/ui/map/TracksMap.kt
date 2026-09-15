@@ -177,7 +177,7 @@ fun TracksMap(
     var sized by remember { mutableStateOf(false) }
     Box(modifier.onSizeChanged { if (it.width > 0 && it.height > 0) sized = true }) {
         if (sized) {
-            MapLibreMap(style, camera, plan, fix, heading, drawing, onTap, onPlace, onLongPress, onWaypointTap, onWaypointDrag, onIdle)
+            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onWaypointTap, onWaypointDrag, onIdle)
         }
     }
 }
@@ -186,6 +186,12 @@ fun TracksMap(
 private val PLAN_WIDTH = listOf(6 to 2.0, 10 to 2.8, 14 to 3.6)
 private val PLAN_CASING_WIDTH = listOf(6 to 3.6, 10 to 4.8, 14 to 6.0)
 private const val PLAN_CASING_OPACITY = 0.55f
+
+/**
+ * The track being recorded: the web palette's second hue (lib/colour.ts), not the accent. The plan is the accent because
+ * it is the thing you edit; a ride is data, which the accent never is — and a green over the green plan would not show.
+ */
+private val RIDDEN_COLOUR = Color(0xFFCE7A0C)
 
 /** A beeline's weight and dash, and how faint a routing one gets at the low of its pulse. */
 private val BEELINE_WIDTH = 3.dp
@@ -290,6 +296,7 @@ private fun MapLibreMap(
     val scope = rememberCoroutineScope()
 
     // What each layer draws. Without a drawing, the plan is one routed line.
+    val riddenJson = remember(ridden) { linesJson(listOf(ridden)) }
     val routedJson = remember(plan, drawing) {
         linesJson(drawing?.legs?.filter { it.state == LegState.Routed }?.map { it.coordinates } ?: listOf(plan))
     }
@@ -344,6 +351,16 @@ private fun MapLibreMap(
             id = "plan",
             source = routedSource,
             color = const(Tokens.accent),
+            width = widthByZoom(PLAN_WIDTH),
+            cap = const(LineCap.Round),
+            join = const(LineJoin.Round),
+        )
+
+        // Over the plan, at the plan's weight: where you went, drawn on where you meant to.
+        LineLayer(
+            id = "ridden",
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(riddenJson)),
+            color = const(RIDDEN_COLOUR),
             width = widthByZoom(PLAN_WIDTH),
             cap = const(LineCap.Round),
             join = const(LineJoin.Round),

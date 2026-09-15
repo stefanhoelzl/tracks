@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,7 +52,7 @@ import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
-import net.stho.tracks.ui.sensors.Fix
+import net.stho.tracks.sensors.Fix
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -80,6 +81,8 @@ fun HomeScreen(
     routing: Map<String, PlanRouting>,
     notice: String?,
     onPaste: () -> Unit,
+    /** Opens recording (M15); without one, there is no Ride button. */
+    onRide: (() -> Unit)? = null,
     onOpen: (String) -> Unit,
     onEdit: (String) -> Unit,
     onCopy: (String) -> Unit,
@@ -138,6 +141,10 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     BasicText("Plans", style = Type.title, modifier = Modifier.weight(1f))
+                    if (onRide != null) {
+                        IconButton(Icons.Ride, "Ride", onClick = onRide)
+                        Spacer(Modifier.width(8.dp))
+                    }
                     IconButton(Icons.Paste, "Paste link", onClick = onPaste)
                 }
                 notice?.let { BasicText(it, style = Type.note, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) }

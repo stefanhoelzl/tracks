@@ -68,7 +68,7 @@ import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.PlanDrawing
 import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.ui.map.WaypointMark
-import net.stho.tracks.ui.sensors.Fix
+import net.stho.tracks.sensors.Fix
 import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Shapes

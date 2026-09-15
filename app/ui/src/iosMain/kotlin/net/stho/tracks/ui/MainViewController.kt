@@ -6,22 +6,29 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.window.ComposeUIViewController
 import kotlin.time.Clock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.MainScope
 import net.stho.tracks.places.PhotonGeocoder
+import net.stho.tracks.recording.Rides
 import net.stho.tracks.routing.LegRouter
-import net.stho.tracks.ui.net.IosHttp
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.harness.bundledRide
+import net.stho.tracks.ui.net.IosHttp
 import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.recording.RecorderState
 import net.stho.tracks.ui.sensors.LocationSensors
 import net.stho.tracks.ui.sensors.ReplaySensors
 import net.stho.tracks.ui.sensors.Sensors
+import net.stho.tracks.ui.sensors.shared
+import net.stho.tracks.ui.upload.KeychainSessionStore
+import net.stho.tracks.ui.upload.UploadQueue
+import net.stho.tracks.ui.upload.tracksHttpClient
+import net.stho.tracks.upload.TracksApi
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import platform.Foundation.NSApplicationSupportDirectory
@@ -37,16 +44,25 @@ import platform.UIKit.UIPasteboard
 import platform.UIKit.UIViewController
 
 /**
- * The app's screen, for the Swift shell to put in its window: the map, recording, and the upload queue.
+ * The app's screen, for the Swift shell to put in its window: the plans, their editor, and recording with its upload
+ * queue.
  *
- * It follows the phone's own location and compass. Launched with TRACKS_REPLAY=<second> (`pymobiledevice3 developer
- * dvt launch --env`), it replays the bundled ride from that second instead — the same ride the desktop harness and the
- * screenshot tests draw, which is how the three are compared.
+ * It follows the phone's own location, compass and barometer, and uploads to tracks.stho.net. Two launch variables
+ * (`pymobiledevice3 developer dvt launch --env`) change that for testing:
+ *
+ * - `TRACKS_REPLAY=<second>` replays the bundled ride from that second — the same ride the desktop harness and the
+ *   screenshot tests draw, which is how the three are compared.
+ * - `TRACKS_SERVER=<url>` uploads somewhere else: a dev server on this network, `http://<address>:<port>`, which is how a
+ *   ride is uploaded from the phone without reaching production.
  *
  * Plans live in Application Support, which an app update keeps and iOS never purges. Routing tiles are read from
  * Documents/segments, where they are pushed by hand until M13 downloads them.
  */
 fun MainViewController(): UIViewController = ComposeUIViewController {
+    val environment = NSProcessInfo.processInfo.environment
+    val replayFrom = (environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
+    val server = (environment["TRACKS_SERVER"] as? String) ?: PRODUCTION_SERVER
+
     // One engine: the library's background routing and the editor's share it, one route at a time.
     val router = remember {
         LegRouter(
@@ -65,17 +81,44 @@ fun MainViewController(): UIViewController = ComposeUIViewController {
             now = { Clock.System.now().toEpochMilliseconds() },
         )
     }
+
+    // The UI's own scope, on the main thread: what the recorder and the queue need theirs to be.
+    val scope = rememberCoroutineScope()
+    val location = remember { LocationSensors().takeIf { replayFrom == null } }
     val sensors by produceState<Sensors?>(null) {
-        val replayFrom = (NSProcessInfo.processInfo.environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
-        value = if (replayFrom != null) ReplaySensors(bundledRide(), fromSecond = replayFrom) else LocationSensors()
+        // One stream for the map and the recorder: collected twice, it would be two rides.
+        value = if (replayFrom != null) ReplaySensors(bundledRide(), fromSecond = replayFrom).shared(scope) else location!!.shared(scope)
     }
-    sensors?.let {
+    val rides = remember { Rides(ridesDirectory()) }
+    val queue = remember { UploadQueue(rides, TracksApi(tracksHttpClient(), server), KeychainSessionStore(), scope) }
+
+    sensors?.let { shared ->
+        val recorder = remember(shared) { Recorder(rides, shared, scope, dateTitle = ::localDate, onSaved = queue::kick) }
+        val recording by recorder.state.collectAsState()
+
+        // Location keeps running with the phone locked only while there is a ride to record, paused or not.
+        LaunchedEffect(recording is RecorderState.Recording) {
+            location?.recording = recording is RecorderState.Recording
+        }
+
+        DisposableEffect(recorder) {
+            // Leaving the screen is when iOS may end the app without asking: what is buffered goes to disk first.
+            val stopLifecycle = onAppLifecycle(background = recorder::flush, foreground = queue::kick)
+            val stopNetwork = whenOnline(queue::kick)
+            onDispose {
+                stopLifecycle()
+                stopNetwork()
+            }
+        }
+
         TracksApp(
             library = library,
             router = router,
             geocoder = geocoder,
-            sensors = it,
+            sensors = shared,
             platform = IosPlatform,
+            recorder = recorder,
+            upload = queue,
             links = IncomingLinks.links,
         )
     }

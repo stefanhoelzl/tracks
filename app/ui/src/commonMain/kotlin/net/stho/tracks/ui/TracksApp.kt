@@ -1,6 +1,11 @@
 package net.stho.tracks.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -10,7 +15,9 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -22,11 +29,15 @@ import net.stho.tracks.routing.LegRouting
 import net.stho.tracks.store.PlanEditor
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.StoredPlan
+import net.stho.tracks.ui.harness.MapHarness
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.plans.HomeScreen
 import net.stho.tracks.ui.plans.PlanEditorScreen
 import net.stho.tracks.ui.plans.PlanPreview
+import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.sensors.Sensors
+import net.stho.tracks.ui.theme.Pill
+import net.stho.tracks.ui.upload.UploadQueue
 
 /** What the app needs from the platform it runs on. */
 interface AppPlatform {
@@ -57,11 +68,12 @@ suspend fun PlanLibrary.receiveLink(text: String?): Intake {
 }
 
 /**
- * The app: home, the plan a tap opened, and the editor.
+ * The app: home, the plan a tap opened, the editor — and recording, which home's Ride button opens.
  *
- * [router] must be the one the [library] routes with — there is one engine, and one route runs at a time. [links] is
- * text arriving from outside: a universal link, or the harness's `--paste`. Loading a plan never starts anything: it
- * lands in the list.
+ * [router] must be the one the [library] routes with — there is one engine, and one route runs at a time. [sensors]
+ * must be shared when there is a [recorder]: the map and the recorder read one stream, or a replay would be two rides.
+ * [links] is text arriving from outside: a universal link, or the harness's `--paste`. Loading a plan never starts
+ * anything: it lands in the list.
  */
 @Composable
 fun TracksApp(
@@ -71,6 +83,8 @@ fun TracksApp(
     sensors: Sensors,
     platform: AppPlatform,
     modifier: Modifier = Modifier.fillMaxSize(),
+    recorder: Recorder? = null,
+    upload: UploadQueue? = null,
     links: Flow<String> = emptyFlow(),
     onIdle: () -> Unit = {},
 ) {
@@ -80,6 +94,7 @@ fun TracksApp(
     val routing by library.routing.collectAsState()
     var open by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<PlanEditor?>(null) }
+    var riding by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -113,6 +128,18 @@ fun TracksApp(
     val editor = editing
     val opened = open?.let { id -> plans.firstOrNull { it.id == id } }
     when {
+        riding && recorder != null -> Box(modifier) {
+            // M15's recording screen, as it shipped: record, pause, stop, Save ride?, and the upload queue.
+            MapHarness(sensors = sensors, plan = emptyList(), recorder = recorder, upload = upload, onIdle = onIdle)
+            Pill(
+                "‹ Plans",
+                onClick = { riding = false },
+                primary = false,
+                // Under the map's attribution, which holds the top edge.
+                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 16.dp, top = 64.dp),
+            )
+        }
+
         editor != null -> PlanEditorScreen(
             style = style,
             editor = editor,
@@ -158,6 +185,7 @@ fun TracksApp(
             routing = routing,
             notice = notice,
             onPaste = { intake(platform.clipboardText()) },
+            onRide = recorder?.let { { riding = true } },
             onOpen = { open = it },
             onEdit = ::edit,
             onCopy = { id -> scope.launch { library.copy(id) } },

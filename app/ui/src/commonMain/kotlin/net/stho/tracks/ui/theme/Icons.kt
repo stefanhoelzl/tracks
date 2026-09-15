@@ -36,6 +36,13 @@ object Icons {
         "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
     )
 
+    val Ride: ImageVector = lucide(
+        "bike",
+        "M22 17.5a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0z",
+        "M9 17.5a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0z",
+        "M16 5a1 1 0 1 1-2 0a1 1 0 1 1 2 0z",
+        "M12 17.5V14l-3-3 4-3 2 3h2",
+    )
     val Close: ImageVector = lucide("x", "M18 6L6 18", "M6 6l12 12")
     val Save: ImageVector = lucide("check", "M20 6L9 17l-5-5")
     val Paste: ImageVector = lucide(

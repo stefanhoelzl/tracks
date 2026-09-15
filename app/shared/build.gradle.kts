@@ -22,7 +22,6 @@ kotlin {
         commonMain.dependencies {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.okio)
             implementation(project(":brouter"))
             // A ride's journal is a file (recording); `Rides` takes okio's paths, so they are API.
             api(libs.okio)
@@ -32,6 +31,7 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
             implementation(libs.okio.fakefilesystem)
         }
         nativeTest.dependencies {
