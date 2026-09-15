@@ -167,7 +167,7 @@ data class SegmentSyncResult(
  * downloaded whole beside the old one, which the engine keeps reading until the new one replaces it.
  */
 class SegmentSync(
-    private val store: SegmentStore,
+    val store: SegmentStore,
     private val client: HttpClient,
     private val clock: () -> Long,
     /** Free bytes on the volume, or null where that is not known. */

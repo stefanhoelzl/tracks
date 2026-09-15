@@ -24,10 +24,13 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.flowOf
 import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.ui.map.AreaState
 import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
+import net.stho.tracks.ui.offline.OfflineData
+import net.stho.tracks.ui.offline.OfflineState
 import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.recording.RecordingControls
 import net.stho.tracks.ui.resources.Res
@@ -53,6 +56,7 @@ fun MapHarness(
     modifier: Modifier = Modifier.fillMaxSize(),
     recorder: Recorder? = null,
     upload: UploadQueue? = null,
+    offline: OfflineData? = null,
     onIdle: () -> Unit = {},
 ) {
     val style by produceState<MapStyle?>(null) { value = MapStyle.colorful() }
@@ -86,6 +90,7 @@ fun MapHarness(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             upload?.let { UploadStatus(it) }
+            offline?.let { OfflineStatus(it) }
             recorder?.let { RecordingControls(it) }
             Pill {
                 val f = fix
@@ -105,6 +110,35 @@ fun MapHarness(
             }
         }
     }
+}
+
+/** What offline data is doing, while it is doing anything worth a line. Not the plan list's badges (M12): a readout. */
+@Composable
+private fun OfflineStatus(offline: OfflineData) {
+    val state by offline.state.collectAsState()
+    val lines = offlineLines(state)
+    if (lines.isNotEmpty()) Pill { BasicText(lines.joinToString("\n"), style = TextStyle(color = Tokens.ink, fontSize = 13.sp)) }
+}
+
+internal fun offlineLines(state: OfflineState): List<String> = buildList {
+    for ((key, area) in state.areas) {
+        when (area) {
+            AreaState.Waiting -> add("$key: map waiting")
+            is AreaState.Downloading -> add("$key: map ${(area.fraction * 100).roundToInt()}%")
+            is AreaState.Ready -> add("$key: map offline, ${area.bytes / 1_000_000} MB")
+            is AreaState.Failing -> add("$key: map retrying — ${area.message}")
+        }
+    }
+    val downloading = state.downloading
+    when {
+        downloading != null -> add(
+            "routing ${downloading.tile.name}: " +
+                (downloading.totalBytes?.let { "${downloading.receivedBytes * 100 / it}%" } ?: "${downloading.receivedBytes / 1_000_000} MB"),
+        )
+        state.segmentsWaiting.isNotEmpty() -> add("routing: ${state.segmentsWaiting.joinToString { it.name }} waiting")
+    }
+    state.mapProblem?.let { add("map: $it") }
+    state.segmentProblem?.let { add("routing: $it") }
 }
 
 private fun Double.fixed(digits: Int): String {

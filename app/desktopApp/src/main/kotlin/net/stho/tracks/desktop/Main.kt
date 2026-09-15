@@ -37,6 +37,7 @@ import net.stho.tracks.ui.TracksApp
 import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.map.DesktopMapHost
 import net.stho.tracks.ui.map.configureDesktopMap
+import net.stho.tracks.ui.offline.offlineData
 import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.recording.Rides
 import net.stho.tracks.ui.sensors.ReplaySensors
@@ -70,6 +71,10 @@ val PHONE = DpSize(393.dp, 852.dp)
  *     --server <url>      the Tracks that saved rides upload to: http://[::1]:5173 for `pnpm dev:local`, which listens
  *                         on IPv6 loopback only. No default, so it is never tracks.stho.net by accident: without it,
  *                         nothing uploads.
+ *     --offline <dir>     keep offline data around the replay, as the phone does around you: map packs from
+ *                         tiles.versatiles.org and segment tiles from brouter.de, about 1 GB, into <dir>; routing then
+ *                         reads <dir>/segments unless --segments says otherwise. Off by default, so the harness
+ *                         downloads nothing it was not asked to — and a second run finds it all there.
  *
  * The click and the capture go through the screen: see Screen.kt. **--tap-at and --shot are for the screenshots
  * container only** — on a desktop they capture and click the real screen, which is not to be done.
@@ -85,7 +90,8 @@ fun main(args: Array<String>) {
     val speedup = option("--speed")?.toDouble() ?: 1.0
     val pastes = args.indices.filter { args[it] == "--paste" }.mapNotNull { args.getOrNull(it + 1) }
     val data = option("--data")?.let(::File) ?: File(System.getProperty("user.home"), ".local/share/tracks-harness")
-    val segments = option("--segments") ?: newestSnapshot()
+    val offlineDirectory = option("--offline")?.let(::File)?.also { it.mkdirs() }
+    val segments = option("--segments") ?: offlineDirectory?.resolve("segments")?.absolutePath ?: newestSnapshot()
     val profiles = option("--profiles") ?: File("../brouter/profiles").absolutePath
     val tapAt = option("--tap-at")?.toDouble()
     val shot = option("--shot")?.let(::File)
@@ -103,7 +109,7 @@ fun main(args: Array<String>) {
         now = System::currentTimeMillis,
     )
 
-    configureDesktopMap()
+    configureDesktopMap(cacheFile = offlineDirectory?.resolve("maplibre.db")?.path)
     application {
         Window(onCloseRequest = ::exitApplication, title = "Tracks — desktop harness", state = rememberWindowState(size = PHONE)) {
             if (tapAt != null) {
@@ -137,6 +143,11 @@ fun main(args: Array<String>) {
                     // One replay for the map and the recorder: collected twice, it would be two rides.
                     val sensors = remember(ride) { ReplaySensors(ride, from, speedup).shared(scope) }
                     val recorder = remember(sensors) { Recorder(store, sensors, scope, dateTitle = ::localDate, onSaved = { queue?.kick() }) }
+                    val offline = remember(sensors) {
+                        offlineDirectory?.let { dir ->
+                            offlineData(sensors, dir.toOkioPath(), segments.toPath(), scope, freeBytes = { dir.usableSpace })
+                        }
+                    }
                     TracksApp(
                         library = library,
                         router = router,
@@ -145,6 +156,7 @@ fun main(args: Array<String>) {
                         platform = DesktopPlatform,
                         recorder = recorder,
                         upload = queue,
+                        offline = offline,
                         links = remember { pastes.asFlow() },
                     )
                 }
