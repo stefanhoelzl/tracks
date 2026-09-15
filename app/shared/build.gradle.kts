@@ -23,9 +23,13 @@ kotlin {
             implementation(project(":brouter"))
             // A ride's journal is a file (recording); `Rides` takes okio's paths, so they are API.
             api(libs.okio)
+            // The upload talks to Tracks; the engine is the platform's, chosen by :ui.
+            api(libs.ktor.client.core)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }
