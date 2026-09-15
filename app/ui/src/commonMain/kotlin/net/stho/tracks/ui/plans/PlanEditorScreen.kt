@@ -48,6 +48,7 @@ import net.stho.tracks.plan.insertionAt
 import net.stho.tracks.plan.kindIsAChoice
 import net.stho.tracks.plan.legGeometries
 import net.stho.tracks.plan.legLabel
+import net.stho.tracks.plan.moveStop
 import net.stho.tracks.plan.moveWaypoint
 import net.stho.tracks.plan.nearestLeg
 import net.stho.tracks.plan.placementAt
@@ -268,6 +269,7 @@ fun PlanEditorScreen(
                     onBase = { base = it },
                     onEdit = { index -> dialog = PinTarget.Edit(index, plan.waypoints[index]) },
                     onRemove = { index -> editor.update(removeWaypoint(plan, index)) },
+                    onMoveStop = { from, to -> editor.update(moveStop(plan, from, to)) },
                 )
             }
         }

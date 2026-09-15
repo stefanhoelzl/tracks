@@ -2,6 +2,18 @@ package net.stho.tracks.ui.plans
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.zIndex
+import kotlin.math.abs
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +46,8 @@ import net.stho.tracks.ui.theme.Type
  * the way to the next one — so fifteen hints and two real places read as the trip they are.
  *
  * Each row carries the distance and the climb to it, measured from the row that is selected: *how far is the hut from
- * here*. With nothing selected they are measured from the start. A tap selects a row; its × removes it.
+ * here*. With nothing selected they are measured from the start. A tap selects a row; its × removes it; a long press
+ * picks a stop up to move it.
  */
 @Composable
 fun StopList(
@@ -44,10 +57,21 @@ fun StopList(
     onBase: (Int) -> Unit,
     onEdit: (Int) -> Unit,
     onRemove: (Int) -> Unit,
+    onMoveStop: (from: Int, to: Int) -> Unit,
     modifier: Modifier = Modifier,
+    carried: StopDrag? = null,
 ) {
     val readings = readingsFrom(legs, base)
     var stop = -1
+    var drag by remember(carried) { mutableStateOf(carried) }
+    // Where each stop's row sits in the list, by ordinal: what a carried row is dropped against.
+    val rows = remember { mutableStateMapOf<Int, Pair<Float, Float>>() }
+
+    fun target(carry: StopDrag): Int {
+        val (top, height) = rows[carry.stop] ?: return carry.stop
+        val centre = top + height / 2 + carry.offsetPx
+        return rows.minByOrNull { (_, row) -> abs(row.first + row.second / 2 - centre) }?.key ?: carry.stop
+    }
 
     Column(modifier) {
         plan.waypoints.forEachIndexed { index, waypoint ->
@@ -55,8 +79,34 @@ fun StopList(
                 stop += 1
                 val ordinal = stop
                 val reading = readings.getOrNull(ordinal)
+                val lifted = drag?.stop == ordinal
                 Row(
                     Modifier
+                        .onGloballyPositioned { rows[ordinal] = it.positionInParent().y to it.size.height.toFloat() }
+                        .zIndex(if (lifted) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (lifted) drag?.offsetPx ?: 0f else 0f
+                            shadowElevation = if (lifted) 8.dp.toPx() else 0f
+                        }
+                        // A long press picks a stop up — a plain drag scrolls the sheet — and it carries the
+                        // shaping points leading out of it, as on the web.
+                        .pointerInput(ordinal, plan) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { drag = StopDrag(ordinal, 0f) },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    drag = drag?.let { it.copy(offsetPx = it.offsetPx + amount.y) }
+                                },
+                                onDragEnd = {
+                                    drag?.let { carry ->
+                                        val to = target(carry)
+                                        drag = null
+                                        if (to != carry.stop) onMoveStop(carry.stop, to)
+                                    }
+                                },
+                                onDragCancel = { drag = null },
+                            )
+                        }
                         .fillMaxWidth()
                         .background(if (ordinal == base) Tokens.accentSoft else Tokens.surface, Shapes.control)
                         .clickable { if (ordinal == base) onEdit(index) else onBase(ordinal) }
@@ -98,6 +148,9 @@ fun StopList(
         }
     }
 }
+
+/** A stop being carried in the list: its ordinal, and how far it has moved from its row, in pixels. */
+data class StopDrag(val stop: Int, val offsetPx: Float)
 
 @Composable
 private fun Remove(onClick: () -> Unit) {

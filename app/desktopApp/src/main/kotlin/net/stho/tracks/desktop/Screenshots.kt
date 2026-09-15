@@ -43,6 +43,12 @@ import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.plans.HomeScreen
 import net.stho.tracks.ui.plans.PlanEditorScreen
 import net.stho.tracks.ui.plans.PlanPreview
+import net.stho.tracks.ui.plans.StopDrag
+import net.stho.tracks.ui.plans.StopList
+import net.stho.tracks.ui.theme.Tokens
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import net.stho.tracks.ui.map.DesktopMapHost
@@ -81,7 +87,7 @@ private const val PIXEL_TOLERANCE = 0.0003
 private const val TAP_TOLERANCE_PX = 2.0
 
 /** What a scene draws: the map on its own, or one of the app's screens over it. */
-private enum class Screen { Map, Home, Preview, Editor, EditorRouting }
+private enum class Screen { Map, Home, Preview, Editor, EditorRouting, StopCarried }
 
 private class Scene(
     val name: String,
@@ -101,6 +107,7 @@ private val SCENES = listOf(
     Scene("preview", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Preview),
     Scene("editor", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Editor),
     Scene("editor-routing", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorRouting),
+    Scene("stop-carried", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.StopCarried),
     Scene("follow", second = 185, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("stop-compass", second = 950, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("north-up", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp, FOLLOW_ZOOM) }),
@@ -262,6 +269,23 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             pulse = false,
                             onIdle = onIdle,
                         )
+                    }
+                    Screen.StopCarried -> {
+                        // No map here, so nothing idles on its own: the list is drawn at once.
+                        LaunchedEffect(Unit) { onIdle() }
+                        val stored = plans.first { it.plan.name == "Partnachklamm" }
+                        Box(Modifier.fillMaxSize().background(Tokens.glassHi).padding(16.dp)) {
+                            StopList(
+                                plan = stored.plan,
+                                legs = stored.legs,
+                                base = 0,
+                                onBase = {},
+                                onEdit = {},
+                                onRemove = {},
+                                onMoveStop = { _, _ -> },
+                                carried = StopDrag(stop = 1, offsetPx = 60f),
+                            )
+                        }
                     }
                 }
             }
