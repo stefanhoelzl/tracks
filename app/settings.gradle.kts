@@ -16,8 +16,10 @@ pluginManagement {
     }
 }
 
-// The JVM targets build with JDK 21 wherever Gradle happens to run: a machine whose default
-// `java` is a runtime without a compiler, or JDK 25, gets 21 provisioned instead of a failure.
+// The JVM targets build with JDK 25 wherever Gradle happens to run: a machine whose default
+// `java` is a runtime without a compiler, or an older JDK, gets 25 provisioned instead of a failure.
+// 25 because the map library's JVM artifacts are Java 25 class files (M11); the whole build moved
+// with it rather than splitting toolchains between modules.
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }

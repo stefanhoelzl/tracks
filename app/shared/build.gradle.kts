@@ -5,7 +5,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 
     // iOS is the product; the JVM is the desktop harness (M11) and the fast test loop;
     // linuxX64 is native code that CI can run without a Mac.
