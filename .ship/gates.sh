@@ -27,7 +27,8 @@ pnpm build
 # the 450 MB tile snapshot into ~/.cache/tracks.
 (cd app && ./gradlew --quiet :shared:jvmTest :shared:linuxX64Test :brouter:jvmTest :brouter:linuxX64ReleaseTest)
 
-# The app's UI: its logic tests, then the real map drawn in the screenshots container and
+# The app's UI: its logic tests, beside a throwaway local Tracks for the one that uploads a replayed ride (a
+# database file made for the run, never production), then the real map drawn in the screenshots container and
 # compared with the committed pictures. Podman here, docker in CI; the same image either way.
-(cd app && ./gradlew --quiet :ui:jvmTest)
+(cd app && scripts/local-tracks.sh ./gradlew --quiet :ui:jvmTest)
 app/desktopApp/screenshots/run.sh
