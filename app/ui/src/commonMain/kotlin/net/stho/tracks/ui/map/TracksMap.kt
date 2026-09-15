@@ -135,8 +135,16 @@ data class LegLine(val coordinates: List<Coordinate>, val state: LegState)
 /** A waypoint on the map: a stop, labelled with its name, or a shaping point on the line. */
 data class WaypointMark(val at: Coordinate, val stop: Boolean, val label: String)
 
-/** A plan as the editor draws it. [pulse] animates routing legs; the screenshot scenes hold them still. */
-data class PlanDrawing(val legs: List<LegLine>, val waypoints: List<WaypointMark>, val pulse: Boolean = true)
+/**
+ * A plan with its legs and waypoints. [pulse] animates routing legs; the screenshot scenes hold them still. Only an
+ * [editable] one has waypoints that can be tapped and dragged.
+ */
+data class PlanDrawing(
+    val legs: List<LegLine>,
+    val waypoints: List<WaypointMark>,
+    val pulse: Boolean = true,
+    val editable: Boolean = true,
+)
 
 /**
  * The map: the basemap, the [plan] line (or a [drawing] of one being edited), the rider at [fix], and a camera that
@@ -520,7 +528,7 @@ private fun MapLibreMap(
             ExpandingAttributionButton()
         }
 
-        drawing?.let { WaypointHandles(state, it.waypoints, onWaypointTap, onWaypointDrag) }
+        drawing?.takeIf { it.editable }?.let { WaypointHandles(state, it.waypoints, onWaypointTap, onWaypointDrag) }
     }
 }
 

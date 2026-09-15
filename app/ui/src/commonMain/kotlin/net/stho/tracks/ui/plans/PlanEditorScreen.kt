@@ -71,6 +71,7 @@ import net.stho.tracks.ui.map.WaypointMark
 import net.stho.tracks.ui.sensors.Fix
 import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.theme.Shapes
+import net.stho.tracks.ui.theme.SnapSheet
 import net.stho.tracks.ui.theme.StatTile
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
@@ -99,8 +100,11 @@ fun PlanEditorScreen(
     onCopy: () -> Unit,
     modifier: Modifier = Modifier,
     pulse: Boolean = true,
+    initiallyExpanded: Boolean = false,
     onIdle: () -> Unit = {},
 ) {
+    var expanded by remember { mutableStateOf(initiallyExpanded) }
+    var covered by remember { mutableStateOf(0.dp) }
     val state by editor.state.collectAsState()
     val plan = state.plan
     val legs = state.legs
@@ -172,11 +176,11 @@ fun PlanEditorScreen(
     }
 
     BoxWithConstraints(modifier.fillMaxSize().background(Tokens.ground)) {
-        val sheetHeight = maxHeight * SHEET_SHARE
         style?.let {
             TracksMap(
                 style = it,
-                camera = MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = 112.dp, end = 32.dp, bottom = sheetHeight + 32.dp)),
+                // Framed clear of the minimised sheet: the map is where a plan is edited.
+                camera = MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = 112.dp, end = 32.dp, bottom = covered + 32.dp)),
                 modifier = Modifier.fillMaxSize(),
                 fix = fix,
                 drawing = drawing,
@@ -210,35 +214,13 @@ fun PlanEditorScreen(
             if (state.changed) Pill("Save", onClick = onSave)
         }
 
-        Column(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(sheetHeight)
-                .background(Tokens.glassHi, Shapes.sheet)
-                .verticalScroll(rememberScrollState())
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        val stops = plan.waypoints.count { it.kind == WaypointKind.Poi }
+        SnapSheet(
+            expanded = expanded,
+            onExpanded = { expanded = it },
+            onHeaderHeight = { covered = it },
+            header = { EditorHeader(plan, legs.size, stops, editor, state) },
         ) {
-            val stops = plan.waypoints.count { it.kind == WaypointKind.Poi }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                BasicTextField(
-                    value = plan.name,
-                    onValueChange = { editor.update(plan.copy(name = it)) },
-                    singleLine = true,
-                    textStyle = Type.title,
-                    cursorBrush = SolidColor(Tokens.accent),
-                    decorationBox = { field ->
-                        Box {
-                            if (plan.name.isEmpty()) BasicText(derivedName(plan).ifEmpty { "Name this plan" }, style = Type.title.copy(color = Tokens.muted))
-                            field()
-                        }
-                    },
-                )
-                BasicText("$stops stops · ${legs.size} ${if (legs.size == 1) "leg" else "legs"} · brouter · ${plan.profile.label.lowercase()}", style = Type.mono)
-            }
-
             if (stops < 2) {
                 BasicText(
                     "Tap the map to start. The first two points are the start and the end; after that, add stops, or long-press the line to shape the route.",
@@ -248,7 +230,6 @@ fun PlanEditorScreen(
                 val totals = planTotals(legs)
                 PlanTiles(legs)
                 terrainOf(planTrack(legs), totals.distanceM.takeIf { it > 0 })?.let { ElevationProfile(it) }
-                editorNote(state)?.let { BasicText(it, style = Type.note) }
             }
 
             BasicText("PROFILE", style = Type.label)
@@ -298,6 +279,34 @@ fun PlanEditorScreen(
                     .padding(12.dp),
             )
         }
+    }
+}
+
+/**
+ * What the minimised editor still shows: the name, where it can be typed, the plan in one line, and what the engine is
+ * doing — the thing to glance at while the map is being edited.
+ */
+@Composable
+private fun EditorHeader(plan: net.stho.tracks.plan.Plan, legCount: Int, stops: Int, editor: PlanEditor, state: PlanEditor.State) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        BasicTextField(
+            value = plan.name,
+            onValueChange = { editor.update(plan.copy(name = it)) },
+            singleLine = true,
+            textStyle = Type.title,
+            cursorBrush = SolidColor(Tokens.accent),
+            decorationBox = { field ->
+                Box {
+                    if (plan.name.isEmpty()) BasicText(derivedName(plan).ifEmpty { "Name this plan" }, style = Type.title.copy(color = Tokens.muted))
+                    field()
+                }
+            },
+        )
+        BasicText(
+            "$stops stops · $legCount ${if (legCount == 1) "leg" else "legs"} · brouter · ${plan.profile.label.lowercase()}",
+            style = Type.mono,
+        )
+        editorNote(state)?.let { BasicText(it, style = Type.note, modifier = Modifier.padding(top = 4.dp)) }
     }
 }
 

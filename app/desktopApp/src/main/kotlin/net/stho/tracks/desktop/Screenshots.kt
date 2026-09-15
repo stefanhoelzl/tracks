@@ -267,6 +267,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             onSave = {},
                             onCopy = {},
                             pulse = false,
+                            initiallyExpanded = true,
                             onIdle = onIdle,
                         )
                     }
