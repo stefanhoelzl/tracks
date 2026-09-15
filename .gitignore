@@ -17,3 +17,9 @@ dist/
 
 # Vite build output; `tracks serve` mounts it, `pnpm build` makes it.
 packages/web/dist/
+
+# Gradle's, under app/. The wrapper jar is not build output and stays tracked.
+app/.gradle/
+app/.kotlin/
+app/**/build/
+app/local.properties

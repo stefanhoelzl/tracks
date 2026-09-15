@@ -1,0 +1,964 @@
+{
+  "profiles": [
+    "road",
+    "trekking",
+    "gravel",
+    "mtb",
+    "hiking"
+  ],
+  "defaultProfile": "trekking",
+  "format": [
+    {
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": []
+      },
+      "fragment": ""
+    },
+    {
+      "plan": {
+        "name": "Only a name",
+        "profile": "trekking",
+        "waypoints": []
+      },
+      "fragment": "name=Only+a+name"
+    },
+    {
+      "plan": {
+        "name": "",
+        "profile": "gravel",
+        "waypoints": []
+      },
+      "fragment": ""
+    },
+    {
+      "plan": {
+        "name": "Ötztal loop",
+        "profile": "gravel",
+        "waypoints": [
+          {
+            "lat": 47.2654,
+            "lon": 11.3931,
+            "kind": "poi",
+            "name": "Start"
+          },
+          {
+            "lat": 47.2678,
+            "lon": 11.3952,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2668,
+            "lon": 11.3975,
+            "kind": "poi",
+            "name": "Gasthof"
+          }
+        ]
+      },
+      "fragment": "name=%C3%96tztal+loop&profile=gravel&at=won_H%7BepdA_NcLfEkM&kinds=prp&poi=Start&poi=Gasthof"
+    },
+    {
+      "plan": {
+        "name": "",
+        "profile": "road",
+        "waypoints": [
+          {
+            "lat": 48.1374,
+            "lon": 11.5755,
+            "kind": "poi",
+            "name": null
+          },
+          {
+            "lat": 47.2692,
+            "lon": 11.3928,
+            "kind": "poi",
+            "name": ""
+          }
+        ]
+      },
+      "fragment": "profile=road&at=wyxdH%7ByseAfqhDztb%40&kinds=pp&poi=&poi="
+    },
+    {
+      "plan": {
+        "name": "a&b=c+d%e/f?g#h i",
+        "profile": "hiking",
+        "waypoints": [
+          {
+            "lat": 46.4983,
+            "lon": 11.3548,
+            "kind": "poi",
+            "name": "Gasthof, Vent | Hütte"
+          },
+          {
+            "lat": 46.5,
+            "lon": 11.36,
+            "kind": "routing",
+            "name": null
+          }
+        ]
+      },
+      "fragment": "name=a%26b%3Dc%2Bd%25e%2Ff%3Fg%23h+i&profile=hiking&at=kuxzGovhdAsIo_%40&kinds=pr&poi=Gasthof%2C+Vent+%7C+H%C3%BCtte"
+    },
+    {
+      "plan": {
+        "name": "🚲 ride ☕",
+        "profile": "mtb",
+        "waypoints": [
+          {
+            "lat": -33.8688,
+            "lon": 151.2093,
+            "kind": "poi",
+            "name": "L'Écluse ~*-._!'()"
+          }
+        ]
+      },
+      "fragment": "name=%F0%9F%9A%B2+ride+%E2%98%95&profile=mtb&at=%7E%7EumEca%7Cy%5B&kinds=p&poi=L%27%C3%89cluse+%7E*-._%21%27%28%29"
+    },
+    {
+      "plan": {
+        "name": "\ud800 lone",
+        "profile": "trekking",
+        "waypoints": []
+      },
+      "fragment": "name=%EF%BF%BD+lone"
+    },
+    {
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": [
+          {
+            "lat": 0.000005,
+            "lon": -0.000005,
+            "kind": "routing",
+            "name": null
+          }
+        ]
+      },
+      "fragment": "at=A%40&kinds=r"
+    },
+    {
+      "plan": {
+        "name": "walk",
+        "profile": "trekking",
+        "waypoints": [
+          {
+            "lat": 47.2654881,
+            "lon": 11.3929155,
+            "kind": "poi",
+            "name": "Stop 0"
+          },
+          {
+            "lat": 47.2654706,
+            "lon": 11.3927454,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2655758,
+            "lon": 11.3927379,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2655705,
+            "lon": 11.3926026,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2654758,
+            "lon": 11.3926237,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2653537,
+            "lon": 11.3924571,
+            "kind": "poi",
+            "name": "Stop 5"
+          },
+          {
+            "lat": 47.2654392,
+            "lon": 11.3924478,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2655567,
+            "lon": 11.3925997,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2654862,
+            "lon": 11.3926759,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2654009,
+            "lon": 11.3927448,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2654115,
+            "lon": 11.3928775,
+            "kind": "poi",
+            "name": "Stop 10"
+          },
+          {
+            "lat": 47.2654274,
+            "lon": 11.3926821,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2655784,
+            "lon": 11.3926063,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2657531,
+            "lon": 11.392714,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2657213,
+            "lon": 11.3927999,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2655831,
+            "lon": 11.3927471,
+            "kind": "poi",
+            "name": "Stop 15"
+          },
+          {
+            "lat": 47.2656722,
+            "lon": 11.3925477,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2654755,
+            "lon": 11.392539,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2656207,
+            "lon": 11.3925802,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2656936,
+            "lon": 11.3926947,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2657273,
+            "lon": 11.3927274,
+            "kind": "poi",
+            "name": "Stop 20"
+          },
+          {
+            "lat": 47.2655557,
+            "lon": 11.3926763,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.265568,
+            "lon": 11.3928117,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2655332,
+            "lon": 11.3927973,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2655319,
+            "lon": 11.3928257,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2656424,
+            "lon": 11.3929678,
+            "kind": "poi",
+            "name": "Stop 25"
+          },
+          {
+            "lat": 47.2657082,
+            "lon": 11.3929168,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2657838,
+            "lon": 11.3929967,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2657703,
+            "lon": 11.3931882,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2659226,
+            "lon": 11.3932733,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2659935,
+            "lon": 11.3934543,
+            "kind": "poi",
+            "name": "Stop 30"
+          },
+          {
+            "lat": 47.2660995,
+            "lon": 11.3932771,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.265926,
+            "lon": 11.3932921,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2660722,
+            "lon": 11.39323,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2660883,
+            "lon": 11.393146,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2660736,
+            "lon": 11.3931668,
+            "kind": "poi",
+            "name": "Stop 35"
+          },
+          {
+            "lat": 47.2661047,
+            "lon": 11.3931232,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2662072,
+            "lon": 11.3929924,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2663882,
+            "lon": 11.3930497,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2664885,
+            "lon": 11.3931577,
+            "kind": "routing",
+            "name": null
+          }
+        ]
+      },
+      "fragment": "name=walk&at=ipn_HwdpdAB%60%40U%40%40ZPCX%5EQ%40W%5DLOPKA%5BCf%40%5DLa%40SDQZHQf%40d%40%40%5BGMUGG%60%40HAYF%40%3FEU%5BMHMO%40e%40%5DOMc%40U%60%40%60%40A%5BJCNBCEHUXc%40KSU&kinds=prrrrprrrrprrrrprrrrprrrrprrrrprrrrprrrr&poi=Stop+0&poi=Stop+5&poi=Stop+10&poi=Stop+15&poi=Stop+20&poi=Stop+25&poi=Stop+30&poi=Stop+35"
+    }
+  ],
+  "parse": [
+    {
+      "hash": "#",
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "name=Only+a+name",
+      "plan": {
+        "name": "Only a name",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#",
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "name=%C3%96tztal+loop&profile=gravel&at=won_H%7BepdA_NcLfEkM&kinds=prp&poi=Start&poi=Gasthof",
+      "plan": {
+        "name": "Ötztal loop",
+        "profile": "gravel",
+        "waypoints": [
+          {
+            "lat": 47.2654,
+            "lon": 11.3931,
+            "kind": "poi",
+            "name": "Start"
+          },
+          {
+            "lat": 47.2678,
+            "lon": 11.3952,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2668,
+            "lon": 11.3975,
+            "kind": "poi",
+            "name": "Gasthof"
+          }
+        ]
+      }
+    },
+    {
+      "hash": "#profile=road&at=wyxdH%7ByseAfqhDztb%40&kinds=pp&poi=&poi=",
+      "plan": {
+        "name": "",
+        "profile": "road",
+        "waypoints": [
+          {
+            "lat": 48.1374,
+            "lon": 11.5755,
+            "kind": "poi",
+            "name": null
+          },
+          {
+            "lat": 47.2692,
+            "lon": 11.3928,
+            "kind": "poi",
+            "name": null
+          }
+        ]
+      }
+    },
+    {
+      "hash": "name=a%26b%3Dc%2Bd%25e%2Ff%3Fg%23h+i&profile=hiking&at=kuxzGovhdAsIo_%40&kinds=pr&poi=Gasthof%2C+Vent+%7C+H%C3%BCtte",
+      "plan": {
+        "name": "a&b=c+d%e/f?g#h i",
+        "profile": "hiking",
+        "waypoints": [
+          {
+            "lat": 46.4983,
+            "lon": 11.3548,
+            "kind": "poi",
+            "name": "Gasthof, Vent | Hütte"
+          },
+          {
+            "lat": 46.5,
+            "lon": 11.36,
+            "kind": "routing",
+            "name": null
+          }
+        ]
+      }
+    },
+    {
+      "hash": "#name=%F0%9F%9A%B2+ride+%E2%98%95&profile=mtb&at=%7E%7EumEca%7Cy%5B&kinds=p&poi=L%27%C3%89cluse+%7E*-._%21%27%28%29",
+      "plan": {
+        "name": "🚲 ride ☕",
+        "profile": "mtb",
+        "waypoints": [
+          {
+            "lat": -33.8688,
+            "lon": 151.2093,
+            "kind": "poi",
+            "name": "L'Écluse ~*-._!'()"
+          }
+        ]
+      }
+    },
+    {
+      "hash": "name=%EF%BF%BD+lone",
+      "plan": {
+        "name": "� lone",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#at=A%40&kinds=r",
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": [
+          {
+            "lat": 0.00001,
+            "lon": -0.00001,
+            "kind": "routing",
+            "name": null
+          }
+        ]
+      }
+    },
+    {
+      "hash": "name=walk&at=ipn_HwdpdAB%60%40U%40%40ZPCX%5EQ%40W%5DLOPKA%5BCf%40%5DLa%40SDQZHQf%40d%40%40%5BGMUGG%60%40HAYF%40%3FEU%5BMHMO%40e%40%5DOMc%40U%60%40%60%40A%5BJCNBCEHUXc%40KSU&kinds=prrrrprrrrprrrrprrrrprrrrprrrrprrrrprrrr&poi=Stop+0&poi=Stop+5&poi=Stop+10&poi=Stop+15&poi=Stop+20&poi=Stop+25&poi=Stop+30&poi=Stop+35",
+      "plan": {
+        "name": "walk",
+        "profile": "trekking",
+        "waypoints": [
+          {
+            "lat": 47.26549,
+            "lon": 11.39292,
+            "kind": "poi",
+            "name": "Stop 0"
+          },
+          {
+            "lat": 47.26547,
+            "lon": 11.39275,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26558,
+            "lon": 11.39274,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26557,
+            "lon": 11.3926,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26548,
+            "lon": 11.39262,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26535,
+            "lon": 11.39246,
+            "kind": "poi",
+            "name": "Stop 5"
+          },
+          {
+            "lat": 47.26544,
+            "lon": 11.39245,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26556,
+            "lon": 11.3926,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26549,
+            "lon": 11.39268,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.2654,
+            "lon": 11.39274,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26541,
+            "lon": 11.39288,
+            "kind": "poi",
+            "name": "Stop 10"
+          },
+          {
+            "lat": 47.26543,
+            "lon": 11.39268,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26558,
+            "lon": 11.39261,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26575,
+            "lon": 11.39271,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26572,
+            "lon": 11.3928,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26558,
+            "lon": 11.39275,
+            "kind": "poi",
+            "name": "Stop 15"
+          },
+          {
+            "lat": 47.26567,
+            "lon": 11.39255,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26548,
+            "lon": 11.39254,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26562,
+            "lon": 11.39258,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26569,
+            "lon": 11.39269,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26573,
+            "lon": 11.39273,
+            "kind": "poi",
+            "name": "Stop 20"
+          },
+          {
+            "lat": 47.26556,
+            "lon": 11.39268,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26557,
+            "lon": 11.39281,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26553,
+            "lon": 11.3928,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26553,
+            "lon": 11.39283,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26564,
+            "lon": 11.39297,
+            "kind": "poi",
+            "name": "Stop 25"
+          },
+          {
+            "lat": 47.26571,
+            "lon": 11.39292,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26578,
+            "lon": 11.393,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26577,
+            "lon": 11.39319,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26592,
+            "lon": 11.39327,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26599,
+            "lon": 11.39345,
+            "kind": "poi",
+            "name": "Stop 30"
+          },
+          {
+            "lat": 47.2661,
+            "lon": 11.39328,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26593,
+            "lon": 11.39329,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26607,
+            "lon": 11.39323,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26609,
+            "lon": 11.39315,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26607,
+            "lon": 11.39317,
+            "kind": "poi",
+            "name": "Stop 35"
+          },
+          {
+            "lat": 47.2661,
+            "lon": 11.39312,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26621,
+            "lon": 11.39299,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26639,
+            "lon": 11.39305,
+            "kind": "routing",
+            "name": null
+          },
+          {
+            "lat": 47.26649,
+            "lon": 11.39316,
+            "kind": "routing",
+            "name": null
+          }
+        ]
+      }
+    },
+    {
+      "hash": "",
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#",
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=Just%20a%20name",
+      "plan": {
+        "name": "Just a name",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#at=&name=y",
+      "plan": {
+        "name": "y",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "?at=_p~iF~ps%7CU&kinds=pp",
+      "error": "plan has 1 waypoints but 2 kinds"
+    },
+    {
+      "hash": "#?at=_p~iF~ps%7CU&kinds=pp&poi=A&poi=B",
+      "error": "plan has 1 waypoints but 2 kinds"
+    },
+    {
+      "hash": "#at=_p~iF~ps|U&kinds=pp",
+      "error": "plan has 1 waypoints but 2 kinds"
+    },
+    {
+      "hash": "#at=_p~iF~ps%7CU&kinds=p",
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": [
+          {
+            "lat": 38.5,
+            "lon": -120.2,
+            "kind": "poi",
+            "name": null
+          }
+        ]
+      }
+    },
+    {
+      "hash": "#at=_p~iF~ps%7CU&kinds=ppp",
+      "error": "plan has 1 waypoints but 3 kinds"
+    },
+    {
+      "hash": "#at=_p~iF~ps%7CU&kinds=pr&profile=car",
+      "error": "plan has 1 waypoints but 2 kinds"
+    },
+    {
+      "hash": "#at=_p~iF~ps%7CU&kinds=pX",
+      "error": "plan has 1 waypoints but 2 kinds"
+    },
+    {
+      "hash": "#at=_p~iF~ps%7CU&kinds=pp&poi=Only",
+      "error": "plan has 1 waypoints but 2 kinds"
+    },
+    {
+      "hash": "#at=_p~iF&kinds=p",
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": [
+          {
+            "lat": 38.5,
+            "lon": 0,
+            "kind": "poi",
+            "name": null
+          }
+        ]
+      }
+    },
+    {
+      "hash": "#name=%ZZ%4&name=second",
+      "plan": {
+        "name": "%ZZ%4",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=%C3",
+      "plan": {
+        "name": "�",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=%F0%9F%9A",
+      "plan": {
+        "name": "�",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=%ED%A0%80",
+      "plan": {
+        "name": "���",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=%C0%AF",
+      "plan": {
+        "name": "��",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=%F4%90%80%80x",
+      "plan": {
+        "name": "����x",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=a+b%2Bc",
+      "plan": {
+        "name": "a b+c",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#&&name=x&&",
+      "plan": {
+        "name": "x",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#=value&name",
+      "plan": {
+        "name": "",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name==eq",
+      "plan": {
+        "name": "=eq",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=Caf%C3%A9&at=_p~iF~ps%7CU&kinds=rr",
+      "error": "plan has 1 waypoints but 2 kinds"
+    },
+    {
+      "hash": "#name=ümlaut raw",
+      "plan": {
+        "name": "ümlaut raw",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    },
+    {
+      "hash": "#name=\ud83d",
+      "plan": {
+        "name": "�",
+        "profile": "trekking",
+        "waypoints": []
+      }
+    }
+  ]
+}
