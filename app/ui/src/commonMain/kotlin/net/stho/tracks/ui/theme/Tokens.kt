@@ -28,10 +28,4 @@ object Tokens {
     val accent = Color(0xFF0D8A5F) // --accent
     val accentDeep = Color(0xFF0A6E4C) // --accent-deep
     val accentSoft = Color(0xFFE4F3EC) // --accent-soft
-
-    /**
-     * Where the phone faces, as a slice of the rider's dot. The phone's own, not the web's: the web draws no rider.
-     * Blue because it is the one colour the map, the plan and the tracks do not use.
-     */
-    val facing = Color(0xFF1A73E8)
 }

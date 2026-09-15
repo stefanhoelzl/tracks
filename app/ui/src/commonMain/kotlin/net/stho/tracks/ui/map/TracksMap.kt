@@ -217,13 +217,14 @@ private fun MapLibreMap(
             ),
         )
 
-        // Where the phone faces: a blue slice of the dot, FIELD_OF_VIEW_DEG wide, from the compass rather than the
+        // Where the phone faces: an accent slice of the dot, FIELD_OF_VIEW_DEG wide, from the compass rather than the
         // course. It is what you are looking at, which a rider stopped at a junction wants to know and a course cannot
-        // say. Turned with the map, so it points the same way whichever way up the map is.
+        // say. Turned with the map, so it points the same way whichever way up the map is. Inside the ink dot, the
+        // accent stays legible even where the rider sits on the accent plan line.
         val facing = currentHeading
         val rider = currentFix
         val facingSource = rememberGeoJsonSource(GeoJsonData.JsonString(pointJson(rider?.at)))
-        val facingPainter = remember { FacingWedge(Tokens.facing, FIELD_OF_VIEW_DEG.toFloat()) }
+        val facingPainter = remember { FacingWedge(Tokens.accent, FIELD_OF_VIEW_DEG.toFloat()) }
         SymbolLayer(
             id = "rider-facing",
             source = facingSource,
