@@ -1,0 +1,310 @@
+{
+  "numbers": [
+    {
+      "value": 0,
+      "string": "0",
+      "fixed4": "0.0000",
+      "fixed6": "0.000000"
+    },
+    {
+      "value": 1,
+      "string": "1",
+      "fixed4": "1.0000",
+      "fixed6": "1.000000"
+    },
+    {
+      "value": 11,
+      "string": "11",
+      "fixed4": "11.0000",
+      "fixed6": "11.000000"
+    },
+    {
+      "value": 11.5,
+      "string": "11.5",
+      "fixed4": "11.5000",
+      "fixed6": "11.500000"
+    },
+    {
+      "value": -11.39,
+      "string": "-11.39",
+      "fixed4": "-11.3900",
+      "fixed6": "-11.390000"
+    },
+    {
+      "value": 47.2654,
+      "string": "47.2654",
+      "fixed4": "47.2654",
+      "fixed6": "47.265400"
+    },
+    {
+      "value": 1e-7,
+      "string": "1e-7",
+      "fixed4": "0.0000",
+      "fixed6": "0.000000"
+    },
+    {
+      "value": 0.00001,
+      "string": "0.00001",
+      "fixed4": "0.0000",
+      "fixed6": "0.000010"
+    },
+    {
+      "value": 0.000001,
+      "string": "0.000001",
+      "fixed4": "0.0000",
+      "fixed6": "0.000001"
+    },
+    {
+      "value": 1.5e-10,
+      "string": "1.5e-10",
+      "fixed4": "0.0000",
+      "fixed6": "0.000000"
+    },
+    {
+      "value": 1e+21,
+      "string": "1e+21",
+      "fixed4": "1e+21",
+      "fixed6": "1e+21"
+    },
+    {
+      "value": 100000000000000000000,
+      "string": "100000000000000000000",
+      "fixed4": null,
+      "fixed6": null
+    },
+    {
+      "value": 123456789012345680000,
+      "string": "123456789012345680000",
+      "fixed4": null,
+      "fixed6": null
+    },
+    {
+      "value": 0.30000000000000004,
+      "string": "0.30000000000000004",
+      "fixed4": "0.3000",
+      "fixed6": "0.300000"
+    },
+    {
+      "value": 5e-324,
+      "string": "5e-324",
+      "fixed4": "0.0000",
+      "fixed6": "0.000000"
+    },
+    {
+      "value": 1.7976931348623157e+308,
+      "string": "1.7976931348623157e+308",
+      "fixed4": "1.7976931348623157e+308",
+      "fixed6": "1.7976931348623157e+308"
+    },
+    {
+      "value": 180,
+      "string": "180",
+      "fixed4": "180.0000",
+      "fixed6": "180.000000"
+    },
+    {
+      "value": -180,
+      "string": "-180",
+      "fixed4": "-180.0000",
+      "fixed6": "-180.000000"
+    },
+    {
+      "value": 46.4983,
+      "string": "46.4983",
+      "fixed4": "46.4983",
+      "fixed6": "46.498300"
+    },
+    {
+      "value": 0.000005,
+      "string": "0.000005",
+      "fixed4": "0.0000",
+      "fixed6": "0.000005"
+    },
+    {
+      "value": -0.000005,
+      "string": "-0.000005",
+      "fixed4": "-0.0000",
+      "fixed6": "-0.000005"
+    },
+    {
+      "value": 2.5,
+      "string": "2.5",
+      "fixed4": "2.5000",
+      "fixed6": "2.500000"
+    },
+    {
+      "value": 1.00005,
+      "string": "1.00005",
+      "fixed4": "1.0001",
+      "fixed6": "1.000050"
+    },
+    {
+      "value": 1.23455,
+      "string": "1.23455",
+      "fixed4": "1.2346",
+      "fixed6": "1.234550"
+    },
+    {
+      "value": 47.26545,
+      "string": "47.26545",
+      "fixed4": "47.2655",
+      "fixed6": "47.265450"
+    },
+    {
+      "value": 11.39315,
+      "string": "11.39315",
+      "fixed4": "11.3932",
+      "fixed6": "11.393150"
+    },
+    {
+      "value": -0.00001,
+      "string": "-0.00001",
+      "fixed4": "-0.0000",
+      "fixed6": "-0.000010"
+    },
+    {
+      "value": 99.99995,
+      "string": "99.99995",
+      "fixed4": "99.9999",
+      "fixed6": "99.999950"
+    },
+    {
+      "value": 1234.5678,
+      "string": "1234.5678",
+      "fixed4": "1234.5678",
+      "fixed6": "1234.567800"
+    }
+  ],
+  "texts": [
+    {
+      "text": "",
+      "trimmed": "",
+      "number": "0"
+    },
+    {
+      "text": " ",
+      "trimmed": "",
+      "number": "0"
+    },
+    {
+      "text": "7",
+      "trimmed": "7",
+      "number": "7"
+    },
+    {
+      "text": " 7 ",
+      "trimmed": "7",
+      "number": "7"
+    },
+    {
+      "text": "﻿7 ",
+      "trimmed": "7",
+      "number": "7"
+    },
+    {
+      "text": "\u001f7",
+      "trimmed": "\u001f7",
+      "number": "NaN"
+    },
+    {
+      "text": " 7　",
+      "trimmed": "7",
+      "number": "7"
+    },
+    {
+      "text": "+7",
+      "trimmed": "+7",
+      "number": "7"
+    },
+    {
+      "text": "-7",
+      "trimmed": "-7",
+      "number": "-7"
+    },
+    {
+      "text": ".5",
+      "trimmed": ".5",
+      "number": "0.5"
+    },
+    {
+      "text": "5.",
+      "trimmed": "5.",
+      "number": "5"
+    },
+    {
+      "text": "1e3",
+      "trimmed": "1e3",
+      "number": "1000"
+    },
+    {
+      "text": "1E-3",
+      "trimmed": "1E-3",
+      "number": "0.001"
+    },
+    {
+      "text": "0x1F",
+      "trimmed": "0x1F",
+      "number": "31"
+    },
+    {
+      "text": "0X1f",
+      "trimmed": "0X1f",
+      "number": "31"
+    },
+    {
+      "text": "0b101",
+      "trimmed": "0b101",
+      "number": "5"
+    },
+    {
+      "text": "0o17",
+      "trimmed": "0o17",
+      "number": "15"
+    },
+    {
+      "text": "-0x10",
+      "trimmed": "-0x10",
+      "number": "NaN"
+    },
+    {
+      "text": "0x",
+      "trimmed": "0x",
+      "number": "NaN"
+    },
+    {
+      "text": "1_000",
+      "trimmed": "1_000",
+      "number": "NaN"
+    },
+    {
+      "text": "abc",
+      "trimmed": "abc",
+      "number": "NaN"
+    },
+    {
+      "text": "Infinity",
+      "trimmed": "Infinity",
+      "number": "Infinity"
+    },
+    {
+      "text": "-Infinity",
+      "trimmed": "-Infinity",
+      "number": "-Infinity"
+    },
+    {
+      "text": "1e400",
+      "trimmed": "1e400",
+      "number": "Infinity"
+    },
+    {
+      "text": "7 7",
+      "trimmed": "7 7",
+      "number": "NaN"
+    },
+    {
+      "text": "٣",
+      "trimmed": "٣",
+      "number": "NaN"
+    }
+  ]
+}
