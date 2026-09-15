@@ -38,9 +38,16 @@ import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.map.DesktopMapHost
 import net.stho.tracks.ui.map.configureDesktopMap
 import net.stho.tracks.ui.recording.Recorder
+import net.stho.tracks.recording.Rides
 import net.stho.tracks.ui.sensors.ReplaySensors
 import net.stho.tracks.ui.sensors.RideReplay
+import net.stho.tracks.ui.sensors.shared
+import net.stho.tracks.ui.upload.UploadQueue
+import net.stho.tracks.ui.upload.tracksHttpClient
+import net.stho.tracks.upload.FileSessionStore
+import net.stho.tracks.upload.TracksApi
 import okio.FileSystem
+import okio.Path.Companion.toOkioPath
 import okio.Path.Companion.toPath
 
 /** An iPhone's logical size, so what fits here fits there. */
@@ -59,6 +66,10 @@ val PHONE = DpSize(393.dp, 852.dp)
  *     --tap-at <s>        click the map that many seconds after launch
  *     --shot <png>        capture the window to this file, then exit
  *     --shot-at <s>       how many seconds after launch to capture (default 20)
+ *     --rides <dir>       where recorded rides are journaled (default ~/.local/share/tracks-harness/rides)
+ *     --server <url>      the Tracks that saved rides upload to: http://[::1]:5173 for `pnpm dev:local`, which listens
+ *                         on IPv6 loopback only. No default, so it is never tracks.stho.net by accident: without it,
+ *                         nothing uploads.
  *
  * The click and the capture go through the screen: see Screen.kt. **--tap-at and --shot are for the screenshots
  * container only** — on a desktop they capture and click the real screen, which is not to be done.
@@ -122,12 +133,17 @@ fun main(args: Array<String>) {
                     server?.let { UploadQueue(store, TracksApi(tracksHttpClient(), it), FileSessionStore(rides.toOkioPath().parent!! / "session"), scope) }
                 }
                 replay?.let { ride ->
+                    // One replay for the map and the recorder: collected twice, it would be two rides.
+                    val sensors = remember(ride) { ReplaySensors(ride, from, speedup).shared(scope) }
+                    val recorder = remember(sensors) { Recorder(store, sensors, scope, dateTitle = ::localDate, onSaved = { queue?.kick() }) }
                     TracksApp(
                         library = library,
                         router = router,
                         geocoder = remember { PhotonGeocoder(JvmHttp) },
-                        sensors = remember(ride) { ReplaySensors(ride, from, speedup) },
+                        sensors = sensors,
                         platform = DesktopPlatform,
+                        recorder = recorder,
+                        upload = queue,
                         links = remember { pastes.asFlow() },
                     )
                 }
@@ -135,6 +151,10 @@ fun main(args: Array<String>) {
         }
     }
 }
+
+/** A ride with no plan is titled with its date, as this machine writes one. */
+private fun localDate(epochMillis: Long): String =
+    Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
 
 /** The tiles the parity tests fetched: `~/.cache/tracks/segments/<snapshot>`, the newest there is. */
 private fun newestSnapshot(): String {

@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.ui.sensors.bearingDeg
-import net.stho.tracks.ui.sensors.distanceM
+import net.stho.tracks.sensors.distanceM
 
 class InsetTargetTest {
     private val rider = Coordinate(47.4917, 11.0950)

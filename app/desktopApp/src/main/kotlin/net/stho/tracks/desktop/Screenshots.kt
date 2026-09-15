@@ -34,6 +34,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.sensors.Heading
+import net.stho.tracks.sensors.distanceM
 import kotlinx.coroutines.awaitCancellation
 import net.stho.tracks.places.PhotonGeocoder
 import net.stho.tracks.plan.moveWaypoint

@@ -5,8 +5,8 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 import net.stho.tracks.codec.Coordinate
-import net.stho.tracks.ui.sensors.Fix
-import net.stho.tracks.ui.sensors.Heading
+import net.stho.tracks.sensors.Fix
+import net.stho.tracks.sensors.Heading
 
 /**
  * Where to aim the camera so that [at] shows [downDp] above and [rightDp] left of the map's centre — the centre of what
