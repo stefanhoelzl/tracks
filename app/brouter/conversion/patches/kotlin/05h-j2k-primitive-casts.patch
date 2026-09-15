@@ -1,0 +1,28 @@
+diff -ruN last/btools/mapaccess/WaypointMatcherImpl.kt cur/btools/mapaccess/WaypointMatcherImpl.kt
+--- x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:50:57.262744433 +0200
++++ x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:55:05.653714627 +0200
+@@ -149,8 +149,8 @@
+                     val wayfraction = -s2 / (d * d)
+                     val xm = x2 - wayfraction * dx
+                     val ym = y2 - wayfraction * dy
+-                    mwp.crosspoint!!.iLon = (xm / dlon2m + wp.iLon) as Int
+-                    mwp.crosspoint!!.iLat = (ym / dlat2m + wp.iLat) as Int
++                    mwp.crosspoint!!.iLon = (xm / dlon2m + wp.iLon).toInt()
++                    mwp.crosspoint!!.iLat = (ym / dlat2m + wp.iLat).toInt()
+                 } else if (s1 > s2) {
+                     mwp.crosspoint!!.iLon = lon2
+                     mwp.crosspoint!!.iLat = lat2
+diff -ruN last/btools/router/RoutingContext.kt cur/btools/router/RoutingContext.kt
+--- x/btools/router/RoutingContext.kt	2026-09-14 19:50:57.265711998 +0200
++++ x/btools/router/RoutingContext.kt	2026-09-14 19:55:05.655266488 +0200
+@@ -560,8 +560,8 @@
+                             wayfraction = -s2 / (d * d)
+                             val xm = x2 - wayfraction * dx
+                             val ym = y2 - wayfraction * dy
+-                            ilonshortest = (xm / dlon2m + nogo.iLon) as Int
+-                            ilatshortest = (ym / dlat2m + nogo.iLat) as Int
++                            ilonshortest = (xm / dlon2m + nogo.iLon).toInt()
++                            ilatshortest = (ym / dlat2m + nogo.iLat).toInt()
+                         } else if (s1 > s2) {
+                             wayfraction = 0.0
+                             ilonshortest = lon2

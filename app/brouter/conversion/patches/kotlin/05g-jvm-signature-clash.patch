@@ -1,0 +1,24 @@
+diff -ruN last/btools/router/RoutingContext.kt cur/btools/router/RoutingContext.kt
+--- x/btools/router/RoutingContext.kt	2026-09-14 19:49:39.571933843 +0200
++++ x/btools/router/RoutingContext.kt	2026-09-14 19:50:57.226060353 +0200
+@@ -38,6 +38,8 @@
+         return if (alternativeIdx < min) min else (if (alternativeIdx > max) max else alternativeIdx)
+     }
+ 
++    @set:kotlin.jvm.JvmName("setAlternativeIdxProperty")
++
+     var alternativeIdx: Int = 0
+     @JvmField
+     var localFunction: String? = null
+diff -ruN last/btools/router/RoutingEngine.kt cur/btools/router/RoutingEngine.kt
+--- x/btools/router/RoutingEngine.kt	2026-09-14 19:49:39.571933843 +0200
++++ x/btools/router/RoutingEngine.kt	2026-09-14 19:50:57.226712088 +0200
+@@ -52,6 +52,8 @@
+ 
+     private val MAX_DYNAMIC_RANGE = 60000
+ 
++    @get:kotlin.jvm.JvmName("getFoundTrackProperty")
++
+     protected var foundTrack: OsmTrack? = OsmTrack()
+     var foundRawTrack: OsmTrack? = null
+         private set

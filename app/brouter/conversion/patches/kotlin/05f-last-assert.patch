@@ -1,0 +1,12 @@
+diff -ruN last/btools/mapaccess/OsmFile.kt cur/btools/mapaccess/OsmFile.kt
+--- x/btools/mapaccess/OsmFile.kt	2026-09-14 19:47:18.500845017 +0200
++++ x/btools/mapaccess/OsmFile.kt	2026-09-14 19:49:39.529933971 +0200
+@@ -144,7 +144,7 @@
+             if (hollowNodes == null) {
+                 return MicroCache2(bc, dataBuffers, lonIdx, latIdx, divisor, wayValidator, waypointMatcher)
+             }
+-            DirectWeaver(bc, dataBuffers, lonIdx, latIdx, divisor, wayValidator, waypointMatcher, hollowNodes)
++            DirectWeaver(bc, dataBuffers, lonIdx, latIdx, divisor, wayValidator!!, waypointMatcher, hollowNodes)
+             return MicroCache.emptyNonVirgin
+         } finally {
+             // crc check only if the buffer has not been fully read

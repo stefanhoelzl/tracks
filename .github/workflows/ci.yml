@@ -41,10 +41,13 @@ jobs:
       # deploy after the fact.
       - run: pnpm build
 
-  # The iPhone app's shared Kotlin, on the JVM and as native Linux code. No secrets, like
-  # `test`, and not something `deploy` waits for: nothing the edge serves is built here.
-  # That the Kotlin still agrees with the TypeScript is checked from both sides — `test`
-  # fails when the fixtures are stale, this fails when the Kotlin disagrees with them.
+  # The iPhone app's Kotlin, on the JVM and as native Linux code. No secrets, like `test`,
+  # and not something `deploy` waits for: nothing the edge serves is built here.
+  #
+  # Two agreements are checked. The shared codecs against the TypeScript — from both sides:
+  # `test` fails when the fixtures are stale, this fails when the Kotlin disagrees with them.
+  # And BRouter against brouter.de: every parity route, byte for byte, which is the gate the
+  # converted engine ships on.
   app:
     runs-on: ubuntu-latest
     defaults:
@@ -65,7 +68,15 @@ jobs:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
 
-      - run: ./gradlew :shared:jvmTest :shared:linuxX64Test
+      # The rd5 snapshot the parity fixtures belong to: 450 MB from this repository's
+      # releases, fetched once per snapshot rather than once per run. Gradle checks its
+      # sha256 whether it came from the cache or not.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/tracks/segments
+          key: segments-${{ hashFiles('app/brouter/parity/segments.txt') }}
+
+      - run: ./gradlew :shared:jvmTest :shared:linuxX64Test :brouter:jvmTest :brouter:linuxX64ReleaseTest
 
   deploy:
     needs: test

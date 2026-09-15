@@ -1,0 +1,21 @@
+diff -ruN last/btools/router/StdPath.kt cur/btools/router/StdPath.kt
+--- x/btools/router/StdPath.kt	2026-09-14 19:55:05.692211389 +0200
++++ x/btools/router/StdPath.kt	2026-09-14 20:03:15.688003899 +0200
+@@ -324,7 +324,7 @@
+         }
+ 
+         // compute incline
+-        elevation_buffer += delta_h.toFloat()
++        elevation_buffer = (elevation_buffer + delta_h).toFloat()
+         val incline = calcIncline(dist)
+ 
+         var maxSpeed = rc.maxSpeed
+@@ -348,7 +348,7 @@
+         // (Count only positive, negative would mean breaking to enforce maxspeed)
+         val energy = dist * (rc.S_C_x * speed * speed + f_roll)
+         if (energy > 0.0) {
+-            stdTotalEnergy += energy.toFloat()
++            stdTotalEnergy = (stdTotalEnergy + energy).toFloat()
+         }
+     }
+ 

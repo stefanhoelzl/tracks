@@ -1,0 +1,14 @@
+-Xms256m
+-Xmx3g
+-XX:ReservedCodeCacheSize=512m
+-XX:+UseG1GC
+-Djava.awt.headless=true
+-Didea.is.internal=false
+-Didea.trust.all.projects=true
+-Didea.initially.ask.config=never
+-Djb.consents.confirmation.enabled=false
+-Djb.privacy.policy.text=<!--999.999-->
+-Didea.suppress.statistics.report=true
+-Dide.show.tips.on.startup.default.value=false
+-Dkotlin.plugin.mode.k2=true
+-Didea.kotlin.plugin.use.k2=true

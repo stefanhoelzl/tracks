@@ -1,0 +1,506 @@
+diff -ruN last/btools/expressions/BExpressionContext.kt cur/btools/expressions/BExpressionContext.kt
+--- x/btools/expressions/BExpressionContext.kt	2026-09-14 19:23:12.768825378 +0200
++++ x/btools/expressions/BExpressionContext.kt	2026-09-14 19:24:48.155733646 +0200
+@@ -77,7 +77,7 @@
+ 
+     var noStartWays: IntArray = IntArray(0)
+ 
+-    var showErrors: Boolean = java.lang.Boolean.getBoolean("showErrors")
++    var showErrors: Boolean = System.getBoolean("showErrors")
+ 
+     protected fun setInverseVars() {
+         currentVarOffset = nBuildInVars
+@@ -453,7 +453,7 @@
+                 scnt = scnt.substring(scnt.length - 10)
+                 svalues[i] = scnt + " " + values[i].toString()
+             }
+-            Arrays.sort(svalues)
++            btools.kmp.util.JCollections.sortArray(svalues)
+             for (i in svalues.indices.reversed()) {
+                 println(name + ";" + svalues[i])
+             }
+@@ -596,7 +596,7 @@
+                                 inch = value.toInt()
+                                 feet += inch / 12f
+                             }
+-                            value = String.format(Locale.US, "%3.1f", feet * 0.3048f)
++                            value = btools.kmp.TextFormat.fixed1Width3(feet * 0.3048f)
+                         } else if (value.contains("'")) {
+                             var feet = 0f
+                             var inch = 0
+@@ -609,39 +609,39 @@
+                                 inch = value.toInt()
+                                 feet += inch / 12f
+                             }
+-                            value = String.format(Locale.US, "%3.1f", feet * 0.3048f)
++                            value = btools.kmp.TextFormat.fixed1Width3(feet * 0.3048f)
+                         } else if (value.contains("in") || value.contains("\"")) {
+                             var inch = 0f
+                             if (value.indexOf("in") > 0) value = value.substring(0, value.indexOf("in"))
+                             if (value.indexOf("\"") > 0) value = value.substring(0, value.indexOf("\""))
+                             inch = value.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", inch * 0.0254f)
++                            value = btools.kmp.TextFormat.fixed1Width3(inch * 0.0254f)
+                         } else if (value.contains("feet") || value.contains("foot")) {
+                             var feet = 0f
+                             val s = value.substring(0, value.indexOf("f"))
+                             feet = s.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", feet * 0.3048f)
++                            value = btools.kmp.TextFormat.fixed1Width3(feet * 0.3048f)
+                         } else if (value.contains("fathom") || value.contains("fm")) {
+                             val s = value.substring(0, value.indexOf("f"))
+                             val fathom = s.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", fathom * 1.8288f)
++                            value = btools.kmp.TextFormat.fixed1Width3(fathom * 1.8288f)
+                         } else if (value.contains("cm")) {
+                             val sa = value.split("cm".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                             if (sa.size >= 1) value = sa[0]
+                             val cm = value.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", cm / 100f)
++                            value = btools.kmp.TextFormat.fixed1Width3(cm / 100f)
+                         } else if (value.contains("metre") || value.contains("meter")) {
+                             value = value.substring(0, value.indexOf("m"))
+                         } else if (value.contains("mph")) {
+                             val sa = value.split("mph".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                             if (sa.size >= 1) value = sa[0]
+                             val mph = value.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", mph * 1.609344f)
++                            value = btools.kmp.TextFormat.fixed1Width3(mph * 1.609344f)
+                         } else if (value.contains("knot")) {
+                             val sa = value.split("knot".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                             if (sa.size >= 1) value = sa[0]
+                             val nm = value.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", nm * 1.852f)
++                            value = btools.kmp.TextFormat.fixed1Width3(nm * 1.852f)
+                         } else if (value.contains("kmh") || value.contains("km/h") || value.contains("kph")) {
+                             val sa = value.split("k".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                             if (sa.size > 1) value = sa[0]
+@@ -653,17 +653,17 @@
+                             val sa = value.split("st".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                             if (sa.size >= 1) value = sa[0]
+                             val st = value.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", st * 0.907f)
++                            value = btools.kmp.TextFormat.fixed1Width3(st * 0.907f)
+                         } else if (value.contains("kg")) {
+                             val sa = value.split("kg".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                             if (sa.size >= 1) value = sa[0]
+                             val kg = value.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", kg / 1000f)
++                            value = btools.kmp.TextFormat.fixed1Width3(kg / 1000f)
+                         } else if (value.contains("lbs")) {
+                             val sa = value.split("lbs".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                             if (sa.size >= 1) value = sa[0]
+                             val lbs = value.toFloat()
+-                            value = String.format(Locale.US, "%3.1f", lbs / 2204f)
++                            value = btools.kmp.TextFormat.fixed1Width3(lbs / 2204f)
+                         } else if (value.contains("t")) {
+                             val sa = value.split("t".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                             if (sa.size >= 1) value = sa[0]
+@@ -1002,7 +1002,7 @@
+                 }
+                 continue
+             }
+-            if (Character.isWhitespace(c)) {
++            if (btools.kmp.JMath.isWhitespace(c)) {
+                 if (sb.length > 0) return sb.toString()
+                 else {
+                     continue
+@@ -1033,7 +1033,7 @@
+ 
+         if (meta != null) meta.registerListener(context, this)
+ 
+-        if (java.lang.Boolean.getBoolean("disableExpressionCache")) hashSize = 1
++        if (System.getBoolean("disableExpressionCache")) hashSize = 1
+ 
+         // create the expression cache
+         if (hashSize > 0) {
+@@ -1044,7 +1044,7 @@
+ 
+     fun checkStartWay(ab: ByteArray?): Boolean {
+         if (ab == null) return true
+-        Arrays.fill(ld2, 0)
++        btools.kmp.util.JCollections.fill(ld2, 0)
+         decode(ld2, false, ab)
+         var i = 0
+         while (i < noStartWays.size) {
+diff -ruN last/btools/mapaccess/NodesCache.kt cur/btools/mapaccess/NodesCache.kt
+--- x/btools/mapaccess/NodesCache.kt	2026-09-14 19:23:12.771292699 +0200
++++ x/btools/mapaccess/NodesCache.kt	2026-09-14 19:24:48.158486441 +0200
+@@ -12,6 +12,7 @@
+ import btools.mapaccess.StorageConfigHelper.getSecondarySegmentDir
+ import btools.kmp.io.File
+ import btools.kmp.io.IOException
++import btools.kmp.System
+ 
+ class NodesCache(
+     private var segmentDir: File,
+@@ -56,7 +57,7 @@
+     private var ghostSum: Long = 0
+     private var ghostWakeup: Long = 0
+ 
+-    private val directWeaving = !java.lang.Boolean.getBoolean("disableDirectWeaving")
++    private val directWeaving = !System.getBoolean("disableDirectWeaving")
+ 
+     fun formatStatus(): String {
+         return "collecting=" + garbageCollectionEnabled + " noGhosts=" + ghostCleaningDone + " cacheSum=" + cacheSum + " cacheSumClean=" + cacheSumClean + " ghostSum=" + ghostSum + " ghostWakeup=" + ghostWakeup
+diff -ruN last/btools/mapaccess/OsmNode.kt cur/btools/mapaccess/OsmNode.kt
+--- x/btools/mapaccess/OsmNode.kt	2026-09-14 19:23:12.771292699 +0200
++++ x/btools/mapaccess/OsmNode.kt	2026-09-14 19:24:48.158038000 +0200
+@@ -88,7 +88,7 @@
+     }
+ 
+     override fun calcDistance(p: OsmPos): Int {
+-        return max(1.0, Math.round(distance(this.iLon, this.iLat, p.iLon, p.iLat)).toDouble()).toInt()
++        return max(1.0, btools.kmp.JMath.round(distance(this.iLon, this.iLat, p.iLon, p.iLat)).toDouble()).toInt()
+     }
+ 
+     override fun toString(): String {
+diff -ruN last/btools/mapaccess/WaypointMatcherImpl.kt cur/btools/mapaccess/WaypointMatcherImpl.kt
+--- x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:23:12.771292699 +0200
++++ x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:24:48.158486441 +0200
+@@ -79,9 +79,9 @@
+         // sort result list
+         comparator = object : Comparator<MatchedWaypoint?> {
+             override fun compare(mw1: MatchedWaypoint, mw2: MatchedWaypoint): Int {
+-                val cmpDist = Double.compare(mw1.radius, mw2.radius)
++                val cmpDist = btools.kmp.JMath.compare(mw1.radius, mw2.radius)
+                 if (cmpDist != 0) return cmpDist
+-                return Double.compare(mw1.directionDiff, mw2.directionDiff)
++                return btools.kmp.JMath.compare(mw1.directionDiff, mw2.directionDiff)
+             }
+         }
+     }
+@@ -268,7 +268,7 @@
+     fun updateWayList(ways: MutableList<MatchedWaypoint?>, mw: MatchedWaypoint?) {
+         ways.add(mw)
+         // use only shortest distances by smallest direction difference
+-        Collections.sort<MatchedWaypoint?>(ways, comparator)
++        btools.kmp.util.JCollections.sort(ways, comparator)
+         if (ways.size > MAX_POINTS) ways.removeAt(MAX_POINTS)
+     }
+ 
+diff -ruN last/btools/router/AreaReader.kt cur/btools/router/AreaReader.kt
+--- x/btools/router/AreaReader.kt	2026-09-14 19:23:12.774259248 +0200
++++ x/btools/router/AreaReader.kt	2026-09-14 19:24:48.161554560 +0200
+@@ -236,7 +236,7 @@
+     }
+ 
+     fun ignoreCenter(maxscale: Int, idxLon: Int, idxLat: Int): Boolean {
+-        val centerScale = Math.round(maxscale * .2).toInt() - 1
++        val centerScale = btools.kmp.JMath.round(maxscale * .2).toInt() - 1
+         if (centerScale < 0) return false
+         return idxLon >= -centerScale && idxLon <= centerScale && idxLat >= -centerScale && idxLat <= centerScale
+     }
+@@ -271,8 +271,8 @@
+         try {
+             dis = DataInputStream(BufferedInputStream(FileInputStream(fai)))
+             ep = readFromStream(dis)
+-            if (Math.abs(ep.waypoint!!.iLon - wp.waypoint!!.iLon) > 500 &&
+-                Math.abs(ep.waypoint!!.iLat - wp.waypoint!!.iLat) > 500
++            if (abs(ep.waypoint!!.iLon - wp.waypoint!!.iLon) > 500 &&
++                abs(ep.waypoint!!.iLat - wp.waypoint!!.iLat) > 500
+             ) {
+                 return
+             }
+diff -ruN last/btools/router/FormatGpx.kt cur/btools/router/FormatGpx.kt
+--- x/btools/router/FormatGpx.kt	2026-09-14 19:23:12.774259248 +0200
++++ x/btools/router/FormatGpx.kt	2026-09-14 19:24:48.162486409 +0200
+@@ -195,7 +195,7 @@
+                             hint.cmd,
+                             hint.exitNumber,
+                             turnInstructionMode
+-                        ).lowercase(Locale.getDefault())
++                        ).lowercase()
+                     ).append("</sym>")
+                     .append("<type>").append(getSymbolString(hint.cmd, hint.exitNumber, turnInstructionMode))
+                     .append("</type>")
+diff -ruN last/btools/router/OsmNodeNamed.kt cur/btools/router/OsmNodeNamed.kt
+--- x/btools/router/OsmNodeNamed.kt	2026-09-14 19:23:12.773851071 +0200
++++ x/btools/router/OsmNodeNamed.kt	2026-09-14 19:24:48.161554560 +0200
+@@ -43,7 +43,7 @@
+     constructor(n: OsmNode) : super(n.iLon, n.iLat)
+ 
+     public override fun toString(): String {
+-        if (Double.isNaN(nogoWeight)) {
++        if (btools.kmp.JMath.isNaN(nogoWeight)) {
+             return iLon + "," + iLat + "," + name
+         } else {
+             return iLon + "," + iLat + "," + name + "," + nogoWeight
+diff -ruN last/btools/router/OsmPathElement.kt cur/btools/router/OsmPathElement.kt
+--- x/btools/router/OsmPathElement.kt	2026-09-14 19:23:12.773851071 +0200
++++ x/btools/router/OsmPathElement.kt	2026-09-14 19:24:48.161554560 +0200
+@@ -55,7 +55,7 @@
+         get() = (iLon.toLong()) shl 32 or iLat.toLong()
+ 
+     override fun calcDistance(p: OsmPos): Int {
+-        return max(1.0, Math.round(distance(this.iLon, this.iLat, p.iLon, p.iLat)).toDouble()).toInt()
++        return max(1.0, btools.kmp.JMath.round(distance(this.iLon, this.iLat, p.iLon, p.iLat)).toDouble()).toInt()
+     }
+ 
+     @JvmField
+diff -ruN last/btools/router/ProfileCache.kt cur/btools/router/ProfileCache.kt
+--- x/btools/router/ProfileCache.kt	2026-09-14 19:23:12.774259248 +0200
++++ x/btools/router/ProfileCache.kt	2026-09-14 19:24:48.162486409 +0200
+@@ -24,7 +24,7 @@
+         private var lastLookupTimestamp: Long = 0
+ 
+         private var apc = arrayOfNulls<ProfileCache>(1)
+-        private val debug = java.lang.Boolean.getBoolean("debugProfileCache")
++        private val debug = System.getBoolean("debugProfileCache")
+ 
+         @Synchronized
+         fun setSize(size: Int) {
+diff -ruN last/btools/router/RoutingContext.kt cur/btools/router/RoutingContext.kt
+--- x/btools/router/RoutingContext.kt	2026-09-14 19:23:12.774259248 +0200
++++ x/btools/router/RoutingContext.kt	2026-09-14 19:24:48.161554560 +0200
+@@ -395,7 +395,7 @@
+             var isInsideNogo = false
+             val wp = mwp.crosspoint
+             for (nogo in nogopoints) {
+-                if (Double.isNaN(nogo.nogoWeight)
++                if (btools.kmp.JMath.isNaN(nogo.nogoWeight)
+                     && wp!!.calcDistance(nogo) < nogo.radius && (nogo !is OsmNogoPolygon || (if (nogo.isClosed)
+                         nogo.isWithin(wp.iLon, wp.iLat)
+                     else
+@@ -436,7 +436,7 @@
+         if (nogopoints == null) return false
+         var allInTotal = false
+         for (nogo in nogopoints) {
+-            var allIn = Double.isNaN(nogo.nogoWeight)
++            var allIn = btools.kmp.JMath.isNaN(nogo.nogoWeight)
+             for (wp in waypoints) {
+                 val dist = wp.calcDistance(nogo)
+                 if (dist < nogo.radius
+@@ -537,7 +537,7 @@
+                     }
+                     if (nogo.isNogo) {
+                         if (nogo !is OsmNogoPolygon) {  // nogo is a circle
+-                            if (Double.isNaN(nogo.nogoWeight)) {
++                            if (btools.kmp.JMath.isNaN(nogo.nogoWeight)) {
+                                 // default nogo behaviour (ignore completely)
+                                 nogoCost = -1.0
+                             } else {
+@@ -547,7 +547,7 @@
+                         } else if (nogo.intersects(lon1, lat1, lon2, lat2)) {
+                             // nogo is a polyline/polygon, we have to check there is indeed
+                             // an intersection in this case (radius check is not enough).
+-                            if (Double.isNaN(nogo.nogoWeight)) {
++                            if (btools.kmp.JMath.isNaN(nogo.nogoWeight)) {
+                                 // default nogo behaviour (ignore completely)
+                                 nogoCost = -1.0
+                             } else {
+@@ -600,7 +600,7 @@
+                 }
+             }
+         }
+-        return max(1.0, Math.round(d).toDouble()).toInt()
++        return max(1.0, btools.kmp.JMath.round(d).toDouble()).toInt()
+     }
+ 
+     var pm: OsmPathModel? = null
+diff -ruN last/btools/router/RoutingEngine.kt cur/btools/router/RoutingEngine.kt
+--- x/btools/router/RoutingEngine.kt	2026-09-14 19:23:12.774259248 +0200
++++ x/btools/router/RoutingEngine.kt	2026-09-14 19:24:48.162486409 +0200
+@@ -84,7 +84,7 @@
+ 
+     private var extract: Array<Any?>?
+ 
+-    private val directWeaving = !java.lang.Boolean.getBoolean("disableDirectWeaving")
++    private val directWeaving = !System.getBoolean("disableDirectWeaving")
+     var outfile: String? = null
+         private set
+ 
+@@ -519,7 +519,7 @@
+         } else if (consider_river) {
+             preferredRandomType = AreaInfo.RESULT_TYPE_RIVER
+         } else {
+-            return (Math.random() * 360).toInt()
++            return (kotlin.random.Random.nextDouble() * 360).toInt()
+         }
+ 
+         val wpt1 = MatchedWaypoint()
+@@ -584,10 +584,10 @@
+             var maxlat = Int.MIN_VALUE
+             var minlat = Int.MAX_VALUE
+             for (on in listOne) {
+-                maxlon = Math.max(on.iLon, maxlon)
+-                minlon = Math.min(on.iLon, minlon)
+-                maxlat = Math.max(on.iLat, maxlat)
+-                minlat = Math.min(on.iLat, minlat)
++                maxlon = max(on.iLon, maxlon)
++                minlon = min(on.iLon, minlon)
++                maxlat = max(on.iLat, maxlat)
++                minlat = min(on.iLat, minlat)
+             }
+             val searchRect = OsmNogoPolygon(true)
+             searchRect.addVertex(maxlon, maxlat)
+@@ -611,7 +611,7 @@
+             }
+ 
+             var maxscale = abs(searchRect.points.get(2).x - searchRect.points.get(0).x)
+-            maxscale = max(1, Math.round(maxscale / 31250f / 2) + 1)
++            maxscale = max(1, btools.kmp.JMath.round(maxscale / 31250f / 2) + 1)
+ 
+             areareader.getDirectAllData(segmentDir, rc, wp, maxscale, rc.expctxWay!!, searchRect, ais)
+ 
+@@ -631,29 +631,29 @@
+         //  System.out.println("\n" + ai.toString());
+         //}
+         when (preferredRandomType) {
+-            AreaInfo.RESULT_TYPE_ELEV50 -> Collections.sort<AreaInfo?>(ais, object : Comparator<AreaInfo?> {
++            AreaInfo.RESULT_TYPE_ELEV50 -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo?> {
+                 override fun compare(o1: AreaInfo, o2: AreaInfo): Int {
+                     return o2.elev50Weight - o1.elev50Weight
+                 }
+             })
+ 
+-            AreaInfo.RESULT_TYPE_GREEN -> Collections.sort<AreaInfo?>(ais, object : Comparator<AreaInfo?> {
++            AreaInfo.RESULT_TYPE_GREEN -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo?> {
+                 override fun compare(o1: AreaInfo, o2: AreaInfo): Int {
+                     return o2.green - o1.green
+                 }
+             })
+ 
+-            AreaInfo.RESULT_TYPE_RIVER -> Collections.sort<AreaInfo?>(ais, object : Comparator<AreaInfo?> {
++            AreaInfo.RESULT_TYPE_RIVER -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo?> {
+                 override fun compare(o1: AreaInfo, o2: AreaInfo): Int {
+                     return o2.river - o1.river
+                 }
+             })
+ 
+-            else -> return (Math.random() * 360).toInt()
++            else -> return (kotlin.random.Random.nextDouble() * 360).toInt()
+         }
+ 
+         val angle = ais.get(0)!!.direction
+-        return angle - 30 + (Math.random() * 60).toInt()
++        return angle - 30 + (kotlin.random.Random.nextDouble() * 60).toInt()
+     }
+ 
+ 
+diff -ruN last/btools/router/RoutingParamCollector.kt cur/btools/router/RoutingParamCollector.kt
+--- x/btools/router/RoutingParamCollector.kt	2026-09-14 19:23:12.774259248 +0200
++++ x/btools/router/RoutingParamCollector.kt	2026-09-14 19:24:48.162486409 +0200
+@@ -230,9 +230,9 @@
+                 } else if (key == "exportCorrectedWaypoints") {
+                     rctx.exportCorrectedWaypoints = (value.toInt() == 1)
+                 } else if (key == "format") {
+-                    rctx.outputFormat = value.lowercase(Locale.getDefault())
++                    rctx.outputFormat = value.lowercase()
+                 } else if (key == "trackFormat") {
+-                    rctx.outputFormat = value.lowercase(Locale.getDefault())
++                    rctx.outputFormat = value.lowercase()
+                 } else if (key.startsWith("profile:")) {
+                     if (rctx.keyValues == null) rctx.keyValues = HashMap<String?, String?>()
+                     rctx.keyValues!!.put(key.substring(8), value)
+diff -ruN last/btools/util/CheapAngleMeter.kt cur/btools/util/CheapAngleMeter.kt
+--- x/btools/util/CheapAngleMeter.kt	2026-09-14 19:23:12.779081807 +0200
++++ x/btools/util/CheapAngleMeter.kt	2026-09-14 19:24:48.165280363 +0200
+@@ -54,7 +54,7 @@
+             var res = 0.0
+             val xdiff = (lat2 - lat1).toDouble()
+             val ydiff = (lon2 - lon1).toDouble()
+-            res = Math.toDegrees(atan2(ydiff, xdiff))
++            res = btools.kmp.JMath.toDegrees(atan2(ydiff, xdiff))
+             return res
+         }
+ 
+diff -ruN last/btools/util/CheapRuler.kt cur/btools/util/CheapRuler.kt
+--- x/btools/util/CheapRuler.kt	2026-09-14 19:23:12.778023742 +0200
++++ x/btools/util/CheapRuler.kt	2026-09-14 19:24:48.165280363 +0200
+@@ -22,7 +22,7 @@
+     const val ILATLNG_TO_LATLNG: Double = 1e-6 // From integer to degrees
+     const val KILOMETERS_TO_METERS: Int = 1000
+     @JvmField
+-    val DEG_TO_RAD: Double = Math.PI / 180.0
++    val DEG_TO_RAD: Double = kotlin.math.PI / 180.0
+ 
+     // Scale cache constants
+     private const val SCALE_CACHE_LENGTH = 1800
+@@ -96,8 +96,8 @@
+         val lon2m = lonlat2m[0]
+         val lat2m = lonlat2m[1]
+         angle = 90.0 - angle
+-        val st = sin(angle * Math.PI / 180.0)
+-        val ct = cos(angle * Math.PI / 180.0)
++        val st = sin(angle * kotlin.math.PI / 180.0)
++        val ct = cos(angle * kotlin.math.PI / 180.0)
+ 
+         val lon2 = (0.5 + lon1 + ct * distance / lon2m).toInt()
+         val lat2 = (0.5 + lat1 + st * distance / lat2m).toInt()
+diff -ruN last/btools/util/CompactLongMap.kt cur/btools/util/CompactLongMap.kt
+--- x/btools/util/CompactLongMap.kt	2026-09-14 19:23:12.778023742 +0200
++++ x/btools/util/CompactLongMap.kt	2026-09-14 19:24:48.165280363 +0200
+@@ -1,4 +1,5 @@
+ package btools.util
++import btools.kmp.System
+ 
+ /**
+  * Memory efficient Map to map a long-key to an object-value
+@@ -61,7 +62,7 @@
+         vla = arrayOfNulls<Array<Any?>>(MAXLISTS)
+         vla!![0] = arrayOfNulls<Any>(1)
+ 
+-        earlyDuplicateCheck = java.lang.Boolean.getBoolean("earlyDuplicateCheck")
++        earlyDuplicateCheck = System.getBoolean("earlyDuplicateCheck")
+     }
+ 
+ 
+@@ -125,7 +126,7 @@
+ 
+ 
+     private fun _add(id: Long): Boolean {
+-        require(size != Int.MAX_VALUE) { "cannot grow beyond size Integer.MAX_VALUE" }
++        require(size != Int.MAX_VALUE) { "cannot grow beyond size Int.MAX_VALUE" }
+ 
+         // put the new entry in the first array
+         al!![0][0] = id
+@@ -271,7 +272,7 @@
+     }
+ 
+     companion object {
+-        protected const val MAXLISTS: Int = 31 // enough for size Integer.MAX_VALUE
++        protected const val MAXLISTS: Int = 31 // enough for size Int.MAX_VALUE
+         private val earlyDuplicateCheck: Boolean
+     }
+ }
+diff -ruN last/btools/util/CompactLongSet.kt cur/btools/util/CompactLongSet.kt
+--- x/btools/util/CompactLongSet.kt	2026-09-14 19:23:12.779081807 +0200
++++ x/btools/util/CompactLongSet.kt	2026-09-14 19:24:48.165280363 +0200
+@@ -47,7 +47,7 @@
+     }
+ 
+     private fun _add(id: Long) {
+-        require(size != Int.MAX_VALUE) { "cannot grow beyond size Integer.MAX_VALUE" }
++        require(size != Int.MAX_VALUE) { "cannot grow beyond size Int.MAX_VALUE" }
+ 
+         // put the new entry in the first array
+         al!![0][0] = id
+@@ -173,6 +173,6 @@
+     }
+ 
+     companion object {
+-        protected const val MAXLISTS: Int = 31 // enough for size Integer.MAX_VALUE
++        protected const val MAXLISTS: Int = 31 // enough for size Int.MAX_VALUE
+     }
+ }
+diff -ruN last/btools/util/TinyDenseLongMap.kt cur/btools/util/TinyDenseLongMap.kt
+--- x/btools/util/TinyDenseLongMap.kt	2026-09-14 19:23:12.779081807 +0200
++++ x/btools/util/TinyDenseLongMap.kt	2026-09-14 19:24:48.165486384 +0200
+@@ -68,7 +68,7 @@
+ 
+ 
+     private fun _add(id: Long): Boolean {
+-        require(size != Int.MAX_VALUE) { "cannot grow beyond size Integer.MAX_VALUE" }
++        require(size != Int.MAX_VALUE) { "cannot grow beyond size Int.MAX_VALUE" }
+ 
+         // put the new entry in the first array
+         al[0][0] = id
+@@ -169,6 +169,6 @@
+     }
+ 
+     companion object {
+-        protected const val MAXLISTS: Int = 31 // enough for size Integer.MAX_VALUE
++        protected const val MAXLISTS: Int = 31 // enough for size Int.MAX_VALUE
+     }
+ }

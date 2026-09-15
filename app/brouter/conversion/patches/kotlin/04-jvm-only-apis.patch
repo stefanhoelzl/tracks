@@ -1,0 +1,422 @@
+diff -ruN last/btools/codec/TagValueCoder.kt cur/btools/codec/TagValueCoder.kt
+--- x/btools/codec/TagValueCoder.kt	2026-09-14 19:26:27.595017923 +0200
++++ x/btools/codec/TagValueCoder.kt	2026-09-14 19:29:56.293833010 +0200
+@@ -58,7 +58,7 @@
+                 val dummy = TagValueSet(nextTagValueSetId++)
+                 identityMap!!.put(dummy, dummy)
+             }
+-            val queue: Queue<TagValueSet> = PriorityQueue<TagValueSet>(2 * identityMap!!.size, FrequencyComparator())
++            val queue = PriorityQueue<TagValueSet>(2 * identityMap!!.size, FrequencyComparator())
+             queue.addAll(identityMap!!.values)
+             while (queue.size > 1) {
+                 val node = TagValueSet(nextTagValueSetId++)
+@@ -67,7 +67,7 @@
+                 node.frequency = node.child1!!.frequency + node.child2!!.frequency
+                 queue.add(node)
+             }
+-            val root = queue.poll()
++            val root = queue.poll()!!
+             root.encode(bc, 1, 0)
+         }
+         this.bc = bc
+diff -ruN last/btools/expressions/BExpressionContext.kt cur/btools/expressions/BExpressionContext.kt
+--- x/btools/expressions/BExpressionContext.kt	2026-09-14 19:26:27.596980642 +0200
++++ x/btools/expressions/BExpressionContext.kt	2026-09-14 19:29:56.296617724 +0200
+@@ -428,7 +428,7 @@
+ 
+ 
+     fun dumpStatistics() {
+-        val counts: NavigableMap<String?, String?> = TreeMap<String?, String?>()
++        val counts = TreeMap<String?, String?>()
+         // first count
+         for (name in lookupNumbers.keys) {
+             var cnt = 0
+@@ -442,7 +442,7 @@
+         }
+ 
+         while (counts.size > 0) {
+-            val key = counts.lastEntry().key
++            val key = counts.lastEntry()!!.key
+             val name = counts.get(key)
+             counts.remove(key)
+             val inum: Int = lookupNumbers.get(name)!!
+@@ -475,7 +475,7 @@
+     /**
+      * generate random values for regression testing
+      */
+-    fun generateRandomValues(rnd: Random): IntArray {
++    fun generateRandomValues(rnd: kotlin.random.Random): IntArray {
+         val data = createNewLookupData()
+         data[0] = 2 * rnd.nextInt(2) // reverse-direction = 0 or 2
+         for (inum in 1..<data.size) {
+diff -ruN last/btools/mapaccess/OsmNode.kt cur/btools/mapaccess/OsmNode.kt
+--- x/btools/mapaccess/OsmNode.kt	2026-09-14 19:26:27.598496331 +0200
++++ x/btools/mapaccess/OsmNode.kt	2026-09-14 19:29:56.298676794 +0200
+@@ -99,7 +99,7 @@
+     fun parseNodeBody(mc: MicroCache, hollowNodes: OsmNodesMap, expCtxWay: IByteArrayUnifier) {
+         if (mc is MicroCache2) {
+             parseNodeBody2(mc, hollowNodes, expCtxWay)
+-        } else throw IllegalArgumentException("unknown cache version: " + mc.javaClass)
++        } else throw IllegalArgumentException("unknown cache version: " + mc::class)
+     }
+ 
+     fun parseNodeBody2(mc: MicroCache2, hollowNodes: OsmNodesMap, expCtxWay: IByteArrayUnifier) {
+diff -ruN last/btools/router/FormatGpx.kt cur/btools/router/FormatGpx.kt
+--- x/btools/router/FormatGpx.kt	2026-09-14 19:26:27.601949487 +0200
++++ x/btools/router/FormatGpx.kt	2026-09-14 19:29:56.301827237 +0200
+@@ -38,15 +38,13 @@
+             sb.append("<!-- \$turn-instruction-start$\n")
+             for (hint in t.voiceHints!!.list) {
+                 sb.append(
+-                    String.format(
+-                        "     \$turn$%6s;%6d;%10s;%10s;%6d;%s$\n",
+-                        getCommandString(hint!!.cmd, hint.exitNumber, turnInstructionMode),
+-                        hint.indexInTrack,
+-                        formatILon(hint.ilon),
+-                        formatILat(hint.ilat),
+-                        (hint.distanceToNext).toInt(),
+-                        hint.formatGeometry()
+-                    )
++                    "     \$turn$" +
++                        getCommandString(hint!!.cmd, hint.exitNumber, turnInstructionMode).padStart(6) + ";" +
++                        hint.indexInTrack.toString().padStart(6) + ";" +
++                        formatILon(hint.ilon).padStart(10) + ";" +
++                        formatILat(hint.ilat).padStart(10) + ";" +
++                        (hint.distanceToNext).toInt().toString().padStart(6) + ";" +
++                        hint.formatGeometry() + "$\n"
+                 )
+             }
+             sb.append("    \$turn-instruction-end$ -->\n")
+@@ -90,7 +88,7 @@
+             sb.append(" <rte>\n")
+ 
+             var rteTime = t.getVoiceHintTime(0)
+-            val first = StringBuffer()
++            val first = StringBuilder()
+             // define start point
+             run {
+                 first.append("  <rtept lat=\"").append(formatILat(t.nodes.get(0).iLat)).append("\" lon=\"")
+diff -ruN last/btools/router/FormatJson.kt cur/btools/router/FormatJson.kt
+--- x/btools/router/FormatJson.kt	2026-09-14 19:26:27.601949487 +0200
++++ x/btools/router/FormatJson.kt	2026-09-14 19:29:56.301827237 +0200
+@@ -4,8 +4,6 @@
+ import btools.util.StringUtils.escapeJson
+ import btools.kmp.io.BufferedWriter
+ import btools.kmp.io.StringWriter
+-import java.text.DecimalFormat
+-import java.text.NumberFormat
+ import btools.kmp.util.*
+ 
+ class FormatJson(rc: RoutingContext?) : Formatter(rc) {
+@@ -71,10 +69,8 @@
+ 
+         if (t.totalSeconds > 0) {
+             sb.append("        \"times\": [")
+-            val decimalFormat = NumberFormat.getInstance(Locale.ENGLISH) as DecimalFormat
+-            decimalFormat.applyPattern("0.###")
+             for (n in t.nodes) {
+-                sb.append(decimalFormat.format(n.time.toDouble())).append(",")
++                sb.append(btools.kmp.TextFormat.decimal3(n.time)).append(",")
+             }
+             sb.deleteCharAt(sb.lastIndexOf(","))
+             sb.append("]\n")
+diff -ruN last/btools/router/Formatter.kt cur/btools/router/Formatter.kt
+--- x/btools/router/Formatter.kt	2026-09-14 19:26:27.600949493 +0200
++++ x/btools/router/Formatter.kt	2026-09-14 19:29:56.301827237 +0200
+@@ -2,7 +2,6 @@
+ 
+ import btools.kmp.io.BufferedWriter
+ import btools.kmp.io.FileWriter
+-import java.text.SimpleDateFormat
+ import btools.kmp.util.*
+ import kotlin.jvm.JvmField
+ import kotlin.jvm.JvmStatic
+@@ -358,11 +357,8 @@
+ 
+         @JvmStatic
+         fun getFormattedTime3(time: Float): String {
+-            val TIMESTAMP_FORMAT = SimpleDateFormat(dateformat, Locale.US)
+-            TIMESTAMP_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"))
+             // yyyy-mm-ddThh:mm:ss.SSSZ
+-            val d = Date((time * 1000f).toLong())
+-            return TIMESTAMP_FORMAT.format(d)
++            return btools.kmp.TextFormat.isoUtcMillis((time * 1000f).toLong())
+         }
+     }
+ }
+diff -ruN last/btools/router/MessageData.kt cur/btools/router/MessageData.kt
+--- x/btools/router/MessageData.kt	2026-09-14 19:26:27.600949493 +0200
++++ x/btools/router/MessageData.kt	2026-09-14 19:29:56.301286809 +0200
+@@ -7,7 +7,7 @@
+ import kotlin.jvm.JvmField
+ 
+ 
+-internal class MessageData : Cloneable {
++internal class MessageData {
+     @JvmField
+     var linkdist: Int = 0
+     @JvmField
+@@ -87,11 +87,30 @@
+     }
+ 
+     fun copy(): MessageData? {
+-        try {
+-            return clone() as MessageData?
+-        } catch (e: CloneNotSupportedException) {
+-            throw RuntimeException(e)
+-        }
++        val c = MessageData()
++        c.linkdist = linkdist
++        c.linkelevationcost = linkelevationcost
++        c.linkturncost = linkturncost
++        c.linknodecost = linknodecost
++        c.linkinitcost = linkinitcost
++        c.costfactor = costfactor
++        c.prio = prio
++        c.classifiermask = classifiermask
++        c.turnangle = turnangle
++        c.wayKeyValues = wayKeyValues
++        c.nodeKeyValues = nodeKeyValues
++        c.lon = lon
++        c.lat = lat
++        c.ele = ele
++        c.time = time
++        c.energy = energy
++        c.vmaxExplicit = vmaxExplicit
++        c.vmax = vmax
++        c.vmin = vmin
++        c.vnode0 = vnode0
++        c.vnode1 = vnode1
++        c.extraTime = extraTime
++        return c
+     }
+ 
+     override fun toString(): String {
+diff -ruN last/btools/router/OsmTrack.kt cur/btools/router/OsmTrack.kt
+--- x/btools/router/OsmTrack.kt	2026-09-14 19:26:27.600949493 +0200
++++ x/btools/router/OsmTrack.kt	2026-09-14 19:29:56.301286809 +0200
+@@ -511,7 +511,7 @@
+ 
+     companion object {
+         @JvmField
+-        val version: String? = OsmTrack::class.java.getPackage().getImplementationVersion()
++        val version: String? = "1.7.10"
+ 
+         // csv-header-line
+         private const val MESSAGES_HEADER =
+diff -ruN last/btools/router/RoutingEngine.kt cur/btools/router/RoutingEngine.kt
+--- x/btools/router/RoutingEngine.kt	2026-09-14 19:26:27.601949487 +0200
++++ x/btools/router/RoutingEngine.kt	2026-09-14 19:29:56.301827237 +0200
+@@ -22,11 +22,12 @@
+ import kotlin.math.min
+ import btools.kmp.System
+ import kotlin.jvm.JvmOverloads
++import btools.kmp.synchronized
+ 
+ class RoutingEngine @JvmOverloads constructor(
+     private val outfileBase: String?, private val logfileBase: String?, protected var segmentDir: File,
+     waypoints: MutableList<OsmNodeNamed>?, rc: RoutingContext, engineMode: Int = 0
+-) : Thread() {
++) {
+     private var nodesCache: NodesCache? = null
+     private val openSet = SortedHeap<OsmPath?>()
+     var isFinished: Boolean = false
+@@ -103,7 +104,7 @@
+                 if (debugLog.exists()) {
+                     infoLogWriter = FileWriter(debugLog, true)
+                     logInfo("********** start request at ")
+-                    logInfo("********** " + Date())
++                    logInfo("********** " + btools.kmp.TextFormat.isoUtcMillis(System.currentTimeMillis()))
+                 }
+             } catch (ioe: IOException) {
+                 throw RuntimeException("cannot open debug-log:" + ioe)
+@@ -148,7 +149,7 @@
+         logInfo(sw.toString())
+     }
+ 
+-    override fun run() {
++    fun run() {
+         doRun(0)
+     }
+ 
+@@ -438,7 +439,6 @@
+             val endTime = System.currentTimeMillis()
+             logInfo("execution time = " + (endTime - startTime) / 1000.0 + " seconds")
+         } catch (e: Exception) {
+-            e.getStackTrace()
+             logException(e)
+         }
+     }
+@@ -481,7 +481,6 @@
+             val endTime = System.currentTimeMillis()
+             logInfo("round trip execution time = " + (endTime - startTime) / 1000.0 + " seconds")
+         } catch (e: Exception) {
+-            e.getStackTrace()
+             logException(e)
+         }
+     }
+@@ -1544,7 +1543,7 @@
+         t.distance = totaldist
+ 
+         //t.energy = totalenergy;
+-        val keys: SortedSet<Int> = TreeSet<Int>(directMap.keys)
++        val keys: List<Int> = directMap.keys.sorted()
+         for (key in keys) {
+             val value: Int = directMap.get(key)!!
+             val addTime = (value / (speed_min / 3.6f))
+diff -ruN last/btools/router/RoutingParamCollector.kt cur/btools/router/RoutingParamCollector.kt
+--- x/btools/router/RoutingParamCollector.kt	2026-09-14 19:26:27.601949487 +0200
++++ x/btools/router/RoutingParamCollector.kt	2026-09-14 19:29:56.301827237 +0200
+@@ -2,7 +2,7 @@
+ 
+ import btools.mapaccess.MatchedWaypoint
+ import btools.kmp.io.UnsupportedEncodingException
+-import java.net.URLDecoder
++import btools.kmp.net.URLDecoder
+ import btools.kmp.util.*
+ import btools.kmp.System
+ 
+@@ -193,7 +193,7 @@
+                             if (wplist.size > v) wplist.get(v)!!.wpttype = MatchedWaypoint.WAYPOINT_TYPE_DIRECT
+                         }
+                     } catch (ex: Exception) {
+-                        System.err.println("error " + ex.getStackTrace()[0].getLineNumber() + " " + ex.getStackTrace()[0] + "\n" + ex)
++                        System.err.println("error " + ex.stackTraceToString())
+                     }
+                 } else if (key == "pois") {
+                     rctx.poipoints = readPoisList(value)
+diff -ruN last/btools/util/StackSampler.kt cur/btools/util/StackSampler.kt
+--- x/btools/util/StackSampler.kt	2026-09-14 19:26:27.604088451 +0200
++++ x/btools/util/StackSampler.kt	2026-09-14 19:29:56.305376936 +0200
+@@ -1,123 +1,13 @@
+ package btools.util
+ 
+-import btools.kmp.io.BufferedWriter
+ import btools.kmp.io.File
+-import btools.kmp.io.FileOutputStream
+-import btools.kmp.io.OutputStreamWriter
+-import java.text.DateFormat
+-import java.text.SimpleDateFormat
+-import btools.kmp.util.*
+-import kotlin.concurrent.Volatile
+-import kotlin.jvm.JvmStatic
+ 
+-class StackSampler(logfile: File, private val interval: Int) : Thread() {
+-    private val df: DateFormat =
+-        SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS", Locale.Builder().setLanguage("en").setRegion("US").build())
+-    private val bw: BufferedWriter? = null
+-    private val rand = Random()
+-
+-    private var flushCnt = 0
+-
+-    @Volatile
+-    private var stopped = false
+-
+-    init {
+-        try {
+-            bw = BufferedWriter(OutputStreamWriter(FileOutputStream(logfile, true)))
+-        } catch (e: Exception) {
+-            printError("StackSampler: " + e.message)
+-        }
+-    }
+-
+-    protected fun printError(msg: String?) {
+-        println(msg)
+-    }
+-
+-    override fun run() {
+-        while (!stopped) {
+-            dumpThreads()
+-        }
+-        if (bw != null) {
+-            try {
+-                bw.close()
+-            } catch (e: Exception) {
+-            }
+-        }
+-    }
+-
+-    @Suppress("deprecation") // Android
+-    fun dumpThreads() {
+-        try {
+-            val wait1 = rand.nextInt(interval)
+-            val wait2 = interval - wait1
+-            sleep(wait1.toLong())
+-            val sb = StringBuilder(df.format(Date()) + " THREADDUMP\n")
+-            val allThreads = getAllStackTraces()
+-            for (e in allThreads.entries) {
+-                val t: Thread = e.key!!
+-                if (t === currentThread()) {
+-                    continue  // not me
+-                }
+-
+-                val stack: Array<StackTraceElement> = e.value
+-                if (!matchesFilter(stack)) {
+-                    continue
+-                }
+-
+-                sb.append(" (ID=").append(t.getId()).append(" \"").append(t.getName()).append("\" ")
+-                    .append(t.getState()).append("\n")
+-                for (line in stack) {
+-                    sb.append("    ").append(line.toString()).append("\n")
+-                }
+-                sb.append("\n")
+-            }
+-            bw!!.write(sb.toString())
+-            if (flushCnt++ >= 0) {
+-                flushCnt = 0
+-                bw.flush()
+-            }
+-            sleep(wait2.toLong())
+-        } catch (e: Exception) {
+-            // ignore
+-        }
+-    }
+-
+-    fun close() {
+-        stopped = true
+-        interrupt()
+-    }
+-
+-    private fun matchesFilter(stack: Array<StackTraceElement>): Boolean {
+-        var positiveMatch = false
+-        for (e in stack) {
+-            val s = e.toString()
+-            if (s.indexOf("btools") >= 0) {
+-                positiveMatch = true
+-            }
+-            if (s.indexOf("Thread.sleep") >= 0 || s.indexOf("PlainSocketImpl.socketAccept") >= 0) {
+-                return false
+-            }
+-        }
+-        return positiveMatch
+-    }
+-
+-    companion object {
+-        @Throws(Exception::class)
+-        @JvmStatic
+-        fun main(args: Array<String>) {
+-            println("StackSampler...")
+-            val clazz = Class.forName(args[0])
+-            val args2 = arrayOfNulls<String>(args.size - 1)
+-            for (i in 1..<args.size) {
+-                args2[i - 1] = args[i]
+-            }
+-            val t = StackSampler(File("stacks.log"), 1000)
+-            t.start()
+-            try {
+-                clazz.getMethod("main", Array<String>::class.java).invoke(null, *arrayOf<Any>(args2))
+-            } finally {
+-                t.close()
+-            }
+-        }
+-    }
++/**
++ * Debug tooling: the JVM version is a thread that periodically dumps all thread stacks to a log file, started
++ * only when a `stacks.txt` exists next to the profiles. Thread dumps do not exist in common Kotlin; this keeps
++ * the API RoutingEngine uses and does nothing.
++ */
++class StackSampler(@Suppress("UNUSED_PARAMETER") logfile: File, @Suppress("UNUSED_PARAMETER") interval: Int) {
++    fun start() {}
++    fun close() {}
+ }

@@ -1,0 +1,25 @@
+# Headless IntelliJ IDEA for BRouter's Java->Kotlin conversion (J2K, K2 mode).
+#
+# The IDE tarball is taken from the build context (convert.sh downloads it into .cache and checks
+# its sha256), so a rebuild does not fetch 1.5 GB again. The J2K plugin is not baked in: convert.sh
+# mounts its built directory at run time, so changing the plugin needs no image rebuild.
+#
+# The project JDK J2K resolves types against is this image's Temurin (not the IDE's JBR).
+FROM docker.io/library/eclipse-temurin:21-jdk-noble
+
+ARG IDEA_TARBALL=idea.tar.gz
+COPY ${IDEA_TARBALL} /tmp/idea.tar.gz
+RUN mkdir -p /opt/idea \
+ && tar -xzf /tmp/idea.tar.gz -C /opt/idea --strip-components=1 \
+ && rm /tmp/idea.tar.gz \
+ && apt-get update && apt-get install -y --no-install-recommends libfreetype6 fontconfig \
+ && rm -rf /var/lib/apt/lists/*
+
+# Config, system, log and user plugin dirs live under /work so every run starts clean and leaves
+# its logs next to its output.
+ENV IDEA_PROPERTIES=/opt/j2k/idea.properties \
+    IDEA_VM_OPTIONS=/opt/j2k/idea.vmoptions \
+    PROJECT_JDK=/opt/java/openjdk
+COPY idea.properties idea.vmoptions /opt/j2k/
+
+ENTRYPOINT ["/opt/idea/bin/idea.sh"]
