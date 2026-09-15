@@ -55,6 +55,7 @@ import net.stho.tracks.ui.sensors.Fix
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
+import net.stho.tracks.ui.theme.IconButton
 import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.theme.Shapes
@@ -137,7 +138,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     BasicText("Plans", style = Type.title, modifier = Modifier.weight(1f))
-                    Pill("Paste link", onClick = onPaste)
+                    IconButton(Icons.Paste, "Paste link", onClick = onPaste)
                 }
                 notice?.let { BasicText(it, style = Type.note, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) }
             }
@@ -225,9 +226,21 @@ private fun PlanRow(
     }
 }
 
+/** One thing a ⋯ menu offers. */
+internal class MenuEntry(val icon: ImageVector, val label: String, val onClick: () -> Unit)
+
 /** A plan's ⋯ menu: Edit, Copy and Share link, the same wherever a plan is shown. */
 @Composable
 internal fun PlanMenu(onEdit: () -> Unit, onCopy: () -> Unit, onShare: () -> Unit, modifier: Modifier = Modifier) {
+    ActionMenu(
+        listOf(MenuEntry(Icons.Edit, "Edit", onEdit), MenuEntry(Icons.Copy, "Copy", onCopy), MenuEntry(Icons.Share, "Share link", onShare)),
+        modifier,
+    )
+}
+
+/** A ⋯ button that opens [entries], each an icon and its word. */
+@Composable
+internal fun ActionMenu(entries: List<MenuEntry>, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
         Box(Modifier.size(48.dp).clickable { open = true }, contentAlignment = Alignment.Center) {
@@ -240,19 +253,12 @@ internal fun PlanMenu(onEdit: () -> Unit, onCopy: () -> Unit, onShare: () -> Uni
                 properties = PopupProperties(focusable = true),
             ) {
                 Column(Modifier.padding(end = 8.dp).background(Tokens.surface, Shapes.panel).width(180.dp)) {
-                    MenuItem(Icons.Edit, "Edit") {
-                        open = false
-                        onEdit()
-                    }
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
-                    MenuItem(Icons.Copy, "Copy") {
-                        open = false
-                        onCopy()
-                    }
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
-                    MenuItem(Icons.Share, "Share link") {
-                        open = false
-                        onShare()
+                    entries.forEachIndexed { index, entry ->
+                        if (index > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
+                        MenuItem(entry.icon, entry.label) {
+                            open = false
+                            entry.onClick()
+                        }
                     }
                 }
             }

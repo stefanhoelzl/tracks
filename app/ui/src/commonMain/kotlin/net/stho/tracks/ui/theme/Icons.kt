@@ -36,6 +36,17 @@ object Icons {
         "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
     )
 
+    val Close: ImageVector = lucide("x", "M18 6L6 18", "M6 6l12 12")
+    val Save: ImageVector = lucide("check", "M20 6L9 17l-5-5")
+    val Paste: ImageVector = lucide(
+        "clipboard-paste",
+        "M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z",
+        "M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113",
+        "M16 4h2a2 2 0 0 1 2 2v1.344",
+        "M11 14h10",
+        "M17 10l4 4-4 4",
+    )
+
     private fun lucide(name: String, vararg paths: String): ImageVector =
         ImageVector.Builder(name = name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
             .apply {
