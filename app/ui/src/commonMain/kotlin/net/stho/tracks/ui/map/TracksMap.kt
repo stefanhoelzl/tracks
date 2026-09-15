@@ -11,8 +11,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -24,14 +28,18 @@ import net.stho.tracks.ui.sensors.Heading
 import net.stho.tracks.ui.theme.Tokens
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.dsl.image
 import org.maplibre.compose.expressions.dsl.interpolate
 import org.maplibre.compose.expressions.dsl.linear
 import org.maplibre.compose.expressions.dsl.zoom
+import org.maplibre.compose.expressions.value.IconRotationAlignment
 import org.maplibre.compose.expressions.value.LineCap
 import org.maplibre.compose.expressions.value.LineJoin
+import org.maplibre.compose.expressions.value.SymbolAnchor
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
 import org.maplibre.compose.layers.LineLayer
+import org.maplibre.compose.layers.SymbolLayer
 import org.maplibre.compose.location.LocationMeasurement
 import org.maplibre.compose.location.LocationPuck
 import org.maplibre.compose.location.LocationPuckColors
@@ -121,6 +129,26 @@ private fun Fix.measurement() = LocationMeasurement(
 
 private const val FOLLOW_MS = 950L
 
+/** How wide the slice of the rider's dot that shows where the phone faces is: roughly what the eye takes in. */
+private const val FIELD_OF_VIEW_DEG = 60.0
+
+/** The black of the rider's dot, inside its white rim: LocationPuckSizes' default radius of 6 dp. */
+private val RIDER_DOT_DIAMETER = 12.dp
+
+private fun pointJson(at: Coordinate?): String = at?.let {
+    """{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[${it.lon},${it.lat}]}}"""
+} ?: """{"type":"FeatureCollection","features":[]}"""
+
+/** A pie slice [sweepDeg] wide, pointing up from the centre: rotated by the heading, it points where the phone faces. */
+private class FacingWedge(private val color: Color, private val sweepDeg: Float) : Painter() {
+    override val intrinsicSize: Size get() = Size.Unspecified
+
+    override fun DrawScope.onDraw() {
+        // Compose measures angles clockwise from three o'clock; up is -90°.
+        drawArc(color = color, startAngle = -90f - sweepDeg / 2, sweepAngle = sweepDeg, useCenter = true)
+    }
+}
+
 @Composable
 private fun MapLibreMap(
     style: MapStyle,
@@ -174,18 +202,38 @@ private fun MapLibreMap(
             cap = const(LineCap.Round),
             join = const(LineJoin.Round),
         )
-        // Ink, not accent: the rider sits on the plan line, and an accent dot would vanish into it.
+        // Ink, not accent: the rider sits on the plan line, and an accent dot would vanish into it. The library's own
+        // bearing marks — an arrow, and a thin arc on the dot's rim — are off; the facing wedge below replaces them.
         LocationPuck(
             idPrefix = "rider",
             location = currentFix?.measurement(),
+            bearing = null,
             colors = LocationPuckColors(
                 dotFillColorCurrentLocation = Tokens.ink,
                 dotFillColorOldLocation = Tokens.muted,
                 dotStrokeColor = Color.White,
                 accuracyStrokeColor = Color.Transparent,
                 accuracyFillColor = Color.Transparent,
-                bearingColor = Tokens.ink,
             ),
+        )
+
+        // Where the phone faces: a blue slice of the dot, FIELD_OF_VIEW_DEG wide, from the compass rather than the
+        // course. It is what you are looking at, which a rider stopped at a junction wants to know and a course cannot
+        // say. Turned with the map, so it points the same way whichever way up the map is.
+        val facing = currentHeading
+        val rider = currentFix
+        val facingSource = rememberGeoJsonSource(GeoJsonData.JsonString(pointJson(rider?.at)))
+        val facingPainter = remember { FacingWedge(Tokens.facing, FIELD_OF_VIEW_DEG.toFloat()) }
+        SymbolLayer(
+            id = "rider-facing",
+            source = facingSource,
+            visible = facing != null && rider != null,
+            iconImage = image(facingPainter, size = DpSize(RIDER_DOT_DIAMETER, RIDER_DOT_DIAMETER)),
+            iconAnchor = const(SymbolAnchor.Center),
+            iconRotate = const((facing?.degrees ?: 0.0).toFloat()),
+            iconRotationAlignment = const(IconRotationAlignment.Map),
+            iconAllowOverlap = const(true),
+            iconIgnorePlacement = const(true),
         )
     }
 
