@@ -1,0 +1,5 @@
+# brouter.de's rd5 tiles of Tue, 15 Sep 2026 01:03:01 GMT, which brouter.de/ was answered from.
+# Published as a release of this repository; Gradle fetches it into the cache.
+release brouter-segments-2026-09-15
+7970acfdeaecc32cb10cb1b95527561040438921eda3fa5c88664a7c770006af  E5_N45.rd5
+707b0f9ff094efb630b3b58589b58e3a9590207fd50e77a546346c23c4412d0c  E10_N45.rd5

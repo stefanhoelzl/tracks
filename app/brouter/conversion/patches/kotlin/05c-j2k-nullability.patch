@@ -1,0 +1,472 @@
+diff -ruN last/btools/expressions/BExpressionContext.kt cur/btools/expressions/BExpressionContext.kt
+--- x/btools/expressions/BExpressionContext.kt	2026-09-14 19:36:13.187354098 +0200
++++ x/btools/expressions/BExpressionContext.kt	2026-09-14 19:41:21.046500635 +0200
+@@ -690,7 +690,7 @@
+                 return newValue
+             }
+             // unknown value, create
+-            val nvalues: Array<BExpressionLookupValue> = arrayOfNulls<BExpressionLookupValue>(values.size + 1)
++            val nvalues: Array<BExpressionLookupValue> = (arrayOfNulls<BExpressionLookupValue>(values.size + 1) as Array<BExpressionLookupValue>)
+             val nhisto = IntArray(values.size + 1)
+             System.arraycopy(values, 0, nvalues, 0, values.size)
+             System.arraycopy(histo, 0, nhisto, 0, histo.size)
+@@ -789,7 +789,7 @@
+     }
+ 
+     @JvmOverloads
+-    fun parseFile(file: File, readOnlyContext: String?, keyValues: MutableMap<String?, String>? = null) {
++    fun parseFile(file: File, readOnlyContext: String?, keyValues: MutableMap<String?, String?>? = null) {
+         require(file.exists()) { "profile " + file.getName() + " does not exist" }
+         try {
+             if (readOnlyContext != null) {
+diff -ruN last/btools/mapaccess/DirectWeaver.kt cur/btools/mapaccess/DirectWeaver.kt
+--- x/btools/mapaccess/DirectWeaver.kt	2026-09-14 19:36:13.189407663 +0200
++++ x/btools/mapaccess/DirectWeaver.kt	2026-09-14 19:41:21.048436757 +0200
+@@ -38,7 +38,7 @@
+ 
+         bc.decodeSortedArray(faid, 0, size, 29, 0)
+ 
+-        val nodes: Array<OsmNode> = arrayOfNulls<OsmNode>(size)
++        val nodes: Array<OsmNode> = (arrayOfNulls<OsmNode>(size) as Array<OsmNode>)
+         for (n in 0..<size) {
+             val id = expandId(faid[n])
+             val ilon = (id shr 32).toInt()
+diff -ruN last/btools/mapaccess/GeometryDecoder.kt cur/btools/mapaccess/GeometryDecoder.kt
+--- x/btools/mapaccess/GeometryDecoder.kt	2026-09-14 19:36:13.189407663 +0200
++++ x/btools/mapaccess/GeometryDecoder.kt	2026-09-14 19:41:21.048436757 +0200
+@@ -19,7 +19,7 @@
+ 
+     init {
+         // create some caches
+-        cachedNodes = arrayOfNulls<OsmTransferNode>(nCachedNodes)
++        cachedNodes = (arrayOfNulls<OsmTransferNode>(nCachedNodes) as Array<OsmTransferNode>)
+         for (i in 0..<nCachedNodes) {
+             cachedNodes[i] = OsmTransferNode()
+         }
+@@ -41,7 +41,7 @@
+         r.reset(geometry)
+         var olon = startnode.iLon
+         var olat = startnode.iLat
+-        var oselev: Int = startnode.sElev
++        var oselev: Int = startnode.sElev.toInt()
+         var idx = 0
+         while (r.hasMoreData()) {
+             val trans = if (idx < nCachedNodes) cachedNodes[idx++] else OsmTransferNode()
+diff -ruN last/btools/mapaccess/OsmNodesMap.kt cur/btools/mapaccess/OsmNodesMap.kt
+--- x/btools/mapaccess/OsmNodesMap.kt	2026-09-14 19:36:13.189407663 +0200
++++ x/btools/mapaccess/OsmNodesMap.kt	2026-09-14 19:41:21.048436757 +0200
+@@ -276,7 +276,7 @@
+ 
+         @JvmStatic
+         fun main(args: Array<String>) {
+-            val nodes: Array<OsmNode> = arrayOfNulls<OsmNode>(12)
++            val nodes: Array<OsmNode> = (arrayOfNulls<OsmNode>(12) as Array<OsmNode>)
+             for (i in nodes.indices) {
+                 nodes[i] = OsmNode((i + 1000) * 1000, (i + 1000) * 1000)
+             }
+diff -ruN last/btools/router/AreaReader.kt cur/btools/router/AreaReader.kt
+--- x/btools/router/AreaReader.kt	2026-09-14 19:36:13.192247656 +0200
++++ x/btools/router/AreaReader.kt	2026-09-14 19:41:21.051850575 +0200
+@@ -127,7 +127,7 @@
+                     e1: MutableMap.MutableEntry<Long?, String?>,
+                     e2: MutableMap.MutableEntry<Long?, String?>
+                 ): Int {
+-                    return e1.value!!.compareTo(e2.value)
++                    return e1.value!!.compareTo(e2.value!!)
+                 }
+             })
+ 
+@@ -211,7 +211,7 @@
+                                     }
+ 
+                                     for (ai in ais) {
+-                                        if (ai.polygon!!.isWithin(node.iLon, node.iLat)) {
++                                        if (ai.polygon!!.isWithin(node.iLon.toLong(), node.iLat.toLong())) {
+                                             ai.checkAreaInfo(
+                                                 expctxWay,
+                                                 node.elev,
+diff -ruN last/btools/router/FormatKml.kt cur/btools/router/FormatKml.kt
+--- x/btools/router/FormatKml.kt	2026-09-14 19:36:13.192247656 +0200
++++ x/btools/router/FormatKml.kt	2026-09-14 19:41:21.051850575 +0200
+@@ -56,7 +56,7 @@
+                 createFolder(sb, "end", t.matchedWaypoints!!.subList(size - 1, size))
+             }
+             if (t.exportCorrectedWaypoints) {
+-                val list: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++                val list: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+                 for (i in t.matchedWaypoints!!.indices) {
+                     val wp = t.matchedWaypoints!!.get(i)
+                     if (wp.correctedpoint != null) {
+diff -ruN last/btools/router/OsmTrack.kt cur/btools/router/OsmTrack.kt
+--- x/btools/router/OsmTrack.kt	2026-09-14 19:36:13.191638051 +0200
++++ x/btools/router/OsmTrack.kt	2026-09-14 19:41:21.051850575 +0200
+@@ -34,7 +34,7 @@
+     var params: MutableMap<String?, String?>? = null
+ 
+     @JvmField
+-    var pois: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++    var pois: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+ 
+     class OsmPathElementHolder {
+         @JvmField
+@@ -401,7 +401,7 @@
+         i = 0
+ 
+         node = nodes.get(nodeNr)
+-        val inputs: MutableList<VoiceHint?> = ArrayList<VoiceHint?>()
++        val inputs: MutableList<VoiceHint> = ArrayList<VoiceHint>()
+         while (node != null) {
+             if (node.origin != null) {
+                 if (nodeNr == nodes.size - 1) {
+diff -ruN last/btools/router/ProfileCache.kt cur/btools/router/ProfileCache.kt
+--- x/btools/router/ProfileCache.kt	2026-09-14 19:36:13.192247656 +0200
++++ x/btools/router/ProfileCache.kt	2026-09-14 19:41:21.052436746 +0200
+@@ -41,8 +41,8 @@
+                 val profileDir: File?
+                 val profileFile: File?
+                 if (profileBaseDir == null) {
+-                    profileDir = File(rc.localFunction).getParentFile()
+-                    profileFile = File(rc.localFunction)
++                    profileDir = File(rc.localFunction!!).getParentFile()
++                    profileFile = File(rc.localFunction!!)
+                 } else {
+                     profileDir = File(profileBaseDir)
+                     profileFile = File(profileDir, rc.localFunction + ".brf")
+diff -ruN last/btools/router/RoutingContext.kt cur/btools/router/RoutingContext.kt
+--- x/btools/router/RoutingContext.kt	2026-09-14 19:36:13.192247656 +0200
++++ x/btools/router/RoutingContext.kt	2026-09-14 19:41:21.051850575 +0200
+@@ -245,7 +245,7 @@
+     }
+ 
+     @JvmField
+-    var poipoints: MutableList<OsmNodeNamed?>? = null
++    var poipoints: MutableList<OsmNodeNamed>? = null
+ 
+     @JvmField
+     var nogopoints: MutableList<OsmNodeNamed>? = null
+@@ -356,15 +356,15 @@
+     fun cleanNogoList(waypoints: MutableList<OsmNode>) {
+         nogopoints_all = nogopoints
+         if (nogopoints == null) return
+-        val nogos: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++        val nogos: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+         for (nogo in nogopoints) {
+             var goodGuy = true
+             for (wp in waypoints) {
+                 if (wp.calcDistance(nogo) < nogo.radius
+                     && (nogo !is OsmNogoPolygon || (if (nogo.isClosed)
+-                        nogo.isWithin(wp.iLon, wp.iLat)
++                        nogo.isWithin(wp.iLon.toLong(), wp.iLat.toLong())
+                     else
+-                        nogo.isOnPolyline(wp.iLon, wp.iLat)))
++                        nogo.isOnPolyline(wp.iLon.toLong(), wp.iLat.toLong())))
+                 ) {
+                     goodGuy = false
+                 }
+@@ -389,9 +389,9 @@
+             for (nogo in nogopoints) {
+                 if (btools.kmp.JMath.isNaN(nogo.nogoWeight)
+                     && wp!!.calcDistance(nogo) < nogo.radius && (nogo !is OsmNogoPolygon || (if (nogo.isClosed)
+-                        nogo.isWithin(wp.iLon, wp.iLat)
++                        nogo.isWithin(wp.iLon.toLong(), wp.iLat.toLong())
+                     else
+-                        nogo.isOnPolyline(wp.iLon, wp.iLat)))
++                        nogo.isOnPolyline(wp.iLon.toLong(), wp.iLat.toLong())))
+                 ) {
+                     isInsideNogo = true
+                     break
+@@ -433,9 +433,9 @@
+                 val dist = wp.calcDistance(nogo)
+                 if (dist < nogo.radius
+                     && (nogo !is OsmNogoPolygon || (if (nogo.isClosed)
+-                        nogo.isWithin(wp.iLon, wp.iLat)
++                        nogo.isWithin(wp.iLon.toLong(), wp.iLat.toLong())
+                     else
+-                        nogo.isOnPolyline(wp.iLon, wp.iLat)))
++                        nogo.isOnPolyline(wp.iLon.toLong(), wp.iLat.toLong())))
+                 ) {
+                     continue
+                 }
+diff -ruN last/btools/router/RoutingEngine.kt cur/btools/router/RoutingEngine.kt
+--- x/btools/router/RoutingEngine.kt	2026-09-14 19:36:13.192247656 +0200
++++ x/btools/router/RoutingEngine.kt	2026-09-14 19:41:21.052436746 +0200
+@@ -96,7 +96,7 @@
+         this.routingContext = rc
+         this.engineMode = engineMode
+ 
+-        var baseFolder = File(routingContext.localFunction).getParentFile()
++        var baseFolder = File(routingContext.localFunction!!).getParentFile()
+         baseFolder = if (baseFolder == null) null else baseFolder.getParentFile()
+         if (baseFolder != null) {
+             try {
+@@ -189,7 +189,7 @@
+                     waypoints!!.add(onn)
+                 } else {
+                     waypoints!!.get(waypoints!!.size - 1).name = "via" + (waypoints!!.size - 1) + "_center"
+-                    val newpoints: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++                    val newpoints: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+                     for (i in waypoints!!.size - 2 downTo 0) {
+                         // System.out.println("back " + waypoints.get(i));
+                         val onn = OsmNodeNamed(OsmNode(waypoints!!.get(i).iLon, waypoints!!.get(i).iLat))
+@@ -249,7 +249,7 @@
+                     if (this.foundInfo != null) {
+                         val out = File(filename)
+                         val fw = FileWriter(filename)
+-                        fw.write(this.foundInfo)
++                        fw.write(this.foundInfo!!)
+                         fw.close()
+                         this.foundInfo = null
+                     }
+@@ -425,7 +425,7 @@
+                     val filename = outfileBase + "." + routingContext.outputFormat
+                     val out = File(filename)
+                     val fw = FileWriter(filename)
+-                    fw.write(this.foundInfo)
++                    fw.write(this.foundInfo!!)
+                     fw.close()
+                     this.foundInfo = null
+                 } else {
+@@ -527,10 +527,10 @@
+         wpt1.name = "info"
+         wpt1.radius = searchRadius * 1.5
+ 
+-        val ais: MutableList<AreaInfo?> = ArrayList<AreaInfo?>()
++        val ais: MutableList<AreaInfo> = ArrayList<AreaInfo>()
+         val areareader = AreaReader()
+         if (routingContext.rawAreaPath != null) {
+-            val fai = File(routingContext.rawAreaPath)
++            val fai = File(routingContext.rawAreaPath!!)
+             if (fai.exists()) {
+                 areareader.readAreaInfo(fai, wpt1, ais)
+             }
+@@ -828,7 +828,7 @@
+         }
+     }
+ 
+-    private fun tryFindTrack(refTracks: Array<OsmTrack?>, lastTracks: Array<OsmTrack?>): OsmTrack {
++    private fun tryFindTrack(refTracks: Array<OsmTrack?>, lastTracks: Array<OsmTrack?>): OsmTrack? {
+         var refTracks = refTracks
+         var lastTracks = lastTracks
+         val totaltrack = OsmTrack()
+@@ -986,7 +986,7 @@
+                         nogo.name = "nogo" + (i + 1)
+                         nogo.nogoWeight = 9999.0
+                         nogo.isNogo = true
+-                        if (routingContext.nogopoints == null) routingContext.nogopoints = ArrayList<OsmNodeNamed?>()
++                        if (routingContext.nogopoints == null) routingContext.nogopoints = ArrayList<OsmNodeNamed>()
+                         routingContext.nogopoints!!.add(nogo)
+                     }
+                 }
+@@ -1032,7 +1032,7 @@
+     fun getExtraSegment(start: OsmPathElement?, end: OsmPathElement?): OsmTrack? {
+         if (start == null || end == null) return null
+ 
+-        val wptlist: MutableList<MatchedWaypoint?> = ArrayList<MatchedWaypoint?>()
++        val wptlist: MutableList<MatchedWaypoint> = ArrayList<MatchedWaypoint>()
+         val wpt1 = MatchedWaypoint()
+         wpt1.waypoint = OsmNode(start.iLon, start.iLat)
+         wpt1.name = "wptx1"
+@@ -1610,7 +1610,7 @@
+         }
+         // add beeline points when not already done
+         if (useDynamicDistance && !useNodePoints && bAddBeeline) {
+-            val waypoints: MutableList<MatchedWaypoint?> = ArrayList<MatchedWaypoint?>()
++            val waypoints: MutableList<MatchedWaypoint> = ArrayList<MatchedWaypoint>()
+             for (i in unmatchedWaypoints.indices) {
+                 val wp = unmatchedWaypoints.get(i)
+                 if (wp.waypoint!!.calcDistance(wp.crosspoint!!) > routingContext.waypointCatchingRange) {
+@@ -1773,7 +1773,7 @@
+         }
+ 
+         if (!wasClean && isDirty) {
+-            throw dirtyMessage
++            throw dirtyMessage!!
+         }
+ 
+         // final run for verbose log info and detail nodes
+@@ -1893,7 +1893,7 @@
+         fastPartialRecalc: Boolean
+     ): OsmTrack {
+         try {
+-            val wpts2: MutableList<OsmNode?> = ArrayList<OsmNode?>()
++            val wpts2: MutableList<OsmNode> = ArrayList<OsmNode>()
+             if (startWp != null) wpts2.add(startWp.waypoint)
+             if (endWp != null) wpts2.add(endWp.waypoint)
+             routingContext.cleanNogoList(wpts2)
+@@ -1917,7 +1917,7 @@
+         costCuttingTrack: OsmTrack?,
+         refTrack: OsmTrack?,
+         fastPartialRecalc: Boolean
+-    ): OsmTrack {
++    ): OsmTrack? {
+         var fastPartialRecalc = fastPartialRecalc
+         val verbose = guideTrack != null
+ 
+diff -ruN last/btools/router/RoutingParamCollector.kt cur/btools/router/RoutingParamCollector.kt
+--- x/btools/router/RoutingParamCollector.kt	2026-09-14 19:36:13.192247656 +0200
++++ x/btools/router/RoutingParamCollector.kt	2026-09-14 19:41:21.052436746 +0200
+@@ -13,14 +13,14 @@
+      * @param lonLats  linked list separated by ';' or '|'
+      * @return         a list
+      */
+-    fun getWayPointList(lonLats: String): MutableList<OsmNodeNamed?> {
++    fun getWayPointList(lonLats: String): MutableList<OsmNodeNamed> {
+         requireNotNull(lonLats) { "lonlats parameter not set" }
+ 
+         val coords =
+             lonLats.split(";|\\|".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray() // use both variantes
+         require(!(coords.size < 1 || !coords[0].contains(","))) { "we need one lat/lon point at least!" }
+ 
+-        val wplist: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++        val wplist: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+         for (i in coords.indices) {
+             val lonLat = coords[i].split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+             require(lonLat.size >= 1) { "we need one lat/lon point at least!" }
+@@ -52,8 +52,8 @@
+      * @param lats  array with latitudes
+      * @return      a list
+      */
+-    fun readPositions(lons: DoubleArray?, lats: DoubleArray?): MutableList<OsmNodeNamed?> {
+-        val wplist: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++    fun readPositions(lons: DoubleArray?, lats: DoubleArray?): MutableList<OsmNodeNamed> {
++        val wplist: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+ 
+         if (lats == null || lats.size < 2 || lons == null || lons.size < 2) {
+             return wplist
+@@ -125,7 +125,7 @@
+      * @param wplist  the list of way points needed for 'straight' parameter
+      * @param params  the list of parameters
+      */
+-    fun setParams(rctx: RoutingContext, wplist: MutableList<OsmNodeNamed?>, params: MutableMap<String?, String?>?) {
++    fun setParams(rctx: RoutingContext, wplist: MutableList<OsmNodeNamed>, params: MutableMap<String?, String?>?) {
+         if (params != null) {
+             if (params.size == 0) return
+ 
+@@ -160,7 +160,7 @@
+                 params.remove("nogos")
+             }
+             if (params.containsKey("polylines")) {
+-                val result: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++                val result: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+                 parseNogoPolygons(params.get("polylines"), result, false)
+                 if (rctx.nogopoints == null) {
+                     rctx.nogopoints = result
+@@ -170,7 +170,7 @@
+                 params.remove("polylines")
+             }
+             if (params.containsKey("polygons")) {
+-                val result: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++                val result: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+                 parseNogoPolygons(params.get("polygons"), result, true)
+                 if (rctx.nogopoints == null) {
+                     rctx.nogopoints = result
+@@ -261,7 +261,7 @@
+         }
+     }
+ 
+-    private fun parseNogoPolygons(polygons: String?, result: MutableList<OsmNodeNamed?>, closed: Boolean) {
++    private fun parseNogoPolygons(polygons: String?, result: MutableList<OsmNodeNamed>, closed: Boolean) {
+         if (polygons != null) {
+             val polygonList = polygons.split("\\|".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+             for (i in polygonList.indices) {
+@@ -292,13 +292,13 @@
+         }
+     }
+ 
+-    fun readPoisList(pois: String?): MutableList<OsmNodeNamed?>? {
++    fun readPoisList(pois: String?): MutableList<OsmNodeNamed>? {
+         // lon,lat,name|...
+         if (pois == null) return null
+ 
+         val lonLatNameList = pois.split("\\|".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+ 
+-        val poisList: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++        val poisList: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+         for (i in lonLatNameList.indices) {
+             val lonLatName = lonLatNameList[i].split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+ 
+@@ -314,14 +314,14 @@
+         return poisList
+     }
+ 
+-    fun readNogoList(nogos: String?): MutableList<OsmNodeNamed?>? {
++    fun readNogoList(nogos: String?): MutableList<OsmNodeNamed>? {
+         // lon,lat,radius[,weight]|...
+ 
+         if (nogos == null) return null
+ 
+         val lonLatRadList = nogos.split("\\|".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+ 
+-        val nogoList: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++        val nogoList: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+         for (i in lonLatRadList.indices) {
+             val lonLatRad = lonLatRadList[i].split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+             var nogoWeight = "NaN"
+@@ -334,9 +334,9 @@
+         return nogoList
+     }
+ 
+-    fun readNogos(nogoLons: String?, nogoLats: String?, nogoRadi: String?): MutableList<OsmNodeNamed?>? {
++    fun readNogos(nogoLons: String?, nogoLats: String?, nogoRadi: String?): MutableList<OsmNodeNamed>? {
+         if (nogoLons == null || nogoLats == null || nogoRadi == null) return null
+-        val nogoList: MutableList<OsmNodeNamed?> = ArrayList<OsmNodeNamed?>()
++        val nogoList: MutableList<OsmNodeNamed> = ArrayList<OsmNodeNamed>()
+ 
+         val lons = nogoLons.split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+         val lats = nogoLats.split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+diff -ruN last/btools/router/VoiceHintProcessor.kt cur/btools/router/VoiceHintProcessor.kt
+--- x/btools/router/VoiceHintProcessor.kt	2026-09-14 19:36:13.191638051 +0200
++++ x/btools/router/VoiceHintProcessor.kt	2026-09-14 19:41:21.051850575 +0200
+@@ -55,7 +55,7 @@
+      * @param inputs tracknodes, un reverse order
+      * @return voice hints, in forward order
+      */
+-    fun process(inputs: MutableList<VoiceHint>): MutableList<VoiceHint?> {
++    fun process(inputs: MutableList<VoiceHint>): MutableList<VoiceHint> {
+         val results: MutableList<VoiceHint> = ArrayList<VoiceHint>()
+         var distance = 0.0
+         var roundAboutTurnAngle = 0f // sums up angles in roundabout
+@@ -288,7 +288,7 @@
+ 
+         // go through the hint list again in reverse order (=travel direction)
+         // and filter out non-significant hints and hints too close to its predecessor
+-        val results2: MutableList<VoiceHint?> = ArrayList<VoiceHint?>()
++        val results2: MutableList<VoiceHint> = ArrayList<VoiceHint>()
+         var i = results.size
+         while (i > 0) {
+             var hint = results.get(--i)
+@@ -329,8 +329,8 @@
+         return results2
+     }
+ 
+-    fun postProcess(inputs: MutableList<VoiceHint>, catchingRange: Double, minRange: Double): MutableList<VoiceHint?> {
+-        val results: MutableList<VoiceHint?> = ArrayList<VoiceHint?>()
++    fun postProcess(inputs: MutableList<VoiceHint>, catchingRange: Double, minRange: Double): MutableList<VoiceHint> {
++        val results: MutableList<VoiceHint> = ArrayList<VoiceHint>()
+         var inputLast: VoiceHint? = null
+         var inputLastSaved: VoiceHint? = null
+         var hintIdx = 0
+diff -ruN last/btools/util/ByteArrayUnifier.kt cur/btools/util/ByteArrayUnifier.kt
+--- x/btools/util/ByteArrayUnifier.kt	2026-09-14 19:36:13.195805726 +0200
++++ x/btools/util/ByteArrayUnifier.kt	2026-09-14 19:41:21.055468625 +0200
+@@ -8,7 +8,7 @@
+     private var crcCrosscheck: IntArray? = null
+ 
+     init {
+-        byteArrayCache = arrayOfNulls<ByteArray>(size)
++        byteArrayCache = (arrayOfNulls<ByteArray>(size) as Array<ByteArray>)
+         if (validateImmutability) crcCrosscheck = IntArray(size)
+     }
+ 
+diff -ruN last/btools/util/CheapRuler.kt cur/btools/util/CheapRuler.kt
+--- x/btools/util/CheapRuler.kt	2026-09-14 19:36:13.195805726 +0200
++++ x/btools/util/CheapRuler.kt	2026-09-14 19:41:21.055468625 +0200
+@@ -31,7 +31,7 @@
+     private const val SCALE_CACHE_INCREMENT = 100000
+ 
+     // SCALE_CACHE_LENGTH cached values between 0 and COS_CACHE_MAX_DEGREES degrees.
+-    private val SCALE_CACHE: Array<DoubleArray> = arrayOfNulls<DoubleArray>(SCALE_CACHE_LENGTH)
++    private val SCALE_CACHE: Array<DoubleArray> = (arrayOfNulls<DoubleArray>(SCALE_CACHE_LENGTH) as Array<DoubleArray>)
+ 
+     /**
+      * build the cache of cosine values.

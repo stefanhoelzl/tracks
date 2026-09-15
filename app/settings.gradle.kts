@@ -28,4 +28,4 @@ dependencyResolutionManagement {
     }
 }
 
-include(":shared")
+include(":shared", ":brouter")

@@ -1,0 +1,18 @@
+<idea-plugin>
+  <id>net.stho.tracks.j2k-headless</id>
+  <name>J2K Headless</name>
+  <vendor>tracks</vendor>
+  <description>Runs the Kotlin plugin's Java-to-Kotlin converter (K2) over a source tree from the command line.</description>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.java</depends>
+  <depends>org.jetbrains.kotlin</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <appStarter id="j2k" implementation="net.stho.tracks.j2k.J2kStarter"/>
+  </extensions>
+
+  <extensions defaultExtensionNs="org.jetbrains.kotlin">
+    <supportsKotlinPluginMode supportsK2="true" supportsK1="false"/>
+  </extensions>
+</idea-plugin>

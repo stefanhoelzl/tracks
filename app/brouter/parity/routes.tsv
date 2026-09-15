@@ -1,0 +1,17 @@
+trekking-munich-starnberg	trekking	11.5755,48.1374|11.3406,47.9988
+trekking-munich-innsbruck	trekking	11.5755,48.1374|11.3928,47.2692
+trekking-garmisch-innsbruck	trekking	11.0950,47.4917|11.3928,47.2692
+trekking-salzburg-hallein	trekking	13.0438,47.7994|13.0936,47.6833
+trekking-rosenheim-prien-traunstein	trekking	12.1289,47.8561|12.3456,47.8561|12.6435,47.8684
+trekking-munich-bolzano	trekking	11.5755,48.1374|11.3548,46.4983
+trekking-named-via	trekking	11.3928,47.2692,Innsbruck|11.7089,47.3517,Schwaz|12.1697,47.5833,Kufstein
+trekking-unnamed-pois	trekking	11.3548,46.4983,m|11.2500,46.5900|11.1597,46.6713,m
+road-tegernsee-achensee	fastbike	11.7385,47.7514,Gmund|11.7456,47.6421|11.7058,47.5222,Achenkirch
+road-munich-bormio	fastbike	11.5755,48.1374,München|10.5047,46.8307|10.3703,46.4679,Bormio
+road-lindau-feldkirch	fastbike	9.6840,47.5460,Lindau|9.7471,47.5031|9.5980,47.2379,Feldkirch
+gravel-isar	gravel	11.5433,48.0998,Thalkirchen|11.4245,47.9131|11.5569,47.7606,Bad Tölz
+gravel-chur-bormio	gravel	9.5290,46.8499,Chur|9.8420,46.5790|10.3703,46.4679,Bormio
+mtb-karwendel	mtb	11.2645,47.3888,Scharnitz|11.3522,47.4205|11.4744,47.4764,Hinterriß
+mtb-garda	mtb	10.8416,45.8855,Riva del Garda|10.8307,45.9375,Lago di Tenno
+hiking-zugspitze	hiking-mountain	11.0526,47.4629,Hammersbach|10.9853,47.4211,Zugspitze
+hiking-oberstdorf-zams	hiking-mountain	10.2797,47.4098,Oberstdorf|10.5900,47.1570,Zams

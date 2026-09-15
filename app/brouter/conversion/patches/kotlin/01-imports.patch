@@ -1,0 +1,549 @@
+diff -ruN last/btools/codec/IntegerFifo3Pass.kt cur/btools/codec/IntegerFifo3Pass.kt
+--- x/btools/codec/IntegerFifo3Pass.kt	2026-09-14 19:20:32.301599027 +0200
++++ x/btools/codec/IntegerFifo3Pass.kt	2026-09-14 19:23:12.726557261 +0200
+@@ -1,4 +1,5 @@
+ package btools.codec
++import btools.kmp.System
+ 
+ /**
+  * Special integer fifo suitable for 3-pass encoding
+diff -ruN last/btools/codec/LinkedListContainer.kt cur/btools/codec/LinkedListContainer.kt
+--- x/btools/codec/LinkedListContainer.kt	2026-09-14 19:20:32.301599027 +0200
++++ x/btools/codec/LinkedListContainer.kt	2026-09-14 19:23:12.726557261 +0200
+@@ -1,4 +1,5 @@
+ package btools.codec
++import btools.kmp.System
+ 
+ /**
+  * Simple container for a list of lists of integers
+diff -ruN last/btools/codec/MicroCache.kt cur/btools/codec/MicroCache.kt
+--- x/btools/codec/MicroCache.kt	2026-09-14 19:20:32.301599027 +0200
++++ x/btools/codec/MicroCache.kt	2026-09-14 19:23:12.726557261 +0200
+@@ -1,6 +1,7 @@
+ package btools.codec
+ 
+ import btools.util.ByteDataWriter
++import btools.kmp.System
+ 
+ /**
+  * a micro-cache is a data cache for an area of some square kilometers or some
+diff -ruN last/btools/codec/MicroCache2.kt cur/btools/codec/MicroCache2.kt
+--- x/btools/codec/MicroCache2.kt	2026-09-14 19:20:32.301599027 +0200
++++ x/btools/codec/MicroCache2.kt	2026-09-14 19:23:12.726557261 +0200
+@@ -2,6 +2,7 @@
+ 
+ import btools.util.ByteDataReader
+ import btools.util.IByteArrayUnifier
++import btools.kmp.System
+ 
+ /**
+  * MicroCache2 is the new format that uses statistical encoding and
+diff -ruN last/btools/codec/StatCoderContext.kt cur/btools/codec/StatCoderContext.kt
+--- x/btools/codec/StatCoderContext.kt	2026-09-14 19:20:32.301599027 +0200
++++ x/btools/codec/StatCoderContext.kt	2026-09-14 19:23:12.726557261 +0200
+@@ -1,7 +1,7 @@
+ package btools.codec
+ 
+ import btools.util.BitCoderContext
+-import java.util.*
++import btools.kmp.util.*
+ 
+ class StatCoderContext(ab: ByteArray) : BitCoderContext(ab) {
+     private var lastbitpos: Long = 0
+diff -ruN last/btools/codec/TagValueCoder.kt cur/btools/codec/TagValueCoder.kt
+--- x/btools/codec/TagValueCoder.kt	2026-09-14 19:20:32.301599027 +0200
++++ x/btools/codec/TagValueCoder.kt	2026-09-14 19:23:12.726557261 +0200
+@@ -2,7 +2,8 @@
+ 
+ import btools.codec.TagValueCoder.TagValueSet.FrequencyComparator
+ import btools.util.BitCoderContext
+-import java.util.*
++import btools.kmp.util.*
++import btools.kmp.System
+ 
+ /**
+  * Encoder/Decoder for way-/node-descriptions
+diff -ruN last/btools/expressions/BExpression.kt cur/btools/expressions/BExpression.kt
+--- x/btools/expressions/BExpression.kt	2026-09-14 19:20:32.304092246 +0200
++++ x/btools/expressions/BExpression.kt	2026-09-14 19:23:12.728722104 +0200
+@@ -1,6 +1,6 @@
+ package btools.expressions
+ 
+-import java.util.*
++import btools.kmp.util.*
+ 
+ internal class BExpression {
+     private var typ = 0
+diff -ruN last/btools/expressions/BExpressionContext.kt cur/btools/expressions/BExpressionContext.kt
+--- x/btools/expressions/BExpressionContext.kt	2026-09-14 19:20:32.304092246 +0200
++++ x/btools/expressions/BExpressionContext.kt	2026-09-14 19:23:12.728722104 +0200
+@@ -11,11 +11,12 @@
+ import btools.util.Crc32.crc
+ import btools.util.IByteArrayUnifier
+ import btools.util.LruMap
+-import java.io.BufferedReader
+-import java.io.File
+-import java.io.FileReader
+-import java.util.*
++import btools.kmp.io.BufferedReader
++import btools.kmp.io.File
++import btools.kmp.io.FileReader
++import btools.kmp.util.*
+ import kotlin.math.abs
++import btools.kmp.System
+ 
+ abstract class BExpressionContext protected constructor(context: String?, hashSize: Int, meta: BExpressionMetaData?) :
+     IByteArrayUnifier {
+diff -ruN last/btools/expressions/BExpressionMetaData.kt cur/btools/expressions/BExpressionMetaData.kt
+--- x/btools/expressions/BExpressionMetaData.kt	2026-09-14 19:20:32.304092246 +0200
++++ x/btools/expressions/BExpressionMetaData.kt	2026-09-14 19:23:12.728722104 +0200
+@@ -5,9 +5,9 @@
+ // - the lookup-input variables
+ package btools.expressions
+ 
+-import java.io.BufferedReader
+-import java.io.File
+-import java.io.FileReader
++import btools.kmp.io.BufferedReader
++import btools.kmp.io.File
++import btools.kmp.io.FileReader
+ 
+ class BExpressionMetaData {
+     @JvmField
+diff -ruN last/btools/mapaccess/DirectWeaver.kt cur/btools/mapaccess/DirectWeaver.kt
+--- x/btools/mapaccess/DirectWeaver.kt	2026-09-14 19:20:32.305803047 +0200
++++ x/btools/mapaccess/DirectWeaver.kt	2026-09-14 19:23:12.731272591 +0200
+@@ -2,6 +2,7 @@
+ 
+ import btools.codec.*
+ import btools.util.ByteDataWriter
++import btools.kmp.System
+ 
+ /**
+  * DirectWeaver does the same decoding as MicroCache2, but decodes directly
+diff -ruN last/btools/mapaccess/MatchedWaypoint.kt cur/btools/mapaccess/MatchedWaypoint.kt
+--- x/btools/mapaccess/MatchedWaypoint.kt	2026-09-14 19:20:32.305803047 +0200
++++ x/btools/mapaccess/MatchedWaypoint.kt	2026-09-14 19:23:12.731272591 +0200
+@@ -5,9 +5,9 @@
+  */
+ package btools.mapaccess
+ 
+-import java.io.DataInput
+-import java.io.DataOutput
+-import java.io.IOException
++import btools.kmp.io.DataInput
++import btools.kmp.io.DataOutput
++import btools.kmp.io.IOException
+ 
+ class MatchedWaypoint {
+     @JvmField
+diff -ruN last/btools/mapaccess/NodesCache.kt cur/btools/mapaccess/NodesCache.kt
+--- x/btools/mapaccess/NodesCache.kt	2026-09-14 19:20:32.305803047 +0200
++++ x/btools/mapaccess/NodesCache.kt	2026-09-14 19:23:12.731272591 +0200
+@@ -10,8 +10,8 @@
+ import btools.codec.WaypointMatcher
+ import btools.expressions.BExpressionContextWay
+ import btools.mapaccess.StorageConfigHelper.getSecondarySegmentDir
+-import java.io.File
+-import java.io.IOException
++import btools.kmp.io.File
++import btools.kmp.io.IOException
+ 
+ class NodesCache(
+     private var segmentDir: File,
+diff -ruN last/btools/mapaccess/OsmFile.kt cur/btools/mapaccess/OsmFile.kt
+--- x/btools/mapaccess/OsmFile.kt	2026-09-14 19:20:32.305803047 +0200
++++ x/btools/mapaccess/OsmFile.kt	2026-09-14 19:23:12.731272591 +0200
+@@ -9,8 +9,8 @@
+ import btools.codec.MicroCache.Companion.emptyCache
+ import btools.util.ByteDataReader
+ import btools.util.Crc32
+-import java.io.IOException
+-import java.io.RandomAccessFile
++import btools.kmp.io.IOException
++import btools.kmp.io.RandomAccessFile
+ 
+ class OsmFile(rafile: PhysicalFile?, @JvmField var lonDegree: Int, var latDegree: Int, dataBuffers: DataBuffers) {
+     private var `is`: RandomAccessFile? = null
+diff -ruN last/btools/mapaccess/OsmNodesMap.kt cur/btools/mapaccess/OsmNodesMap.kt
+--- x/btools/mapaccess/OsmNodesMap.kt	2026-09-14 19:20:32.305803047 +0200
++++ x/btools/mapaccess/OsmNodesMap.kt	2026-09-14 19:23:12.731272591 +0200
+@@ -6,6 +6,7 @@
+ package btools.mapaccess
+ 
+ import btools.util.ByteArrayUnifier
++import btools.kmp.System
+ 
+ class OsmNodesMap {
+     private val hmap: MutableMap<OsmNode?, OsmNode> = HashMap<OsmNode?, OsmNode>(4096)
+diff -ruN last/btools/mapaccess/PhysicalFile.kt cur/btools/mapaccess/PhysicalFile.kt
+--- x/btools/mapaccess/PhysicalFile.kt	2026-09-14 19:20:32.305803047 +0200
++++ x/btools/mapaccess/PhysicalFile.kt	2026-09-14 19:23:12.731272591 +0200
+@@ -9,9 +9,10 @@
+ import btools.codec.MicroCache
+ import btools.util.ByteDataReader
+ import btools.util.Crc32
+-import java.io.File
+-import java.io.IOException
+-import java.io.RandomAccessFile
++import btools.kmp.io.File
++import btools.kmp.io.IOException
++import btools.kmp.io.RandomAccessFile
++import btools.kmp.System
+ 
+ class PhysicalFile(f: File, dataBuffers: DataBuffers, lookupVersion: Int, lookupMinorVersion: Int) {
+     @JvmField
+diff -ruN last/btools/mapaccess/StorageConfigHelper.kt cur/btools/mapaccess/StorageConfigHelper.kt
+--- x/btools/mapaccess/StorageConfigHelper.kt	2026-09-14 19:20:32.305803047 +0200
++++ x/btools/mapaccess/StorageConfigHelper.kt	2026-09-14 19:23:12.731272591 +0200
+@@ -5,9 +5,9 @@
+  */
+ package btools.mapaccess
+ 
+-import java.io.BufferedReader
+-import java.io.File
+-import java.io.FileReader
++import btools.kmp.io.BufferedReader
++import btools.kmp.io.File
++import btools.kmp.io.FileReader
+ 
+ object StorageConfigHelper {
+     @JvmStatic
+diff -ruN last/btools/mapaccess/WaypointMatcherImpl.kt cur/btools/mapaccess/WaypointMatcherImpl.kt
+--- x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:20:32.305803047 +0200
++++ x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:23:12.731272591 +0200
+@@ -4,8 +4,7 @@
+ import btools.util.CheapAngleMeter.Companion.getDifferenceFromDirection
+ import btools.util.CheapAngleMeter.Companion.getDirection
+ import btools.util.CheapRuler.getLonLatToMeterScales
+-import java.lang.Double
+-import java.util.*
++import btools.kmp.util.*
+ import kotlin.Boolean
+ import kotlin.Comparator
+ import kotlin.Int
+diff -ruN last/btools/router/AreaReader.kt cur/btools/router/AreaReader.kt
+--- x/btools/router/AreaReader.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/AreaReader.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -4,9 +4,10 @@
+ import btools.expressions.BExpressionContextWay
+ import btools.mapaccess.*
+ import btools.mapaccess.MatchedWaypoint.Companion.readFromStream
+-import java.io.*
+-import java.util.*
++import btools.kmp.io.*
++import btools.kmp.util.*
+ import kotlin.math.abs
++import btools.kmp.System
+ 
+ class AreaReader {
+     var segmentFolder: File? = null
+diff -ruN last/btools/router/FormatCsv.kt cur/btools/router/FormatCsv.kt
+--- x/btools/router/FormatCsv.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/FormatCsv.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -1,7 +1,7 @@
+ package btools.router
+ 
+-import java.io.BufferedWriter
+-import java.io.StringWriter
++import btools.kmp.io.BufferedWriter
++import btools.kmp.io.StringWriter
+ 
+ class FormatCsv(rc: RoutingContext?) : Formatter(rc) {
+     public override fun format(t: OsmTrack): String? {
+diff -ruN last/btools/router/FormatGpx.kt cur/btools/router/FormatGpx.kt
+--- x/btools/router/FormatGpx.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/FormatGpx.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -3,8 +3,8 @@
+ import btools.mapaccess.MatchedWaypoint
+ import btools.router.OsmPathElement.Companion.create
+ import btools.util.StringUtils
+-import java.io.*
+-import java.util.*
++import btools.kmp.io.*
++import btools.kmp.util.*
+ 
+ class FormatGpx(rc: RoutingContext?) : Formatter(rc) {
+     public override fun format(t: OsmTrack): String? {
+diff -ruN last/btools/router/FormatJson.kt cur/btools/router/FormatJson.kt
+--- x/btools/router/FormatJson.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/FormatJson.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -2,11 +2,11 @@
+ 
+ import btools.mapaccess.MatchedWaypoint
+ import btools.util.StringUtils.escapeJson
+-import java.io.BufferedWriter
+-import java.io.StringWriter
++import btools.kmp.io.BufferedWriter
++import btools.kmp.io.StringWriter
+ import java.text.DecimalFormat
+ import java.text.NumberFormat
+-import java.util.*
++import btools.kmp.util.*
+ 
+ class FormatJson(rc: RoutingContext?) : Formatter(rc) {
+     public override fun format(t: OsmTrack): String? {
+diff -ruN last/btools/router/Formatter.kt cur/btools/router/Formatter.kt
+--- x/btools/router/Formatter.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/Formatter.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -1,9 +1,9 @@
+ package btools.router
+ 
+-import java.io.BufferedWriter
+-import java.io.FileWriter
++import btools.kmp.io.BufferedWriter
++import btools.kmp.io.FileWriter
+ import java.text.SimpleDateFormat
+-import java.util.*
++import btools.kmp.util.*
+ 
+ abstract class Formatter {
+     @JvmField
+diff -ruN last/btools/router/OsmNodeNamed.kt cur/btools/router/OsmNodeNamed.kt
+--- x/btools/router/OsmNodeNamed.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/OsmNodeNamed.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -9,7 +9,6 @@
+ import btools.mapaccess.OsmNode
+ import btools.util.CheapRuler.distance
+ import btools.util.CheapRuler.getLonLatToMeterScales
+-import java.lang.Double
+ import kotlin.Boolean
+ import kotlin.Byte
+ import kotlin.Int
+diff -ruN last/btools/router/OsmPathElement.kt cur/btools/router/OsmPathElement.kt
+--- x/btools/router/OsmPathElement.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/OsmPathElement.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -2,9 +2,9 @@
+ 
+ import btools.mapaccess.OsmPos
+ import btools.util.CheapRuler.distance
+-import java.io.DataInput
+-import java.io.DataOutput
+-import java.io.IOException
++import btools.kmp.io.DataInput
++import btools.kmp.io.DataOutput
++import btools.kmp.io.IOException
+ import kotlin.math.max
+ 
+ /**
+diff -ruN last/btools/router/OsmTrack.kt cur/btools/router/OsmTrack.kt
+--- x/btools/router/OsmTrack.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/OsmTrack.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -9,7 +9,7 @@
+ import btools.mapaccess.OsmPos
+ import btools.util.CompactLongMap
+ import btools.util.FrozenLongMap
+-import java.io.*
++import btools.kmp.io.*
+ import kotlin.math.abs
+ 
+ class OsmTrack {
+diff -ruN last/btools/router/ProfileCache.kt cur/btools/router/ProfileCache.kt
+--- x/btools/router/ProfileCache.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/ProfileCache.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -8,7 +8,8 @@
+ import btools.expressions.BExpressionContextNode
+ import btools.expressions.BExpressionContextWay
+ import btools.expressions.BExpressionMetaData
+-import java.io.File
++import btools.kmp.io.File
++import btools.kmp.System
+ 
+ class ProfileCache {
+     private var expctxWay: BExpressionContextWay? = null
+diff -ruN last/btools/router/RoutingContext.kt cur/btools/router/RoutingContext.kt
+--- x/btools/router/RoutingContext.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/RoutingContext.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -14,8 +14,7 @@
+ import btools.mapaccess.OsmNode
+ import btools.util.CheapAngleMeter
+ import btools.util.CheapRuler.getLonLatToMeterScales
+-import java.io.File
+-import java.lang.Double
++import btools.kmp.io.File
+ import kotlin.Boolean
+ import kotlin.Exception
+ import kotlin.Int
+diff -ruN last/btools/router/RoutingEngine.kt cur/btools/router/RoutingEngine.kt
+--- x/btools/router/RoutingEngine.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/RoutingEngine.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -14,12 +14,13 @@
+ import btools.util.CompactLongMap
+ import btools.util.SortedHeap
+ import btools.util.StackSampler
+-import java.io.*
+-import java.util.*
++import btools.kmp.io.*
++import btools.kmp.util.*
+ import kotlin.concurrent.Volatile
+ import kotlin.math.abs
+ import kotlin.math.max
+ import kotlin.math.min
++import btools.kmp.System
+ 
+ class RoutingEngine @JvmOverloads constructor(
+     private val outfileBase: String?, private val logfileBase: String?, protected var segmentDir: File,
+diff -ruN last/btools/router/RoutingHelper.kt cur/btools/router/RoutingHelper.kt
+--- x/btools/router/RoutingHelper.kt	2026-09-14 19:20:32.308703010 +0200
++++ x/btools/router/RoutingHelper.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -6,7 +6,7 @@
+ package btools.router
+ 
+ import btools.mapaccess.StorageConfigHelper
+-import java.io.File
++import btools.kmp.io.File
+ 
+ object RoutingHelper {
+     fun getAdditionalMaptoolDir(segmentDir: File?): File? {
+diff -ruN last/btools/router/RoutingParamCollector.kt cur/btools/router/RoutingParamCollector.kt
+--- x/btools/router/RoutingParamCollector.kt	2026-09-14 19:20:32.309559316 +0200
++++ x/btools/router/RoutingParamCollector.kt	2026-09-14 19:23:12.734423354 +0200
+@@ -1,9 +1,10 @@
+ package btools.router
+ 
+ import btools.mapaccess.MatchedWaypoint
+-import java.io.UnsupportedEncodingException
++import btools.kmp.io.UnsupportedEncodingException
+ import java.net.URLDecoder
+-import java.util.*
++import btools.kmp.util.*
++import btools.kmp.System
+ 
+ class RoutingParamCollector {
+     /**
+diff -ruN last/btools/util/ByteArrayUnifier.kt cur/btools/util/ByteArrayUnifier.kt
+--- x/btools/util/ByteArrayUnifier.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/ByteArrayUnifier.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -1,6 +1,7 @@
+ package btools.util
+ 
+ import btools.util.Crc32.crc
++import btools.kmp.System
+ 
+ class ByteArrayUnifier(private val size: Int, validateImmutability: Boolean) : IByteArrayUnifier {
+     private val byteArrayCache: Array<ByteArray>
+diff -ruN last/btools/util/ByteDataReader.kt cur/btools/util/ByteDataReader.kt
+--- x/btools/util/ByteDataReader.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/ByteDataReader.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -4,6 +4,7 @@
+  * @author ab
+  */
+ package btools.util
++import btools.kmp.System
+ 
+ 
+ open class ByteDataReader {
+diff -ruN last/btools/util/ByteDataWriter.kt cur/btools/util/ByteDataWriter.kt
+--- x/btools/util/ByteDataWriter.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/ByteDataWriter.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -4,6 +4,7 @@
+  * @author ab
+  */
+ package btools.util
++import btools.kmp.System
+ 
+ 
+ open class ByteDataWriter(byteArray: ByteArray?) : ByteDataReader(byteArray) {
+diff -ruN last/btools/util/DenseLongMap.kt cur/btools/util/DenseLongMap.kt
+--- x/btools/util/DenseLongMap.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/DenseLongMap.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -1,4 +1,5 @@
+ package btools.util
++import btools.kmp.System
+ 
+ /**
+  * Special Memory efficient Map to map a long-key to
+diff -ruN last/btools/util/DiffCoderDataInputStream.kt cur/btools/util/DiffCoderDataInputStream.kt
+--- x/btools/util/DiffCoderDataInputStream.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/DiffCoderDataInputStream.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -5,9 +5,9 @@
+  */
+ package btools.util
+ 
+-import java.io.DataInputStream
+-import java.io.IOException
+-import java.io.InputStream
++import btools.kmp.io.DataInputStream
++import btools.kmp.io.IOException
++import btools.kmp.io.InputStream
+ 
+ class DiffCoderDataInputStream(`is`: InputStream) : DataInputStream(`is`) {
+     private val lastValues = LongArray(10)
+diff -ruN last/btools/util/DiffCoderDataOutputStream.kt cur/btools/util/DiffCoderDataOutputStream.kt
+--- x/btools/util/DiffCoderDataOutputStream.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/DiffCoderDataOutputStream.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -5,9 +5,9 @@
+  */
+ package btools.util
+ 
+-import java.io.DataOutputStream
+-import java.io.IOException
+-import java.io.OutputStream
++import btools.kmp.io.DataOutputStream
++import btools.kmp.io.IOException
++import btools.kmp.io.OutputStream
+ 
+ class DiffCoderDataOutputStream(os: OutputStream?) : DataOutputStream(os) {
+     private val lastValues = LongArray(10)
+diff -ruN last/btools/util/LongList.kt cur/btools/util/LongList.kt
+--- x/btools/util/LongList.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/LongList.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -1,4 +1,5 @@
+ package btools.util
++import btools.kmp.System
+ 
+ /**
+  * dynamic list of primitive longs
+diff -ruN last/btools/util/MixCoderDataInputStream.kt cur/btools/util/MixCoderDataInputStream.kt
+--- x/btools/util/MixCoderDataInputStream.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/MixCoderDataInputStream.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -5,9 +5,9 @@
+  */
+ package btools.util
+ 
+-import java.io.DataInputStream
+-import java.io.IOException
+-import java.io.InputStream
++import btools.kmp.io.DataInputStream
++import btools.kmp.io.IOException
++import btools.kmp.io.InputStream
+ 
+ class MixCoderDataInputStream(`is`: InputStream) : DataInputStream(`is`) {
+     private var lastValue = 0
+diff -ruN last/btools/util/MixCoderDataOutputStream.kt cur/btools/util/MixCoderDataOutputStream.kt
+--- x/btools/util/MixCoderDataOutputStream.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/MixCoderDataOutputStream.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -5,9 +5,9 @@
+  */
+ package btools.util
+ 
+-import java.io.DataOutputStream
+-import java.io.IOException
+-import java.io.OutputStream
++import btools.kmp.io.DataOutputStream
++import btools.kmp.io.IOException
++import btools.kmp.io.OutputStream
+ 
+ class MixCoderDataOutputStream(os: OutputStream?) : DataOutputStream(os) {
+     private var lastValue = 0
+diff -ruN last/btools/util/StackSampler.kt cur/btools/util/StackSampler.kt
+--- x/btools/util/StackSampler.kt	2026-09-14 19:20:32.311812856 +0200
++++ x/btools/util/StackSampler.kt	2026-09-14 19:23:12.737778912 +0200
+@@ -1,12 +1,12 @@
+ package btools.util
+ 
+-import java.io.BufferedWriter
+-import java.io.File
+-import java.io.FileOutputStream
+-import java.io.OutputStreamWriter
++import btools.kmp.io.BufferedWriter
++import btools.kmp.io.File
++import btools.kmp.io.FileOutputStream
++import btools.kmp.io.OutputStreamWriter
+ import java.text.DateFormat
+ import java.text.SimpleDateFormat
+-import java.util.*
++import btools.kmp.util.*
+ import kotlin.concurrent.Volatile
+ 
+ class StackSampler(logfile: File, private val interval: Int) : Thread() {

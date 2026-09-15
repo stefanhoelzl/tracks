@@ -1,0 +1,715 @@
+diff -ruN last/btools/codec/MicroCache.kt cur/btools/codec/MicroCache.kt
+--- x/btools/codec/MicroCache.kt	2026-09-14 19:33:04.509239785 +0200
++++ x/btools/codec/MicroCache.kt	2026-09-14 19:36:13.146930652 +0200
+@@ -204,7 +204,7 @@
+      * @param buffer byte array to encode into (considered big enough)
+      * @return the size of the encoded data
+      */
+-    open fun encodeMicroCache(buffer: ByteArray?): Int {
++    open fun encodeMicroCache(buffer: ByteArray): Int {
+         throw IllegalArgumentException("encodeMicroCache for empty cache")
+     }
+ 
+diff -ruN last/btools/codec/TagValueCoder.kt cur/btools/codec/TagValueCoder.kt
+--- x/btools/codec/TagValueCoder.kt	2026-09-14 19:33:04.509239785 +0200
++++ x/btools/codec/TagValueCoder.kt	2026-09-14 19:36:13.146930652 +0200
+@@ -215,7 +215,7 @@
+             return h
+         }
+ 
+-        class FrequencyComparator : Comparator<TagValueSet?> {
++        class FrequencyComparator : Comparator<TagValueSet> {
+             override fun compare(tvs1: TagValueSet, tvs2: TagValueSet): Int {
+                 if (tvs1.frequency < tvs2.frequency) return -1
+                 if (tvs1.frequency > tvs2.frequency) return 1
+diff -ruN last/btools/codec/TagValueValidator.kt cur/btools/codec/TagValueValidator.kt
+--- x/btools/codec/TagValueValidator.kt	2026-09-14 19:33:04.509239785 +0200
++++ x/btools/codec/TagValueValidator.kt	2026-09-14 19:36:13.146930652 +0200
+@@ -6,9 +6,9 @@
+      * @param tagValueSet the way description to check
+      * @return 0 = nothing, 1=no matching, 2=normal
+      */
+-    fun accessType(tagValueSet: ByteArray?): Int
++    fun accessType(tagValueSet: ByteArray): Int
+ 
+-    fun unify(tagValueSet: ByteArray?, offset: Int, len: Int): ByteArray?
++    fun unify(tagValueSet: ByteArray, offset: Int, len: Int): ByteArray?
+ 
+     fun isLookupIdxUsed(idx: Int): Boolean
+ 
+diff -ruN last/btools/expressions/BExpression.kt cur/btools/expressions/BExpression.kt
+--- x/btools/expressions/BExpression.kt	2026-09-14 19:33:04.511088429 +0200
++++ x/btools/expressions/BExpression.kt	2026-09-14 19:36:13.149062044 +0200
+@@ -3,7 +3,7 @@
+ import btools.kmp.util.*
+ import kotlin.jvm.JvmStatic
+ 
+-internal class BExpression {
++class BExpression {
+     private var typ = 0
+     private var op1: BExpression? = null
+     private var op2: BExpression? = null
+@@ -283,7 +283,7 @@
+                         require(variable.indexOf('=') < 0) { "variable name cannot contain '=': " + variable }
+                         require(variable.indexOf(':') < 0) { "cannot assign context-prefixed variable: " + variable }
+                         exp.variableIdx = ctx.getVariableIdx(variable, true)
+-                        require(exp.variableIdx >= ctx.getMinWriteIdx()) { "cannot assign to readonly variable " + variable }
++                        require(exp.variableIdx >= ctx.minWriteIdx) { "cannot assign to readonly variable " + variable }
+                     } else if ("not" == operator) {
+                         exp.typ = NOT_EXP
+                     } else {
+diff -ruN last/btools/expressions/BExpressionLookupValue.kt cur/btools/expressions/BExpressionLookupValue.kt
+--- x/btools/expressions/BExpressionLookupValue.kt	2026-09-14 19:33:04.511088429 +0200
++++ x/btools/expressions/BExpressionLookupValue.kt	2026-09-14 19:36:13.149062044 +0200
+@@ -10,7 +10,7 @@
+  */
+ package btools.expressions
+ 
+-internal class BExpressionLookupValue(var value: String) {
++class BExpressionLookupValue(var value: String) {
+     var aliases: MutableList<String>? = null
+ 
+     override fun toString(): String {
+diff -ruN last/btools/mapaccess/MatchedWaypoint.kt cur/btools/mapaccess/MatchedWaypoint.kt
+--- x/btools/mapaccess/MatchedWaypoint.kt	2026-09-14 19:33:04.513099990 +0200
++++ x/btools/mapaccess/MatchedWaypoint.kt	2026-09-14 19:36:13.150789656 +0200
+@@ -83,7 +83,7 @@
+             val len = dis.readShort().toInt()
+             val bytes = ByteArray(len)
+             dis.readFully(bytes)
+-            mwp.name = String(bytes)
++            mwp.name = bytes.decodeToString()
+             return mwp
+         }
+     }
+diff -ruN last/btools/mapaccess/OsmNode.kt cur/btools/mapaccess/OsmNode.kt
+--- x/btools/mapaccess/OsmNode.kt	2026-09-14 19:33:04.513099990 +0200
++++ x/btools/mapaccess/OsmNode.kt	2026-09-14 19:36:13.150789656 +0200
+@@ -245,7 +245,7 @@
+     }
+ 
+ 
+-    override fun equals(o: Any): Boolean {
++    override fun equals(o: Any?): Boolean {
+         return (o as OsmNode).iLon == this.iLon && o.iLat == this.iLat
+     }
+ 
+diff -ruN last/btools/mapaccess/OsmNodesMap.kt cur/btools/mapaccess/OsmNodesMap.kt
+--- x/btools/mapaccess/OsmNodesMap.kt	2026-09-14 19:33:04.513099990 +0200
++++ x/btools/mapaccess/OsmNodesMap.kt	2026-09-14 19:36:13.150789656 +0200
+@@ -5,6 +5,8 @@
+  */
+ package btools.mapaccess
+ 
++import btools.kmp.StackOverflowError
++
+ import btools.util.ByteArrayUnifier
+ import btools.kmp.System
+ import kotlin.jvm.JvmField
+diff -ruN last/btools/mapaccess/OsmPos.kt cur/btools/mapaccess/OsmPos.kt
+--- x/btools/mapaccess/OsmPos.kt	2026-09-14 19:33:04.513099990 +0200
++++ x/btools/mapaccess/OsmPos.kt	2026-09-14 19:36:13.150789656 +0200
+@@ -16,7 +16,7 @@
+ 
+     val elev: Double
+ 
+-    fun calcDistance(p: OsmPos?): Int
++    fun calcDistance(p: OsmPos): Int
+ 
+     val idFromPos: Long
+ }
+diff -ruN last/btools/mapaccess/WaypointMatcherImpl.kt cur/btools/mapaccess/WaypointMatcherImpl.kt
+--- x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:33:04.513099990 +0200
++++ x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:36:13.150789656 +0200
+@@ -7,12 +7,8 @@
+ import btools.kmp.util.*
+ import kotlin.Boolean
+ import kotlin.Comparator
+-import kotlin.Int
+-import kotlin.compareTo
+-import kotlin.hashCode
+ import kotlin.math.abs
+ import kotlin.math.sqrt
+-import kotlin.plus
+ import kotlin.jvm.JvmField
+ 
+ /**
+@@ -41,7 +37,7 @@
+     @JvmField
+     var useDynamicRange: Boolean = false
+ 
+-    private val comparator: Comparator<MatchedWaypoint?>?
++    private val comparator: Comparator<MatchedWaypoint>
+ 
+     init {
+         var maxDistance = maxDistance
+@@ -78,7 +74,7 @@
+         maxWptIdx = waypoints.size - 1
+ 
+         // sort result list
+-        comparator = object : Comparator<MatchedWaypoint?> {
++        comparator = object : Comparator<MatchedWaypoint> {
+             override fun compare(mw1: MatchedWaypoint, mw2: MatchedWaypoint): Int {
+                 val cmpDist = btools.kmp.JMath.compare(mw1.radius, mw2.radius)
+                 if (cmpDist != 0) return cmpDist
+diff -ruN last/btools/router/AreaReader.kt cur/btools/router/AreaReader.kt
+--- x/btools/router/AreaReader.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/AreaReader.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -120,9 +120,9 @@
+ 
+         val list: MutableList<MutableMap.MutableEntry<Long?, String?>> =
+             ArrayList<MutableMap.MutableEntry<Long?, String?>>(tiles.entries)
+-        Collections.sort<MutableMap.MutableEntry<Long?, String?>?>(
++        btools.kmp.util.JCollections.sort(
+             list,
+-            object : Comparator<MutableMap.MutableEntry<Long?, String?>?> {
++            object : Comparator<MutableMap.MutableEntry<Long?, String?>> {
+                 override fun compare(
+                     e1: MutableMap.MutableEntry<Long?, String?>,
+                     e2: MutableMap.MutableEntry<Long?, String?>
+diff -ruN last/btools/router/Formatter.kt cur/btools/router/Formatter.kt
+--- x/btools/router/Formatter.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/Formatter.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -30,7 +30,7 @@
+     }
+ 
+     @Throws(Exception::class)
+-    open fun read(filename: String?): OsmTrack? {
++    open fun read(filename: String): OsmTrack? {
+         return null
+     }
+ 
+@@ -40,7 +40,7 @@
+      * @param t the track to format
+      * @return the formatted string
+      */
+-    abstract fun format(t: OsmTrack?): String?
++    abstract fun format(t: OsmTrack): String?
+ 
+ 
+     fun getJsonCommandIndex(cmd: Int, timode: Int): Int {
+@@ -325,7 +325,7 @@
+                 if (i == 5) ac[i--] = '.'
+             }
+             if (negative) ac[i--] = '-'
+-            return String(ac, i + 1, 11 - i)
++            return ac.concatToString(i + 1, 12)
+         }
+ 
+         @JvmStatic
+diff -ruN last/btools/router/MessageData.kt cur/btools/router/MessageData.kt
+--- x/btools/router/MessageData.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/MessageData.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -7,7 +7,7 @@
+ import kotlin.jvm.JvmField
+ 
+ 
+-internal class MessageData {
++class MessageData {
+     @JvmField
+     var linkdist: Int = 0
+     @JvmField
+diff -ruN last/btools/router/OsmNodeNamed.kt cur/btools/router/OsmNodeNamed.kt
+--- x/btools/router/OsmNodeNamed.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/OsmNodeNamed.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -11,13 +11,8 @@
+ import btools.util.CheapRuler.getLonLatToMeterScales
+ import kotlin.Boolean
+ import kotlin.Byte
+-import kotlin.Int
+-import kotlin.String
+ import kotlin.collections.minus
+-import kotlin.collections.plus
+-import kotlin.compareTo
+ import kotlin.math.sqrt
+-import kotlin.plus
+ import kotlin.sequences.minus
+ import kotlin.sequences.plus
+ import kotlin.text.indexOf
+@@ -45,9 +40,9 @@
+ 
+     public override fun toString(): String {
+         if (btools.kmp.JMath.isNaN(nogoWeight)) {
+-            return iLon + "," + iLat + "," + name
++            return "" + iLon + "," + iLat + "," + name
+         } else {
+-            return iLon + "," + iLat + "," + name + "," + nogoWeight
++            return "" + iLon + "," + iLat + "," + name + "," + nogoWeight
+         }
+     }
+ 
+diff -ruN last/btools/router/OsmNogoPolygon.kt cur/btools/router/OsmNogoPolygon.kt
+--- x/btools/router/OsmNogoPolygon.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/OsmNogoPolygon.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -150,7 +150,7 @@
+         val p1 = Point(lon1, lat1)
+         val i_last = points.size - 1
+         var p2 = points.get(if (isClosed) i_last else 0)
+-        for (i in if (isClosed) 0 else 1..i_last) {
++        for (i in (if (isClosed) 0 else 1)..i_last) {
+             val p3 = points.get(i)
+             // does it intersect with at least one of the polygon's segments?
+             if (intersect2D_2Segments(p0, p1, p2, p3) > 0) {
+@@ -196,7 +196,7 @@
+         var p0x = p0.x.toLong() // need to use long to avoid overflow in products
+         var p0y = p0.y.toLong()
+ 
+-        for (i in if (isClosed) 0 else 1..i_last) { // edge from v[i] to v[i+1]
++        for (i in (if (isClosed) 0 else 1)..i_last) { // edge from v[i] to v[i+1]
+             val p1 = points.get(i)
+ 
+             val p1x = p1.x.toLong()
+diff -ruN last/btools/router/OsmPath.kt cur/btools/router/OsmPath.kt
+--- x/btools/router/OsmPath.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/OsmPath.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -16,7 +16,7 @@
+ import kotlin.math.sin
+ import kotlin.jvm.JvmField
+ 
+-internal abstract class OsmPath : OsmLinkHolder {
++abstract class OsmPath : OsmLinkHolder {
+     /**
+      * The cost of that path (a modified distance)
+      */
+@@ -163,7 +163,7 @@
+ 
+         // calculate the costfactor inputs
+         val costfactor = rc.expctxWay.costfactor
+-        val isTrafficBackbone = cost == 0 && rc.expctxWay.getIsTrafficBackbone() > 0f
++        val isTrafficBackbone = cost == 0 && rc.expctxWay.isTrafficBackbone > 0f
+         val lastpriorityclassifier = priorityclassifier
+         priorityclassifier = rc.expctxWay.priorityClassifier.toInt()
+ 
+@@ -439,7 +439,7 @@
+     }
+ 
+     protected abstract fun processWaySection(
+-        rc: RoutingContext?,
++        rc: RoutingContext,
+         dist: Double,
+         delta_h: Double,
+         elevation: Double,
+@@ -450,9 +450,9 @@
+         lastpriorityclassifier: Int
+     ): Double
+ 
+-    protected abstract fun processTargetNode(rc: RoutingContext?): Double
++    protected abstract fun processTargetNode(rc: RoutingContext): Double
+ 
+-    protected open fun computeKinematic(rc: RoutingContext?, dist: Double, delta_h: Double, detailMode: Boolean) {
++    protected open fun computeKinematic(rc: RoutingContext, dist: Double, delta_h: Double, detailMode: Boolean) {
+     }
+ 
+     abstract fun elevationCorrection(): Int
+diff -ruN last/btools/router/OsmPathModel.kt cur/btools/router/OsmPathModel.kt
+--- x/btools/router/OsmPathModel.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/OsmPathModel.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -8,14 +8,14 @@
+ import btools.expressions.BExpressionContextNode
+ import btools.expressions.BExpressionContextWay
+ 
+-internal abstract class OsmPathModel {
++abstract class OsmPathModel {
+     abstract fun createPrePath(): OsmPrePath?
+ 
+     abstract fun createPath(): OsmPath?
+ 
+     abstract fun init(
+-        expctxWay: BExpressionContextWay?,
+-        expctxNode: BExpressionContextNode?,
++        expctxWay: BExpressionContextWay,
++        expctxNode: BExpressionContextNode,
+         keyValues: MutableMap<String?, String?>?
+     )
+ }
+diff -ruN last/btools/router/OsmPrePath.kt cur/btools/router/OsmPrePath.kt
+--- x/btools/router/OsmPrePath.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/OsmPrePath.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -27,5 +27,5 @@
+         initPrePath(origin, rc)
+     }
+ 
+-    protected abstract fun initPrePath(origin: OsmPath?, rc: RoutingContext?)
++    protected abstract fun initPrePath(origin: OsmPath, rc: RoutingContext)
+ }
+diff -ruN last/btools/router/ProfileCache.kt cur/btools/router/ProfileCache.kt
+--- x/btools/router/ProfileCache.kt	2026-09-14 19:33:04.516815143 +0200
++++ x/btools/router/ProfileCache.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -11,7 +11,7 @@
+ import btools.kmp.io.File
+ import btools.kmp.System
+ import kotlin.jvm.JvmStatic
+-import kotlin.jvm.Synchronized
++import btools.kmp.synchronized
+ 
+ class ProfileCache {
+     private var expctxWay: BExpressionContextWay? = null
+@@ -28,120 +28,121 @@
+         private var apc = arrayOfNulls<ProfileCache>(1)
+         private val debug = System.getBoolean("debugProfileCache")
+ 
+-        @Synchronized
+         fun setSize(size: Int) {
+-            apc = arrayOfNulls<ProfileCache>(size)
++            synchronized(this) {
++                apc = arrayOfNulls<ProfileCache>(size)
++            }
+         }
+ 
+         @JvmStatic
+-        @Synchronized
+         fun parseProfile(rc: RoutingContext): Boolean {
+-            val profileBaseDir = System.getProperty("profileBaseDir")
+-            val profileDir: File?
+-            val profileFile: File?
+-            if (profileBaseDir == null) {
+-                profileDir = File(rc.localFunction).getParentFile()
+-                profileFile = File(rc.localFunction)
+-            } else {
+-                profileDir = File(profileBaseDir)
+-                profileFile = File(profileDir, rc.localFunction + ".brf")
+-            }
++            synchronized(this) {
++                val profileBaseDir = System.getProperty("profileBaseDir")
++                val profileDir: File?
++                val profileFile: File?
++                if (profileBaseDir == null) {
++                    profileDir = File(rc.localFunction).getParentFile()
++                    profileFile = File(rc.localFunction)
++                } else {
++                    profileDir = File(profileBaseDir)
++                    profileFile = File(profileDir, rc.localFunction + ".brf")
++                }
+ 
+-            rc.profileTimestamp = profileFile.lastModified() + rc.keyValueChecksum shl 24
+-            val lookupFile = File(profileDir, "lookups.dat")
++                rc.profileTimestamp = profileFile.lastModified() + rc.keyValueChecksum shl 24
++                val lookupFile = File(profileDir, "lookups.dat")
+ 
+-            // invalidate cache at lookup-table update
+-            if (!(lookupFile == lastLookupFile && lookupFile.lastModified() == lastLookupTimestamp)) {
+-                if (lastLookupFile != null) {
+-                    println("******** invalidating profile-cache after lookup-file update ******** ")
+-                }
+-                apc = arrayOfNulls<ProfileCache>(apc.size)
+-                lastLookupFile = lookupFile
+-                lastLookupTimestamp = lookupFile.lastModified()
+-            }
++                // invalidate cache at lookup-table update
++                if (!(lookupFile == lastLookupFile && lookupFile.lastModified() == lastLookupTimestamp)) {
++                    if (lastLookupFile != null) {
++                        println("******** invalidating profile-cache after lookup-file update ******** ")
++                    }
++                    apc = arrayOfNulls<ProfileCache>(apc.size)
++                    lastLookupFile = lookupFile
++                    lastLookupTimestamp = lookupFile.lastModified()
++                }
+ 
+-            var lru: ProfileCache? = null
+-            var unusedSlot = -1
++                var lru: ProfileCache? = null
++                var unusedSlot = -1
+ 
+-            // check for re-use
+-            for (i in apc.indices) {
+-                val pc: ProfileCache? = apc[i]
+-
+-                if (pc != null) {
+-                    if ((!pc.profilesBusy) && profileFile == pc.lastProfileFile) {
+-                        if (rc.profileTimestamp == pc.lastProfileTimestamp) {
+-                            rc.expctxWay = pc.expctxWay
+-                            rc.expctxNode = pc.expctxNode
+-                            rc.readGlobalConfig()
+-                            pc.profilesBusy = true
+-                            return true
++                // check for re-use
++                for (i in apc.indices) {
++                    val pc: ProfileCache? = apc[i]
++
++                    if (pc != null) {
++                        if ((!pc.profilesBusy) && profileFile == pc.lastProfileFile) {
++                            if (rc.profileTimestamp == pc.lastProfileTimestamp) {
++                                rc.expctxWay = pc.expctxWay
++                                rc.expctxNode = pc.expctxNode
++                                rc.readGlobalConfig()
++                                pc.profilesBusy = true
++                                return true
++                            }
++                            lru = pc // name-match but timestamp-mismatch -> we overide this one
++                            unusedSlot = -1
++                            break
+                         }
+-                        lru = pc // name-match but timestamp-mismatch -> we overide this one
+-                        unusedSlot = -1
+-                        break
+-                    }
+-                    if (lru == null || lru.lastUseTime > pc.lastUseTime) {
+-                        lru = pc
++                        if (lru == null || lru.lastUseTime > pc.lastUseTime) {
++                            lru = pc
++                        }
++                    } else if (unusedSlot < 0) {
++                        unusedSlot = i
+                     }
+-                } else if (unusedSlot < 0) {
+-                    unusedSlot = i
+                 }
+-            }
+ 
+-            val meta = BExpressionMetaData()
++                val meta = BExpressionMetaData()
+ 
+-            rc.expctxWay = BExpressionContextWay(rc.memoryclass * 512, meta)
+-            rc.expctxNode = BExpressionContextNode(0, meta)
+-            rc.expctxNode!!.setForeignContext(rc.expctxWay!!)
++                rc.expctxWay = BExpressionContextWay(rc.memoryclass * 512, meta)
++                rc.expctxNode = BExpressionContextNode(0, meta)
++                rc.expctxNode!!.setForeignContext(rc.expctxWay!!)
+ 
+-            meta.readMetaData(File(profileDir, "lookups.dat"))
++                meta.readMetaData(File(profileDir, "lookups.dat"))
+ 
+-            rc.expctxWay!!.parseFile(profileFile, "global", rc.keyValues)
+-            rc.expctxNode!!.parseFile(profileFile, "global", rc.keyValues)
++                rc.expctxWay!!.parseFile(profileFile, "global", rc.keyValues)
++                rc.expctxNode!!.parseFile(profileFile, "global", rc.keyValues)
+ 
+-            rc.readGlobalConfig()
++                rc.readGlobalConfig()
+ 
+-            if (rc.processUnusedTags) {
+-                rc.expctxWay!!.setAllTagsUsed()
+-            }
++                if (rc.processUnusedTags) {
++                    rc.expctxWay!!.setAllTagsUsed()
++                }
+ 
+-            if (lru == null || unusedSlot >= 0) {
+-                lru = ProfileCache()
+-                if (unusedSlot >= 0) {
+-                    apc[unusedSlot] = lru
+-                    if (debug) println("******* adding new profile at idx=" + unusedSlot + " for " + profileFile)
++                if (lru == null || unusedSlot >= 0) {
++                    lru = ProfileCache()
++                    if (unusedSlot >= 0) {
++                        apc[unusedSlot] = lru
++                        if (debug) println("******* adding new profile at idx=" + unusedSlot + " for " + profileFile)
++                    }
+                 }
+-            }
+ 
+-            if (lru.lastProfileFile != null) {
+-                if (debug) println("******* replacing profile of age " + ((System.currentTimeMillis() - lru.lastUseTime) / 1000L) + " sec " + lru.lastProfileFile + "->" + profileFile)
+-            }
++                if (lru.lastProfileFile != null) {
++                    if (debug) println("******* replacing profile of age " + ((System.currentTimeMillis() - lru.lastUseTime) / 1000L) + " sec " + lru.lastProfileFile + "->" + profileFile)
++                }
+ 
+-            lru.lastProfileTimestamp = rc.profileTimestamp
+-            lru.lastProfileFile = profileFile
+-            lru.expctxWay = rc.expctxWay
+-            lru.expctxNode = rc.expctxNode
+-            lru.profilesBusy = true
+-            lru.lastUseTime = System.currentTimeMillis()
+-            return false
++                lru.lastProfileTimestamp = rc.profileTimestamp
++                lru.lastProfileFile = profileFile
++                lru.expctxWay = rc.expctxWay
++                lru.expctxNode = rc.expctxNode
++                lru.profilesBusy = true
++                lru.lastUseTime = System.currentTimeMillis()
++                return false
++            }
+         }
+ 
+         @JvmStatic
+-        @Synchronized
+         fun releaseProfile(rc: RoutingContext) {
+-            for (i in apc.indices) {
+-                val pc: ProfileCache? = apc[i]
+-
+-                if (pc != null) {
+-                    // only the thread that holds the cached instance can release it
+-                    if (rc.expctxWay == pc.expctxWay && rc.expctxNode == pc.expctxNode) {
+-                        pc.profilesBusy = false
+-                        break
++            synchronized(this) {
++                for (i in apc.indices) {
++                    val pc: ProfileCache? = apc[i]
++
++                    if (pc != null) {
++                        // only the thread that holds the cached instance can release it
++                        if (rc.expctxWay == pc.expctxWay && rc.expctxNode == pc.expctxNode) {
++                            pc.profilesBusy = false
++                            break
++                        }
+                     }
+                 }
+             }
+-            rc.expctxWay = null
+-            rc.expctxNode = null
+         }
+     }
+ }
+diff -ruN last/btools/router/RoutingContext.kt cur/btools/router/RoutingContext.kt
+--- x/btools/router/RoutingContext.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/RoutingContext.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -17,23 +17,14 @@
+ import btools.kmp.io.File
+ import kotlin.Boolean
+ import kotlin.Exception
+-import kotlin.Int
+-import kotlin.Long
+ import kotlin.LongArray
+ import kotlin.RuntimeException
+-import kotlin.String
+ import kotlin.collections.ArrayList
+ import kotlin.collections.MutableList
+ import kotlin.collections.MutableMap
+-import kotlin.collections.indices
+-import kotlin.collections.plus
+-import kotlin.compareTo
+-import kotlin.div
+-import kotlin.hashCode
+ import kotlin.math.abs
+ import kotlin.math.max
+ import kotlin.math.sqrt
+-import kotlin.plus
+ import kotlin.require
+ import kotlin.sequences.plus
+ import kotlin.jvm.JvmField
+@@ -71,9 +62,9 @@
+         }
+ 
+     @JvmField
+-    var expctxWay: BExpressionContextWay? = null
++    lateinit var expctxWay: BExpressionContextWay
+     @JvmField
+-    var expctxNode: BExpressionContextNode? = null
++    lateinit var expctxNode: BExpressionContextNode
+ 
+     var geometryDecoder: GeometryDecoder = GeometryDecoder()
+ 
+diff -ruN last/btools/router/RoutingEngine.kt cur/btools/router/RoutingEngine.kt
+--- x/btools/router/RoutingEngine.kt	2026-09-14 19:33:04.516815143 +0200
++++ x/btools/router/RoutingEngine.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -292,7 +292,7 @@
+             logException(e)
+             logThrowable(e)
+         } finally {
+-            if (hasInfo() && routingContext.expctxWay != null) {
++            if (hasInfo()) {
+                 logInfo("expression cache stats=" + routingContext.expctxWay!!.cacheStats())
+             }
+ 
+@@ -631,19 +631,19 @@
+         //  System.out.println("\n" + ai.toString());
+         //}
+         when (preferredRandomType) {
+-            AreaInfo.RESULT_TYPE_ELEV50 -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo?> {
++            AreaInfo.RESULT_TYPE_ELEV50 -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo> {
+                 override fun compare(o1: AreaInfo, o2: AreaInfo): Int {
+                     return o2.elev50Weight - o1.elev50Weight
+                 }
+             })
+ 
+-            AreaInfo.RESULT_TYPE_GREEN -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo?> {
++            AreaInfo.RESULT_TYPE_GREEN -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo> {
+                 override fun compare(o1: AreaInfo, o2: AreaInfo): Int {
+                     return o2.green - o1.green
+                 }
+             })
+ 
+-            AreaInfo.RESULT_TYPE_RIVER -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo?> {
++            AreaInfo.RESULT_TYPE_RIVER -> btools.kmp.util.JCollections.sort(ais, object : Comparator<AreaInfo> {
+                 override fun compare(o1: AreaInfo, o2: AreaInfo): Int {
+                     return o2.river - o1.river
+                 }
+diff -ruN last/btools/router/StdModel.kt cur/btools/router/StdModel.kt
+--- x/btools/router/StdModel.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/StdModel.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -23,8 +23,8 @@
+ 
+ 
+     public override fun init(
+-        expctxWay: BExpressionContextWay?,
+-        expctxNode: BExpressionContextNode?,
++        expctxWay: BExpressionContextWay,
++        expctxNode: BExpressionContextNode,
+         keyValues: MutableMap<String?, String?>?
+     ) {
+         ctxWay = expctxWay
+diff -ruN last/btools/router/StdPath.kt cur/btools/router/StdPath.kt
+--- x/btools/router/StdPath.kt	2026-09-14 19:33:04.515815148 +0200
++++ x/btools/router/StdPath.kt	2026-09-14 19:36:13.153535253 +0200
+@@ -17,8 +17,8 @@
+     private var ehbd = 0 // in micrometer
+     private var ehbu = 0 // in micrometer
+ 
+-    private override var totalTime = 0f // travel time (seconds)
+-    private override var totalEnergy = 0f // total route energy (Joule)
++    private var stdTotalTime = 0f // travel time (seconds)
++    private var stdTotalEnergy = 0f // total route energy (Joule)
+     private var elevation_buffer = 0f // just another elevation buffer (for travel time)
+ 
+     private var uphillcostdiv = 0
+@@ -28,16 +28,16 @@
+         val origin = orig as StdPath
+         this.ehbd = origin.ehbd
+         this.ehbu = origin.ehbu
+-        this.totalTime = origin.totalTime
+-        this.totalEnergy = origin.totalEnergy
++        this.stdTotalTime = origin.stdTotalTime
++        this.stdTotalEnergy = origin.stdTotalEnergy
+         this.elevation_buffer = origin.elevation_buffer
+     }
+ 
+     override fun resetState() {
+         ehbd = 0
+         ehbu = 0
+-        totalTime = 0f
+-        totalEnergy = 0f
++        stdTotalTime = 0f
++        stdTotalEnergy = 0f
+         uphillcostdiv = 0
+         downhillcostdiv = 0
+         elevation_buffer = 0f
+@@ -343,22 +343,20 @@
+             speed = min(speed, maxSpeed)
+         }
+         val dt = (dist / speed).toFloat()
+-        totalTime += dt
++        stdTotalTime += dt
+         // Calc energy assuming biking (no good model yet for hiking)
+         // (Count only positive, negative would mean breaking to enforce maxspeed)
+         val energy = dist * (rc.S_C_x * speed * speed + f_roll)
+         if (energy > 0.0) {
+-            totalEnergy += energy.toFloat()
++            stdTotalEnergy += energy.toFloat()
+         }
+     }
+ 
+-    public override fun getTotalTime(): Double {
+-        return totalTime.toDouble()
+-    }
++    override val totalTime: Double
++        get() = stdTotalTime.toDouble()
+ 
+-    public override fun getTotalEnergy(): Double {
+-        return totalEnergy.toDouble()
+-    }
++    override val totalEnergy: Double
++        get() = stdTotalEnergy.toDouble()
+ 
+     companion object {
+         // Gravitational constant, g
+diff -ruN last/btools/util/IByteArrayUnifier.kt cur/btools/util/IByteArrayUnifier.kt
+--- x/btools/util/IByteArrayUnifier.kt	2026-09-14 19:33:04.519947780 +0200
++++ x/btools/util/IByteArrayUnifier.kt	2026-09-14 19:36:13.156247751 +0200
+@@ -1,5 +1,5 @@
+ package btools.util
+ 
+ interface IByteArrayUnifier {
+-    fun unify(ab: ByteArray?, offset: Int, len: Int): ByteArray?
++    fun unify(ab: ByteArray, offset: Int, len: Int): ByteArray?
+ }

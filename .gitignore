@@ -19,7 +19,8 @@ dist/
 packages/web/dist/
 
 # Gradle's, under app/. The wrapper jar is not build output and stays tracked.
-app/.gradle/
-app/.kotlin/
+app/**/.gradle/
+app/**/.kotlin/
 app/**/build/
+app/**/.intellijPlatform/
 app/local.properties

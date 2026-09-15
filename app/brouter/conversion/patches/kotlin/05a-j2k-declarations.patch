@@ -1,0 +1,547 @@
+diff -ruN last/btools/codec/MicroCache.kt cur/btools/codec/MicroCache.kt
+--- x/btools/codec/MicroCache.kt	2026-09-14 19:29:56.334747498 +0200
++++ x/btools/codec/MicroCache.kt	2026-09-14 19:33:04.465480961 +0200
+@@ -26,9 +26,9 @@
+  */
+ open class MicroCache protected constructor(ab: ByteArray?) : ByteDataWriter(ab) {
+     @JvmField
+-    protected var faid: IntArray?
++    protected var faid: IntArray? = null
+     @JvmField
+-    protected var fapos: IntArray?
++    protected var fapos: IntArray? = null
+     var size: Int = 0
+         protected set
+ 
+diff -ruN last/btools/codec/NoisyDiffCoder.kt cur/btools/codec/NoisyDiffCoder.kt
+--- x/btools/codec/NoisyDiffCoder.kt	2026-09-14 19:29:56.334747498 +0200
++++ x/btools/codec/NoisyDiffCoder.kt	2026-09-14 19:33:04.465480961 +0200
+@@ -11,7 +11,7 @@
+  */
+ class NoisyDiffCoder {
+     private var tot = 0
+-    private var freqs: IntArray?
++    private var freqs: IntArray? = null
+     private var noisybits = 0
+     private var bc: StatCoderContext? = null
+     private var pass = 0
+diff -ruN last/btools/codec/TagValueCoder.kt cur/btools/codec/TagValueCoder.kt
+--- x/btools/codec/TagValueCoder.kt	2026-09-14 19:29:56.334827060 +0200
++++ x/btools/codec/TagValueCoder.kt	2026-09-14 19:33:04.465815417 +0200
+@@ -149,7 +149,7 @@
+     class TagValueSet(// serial number to make the comparator well defined in case of equal frequencies
+         private val id: Int
+     ) {
+-        var data: ByteArray?
++        var data: ByteArray? = null
+         var frequency: Int = 0
+         var code: Int = 0
+         var range: Int = 0
+diff -ruN last/btools/codec/TagValueWrapper.kt cur/btools/codec/TagValueWrapper.kt
+--- x/btools/codec/TagValueWrapper.kt	2026-09-14 19:29:56.334827060 +0200
++++ x/btools/codec/TagValueWrapper.kt	2026-09-14 19:33:04.465815417 +0200
+@@ -8,7 +8,7 @@
+  */
+ class TagValueWrapper {
+     @JvmField
+-    var data: ByteArray?
++    var data: ByteArray? = null
+     @JvmField
+     var accessType: Int = 0
+ }
+diff -ruN last/btools/expressions/BExpression.kt cur/btools/expressions/BExpression.kt
+--- x/btools/expressions/BExpression.kt	2026-09-14 19:29:56.337369806 +0200
++++ x/btools/expressions/BExpression.kt	2026-09-14 19:33:04.468694480 +0200
+@@ -11,7 +11,7 @@
+     private var numberValue = 0f
+     private var variableIdx = 0
+     private var lookupNameIdx = -1
+-    private var lookupValueIdxArray: IntArray
++    private lateinit var lookupValueIdxArray: IntArray
+     private var doNotChange = false
+ 
+     private fun markLookupIdxUsed(ctx: BExpressionContext): Int {
+diff -ruN last/btools/expressions/BExpressionContext.kt cur/btools/expressions/BExpressionContext.kt
+--- x/btools/expressions/BExpressionContext.kt	2026-09-14 19:29:56.337369806 +0200
++++ x/btools/expressions/BExpressionContext.kt	2026-09-14 19:33:04.468694480 +0200
+@@ -35,7 +35,7 @@
+         ArrayList<Array<BExpressionLookupValue?>?>()
+     private val lookupNames: MutableList<String?> = ArrayList<String?>()
+     private val lookupHistograms: MutableList<IntArray> = ArrayList<IntArray>()
+-    private var lookupIdxUsed: BooleanArray
++    private lateinit var lookupIdxUsed: BooleanArray
+ 
+     private var lookupDataFrozen = false
+ 
+@@ -53,7 +53,7 @@
+     @JvmField
+     var expressionNodeCount: Int = 0
+ 
+-    private var variableData: FloatArray?
++    private var variableData: FloatArray? = null
+ 
+ 
+     // hash-cache for function results
+@@ -69,10 +69,10 @@
+         private set
+ 
+     // build-in variable indexes for fast access
+-    private var buildInVariableIdx: IntArray
++    private lateinit var buildInVariableIdx: IntArray
+     private var nBuildInVars = 0
+ 
+-    private var currentVars: FloatArray?
++    private var currentVars: FloatArray? = null
+     private var currentVarOffset = 0
+ 
+     private var foreignContext: BExpressionContext? = null
+diff -ruN last/btools/expressions/BExpressionContextNode.kt cur/btools/expressions/BExpressionContextNode.kt
+--- x/btools/expressions/BExpressionContextNode.kt	2026-09-14 19:29:56.337369806 +0200
++++ x/btools/expressions/BExpressionContextNode.kt	2026-09-14 19:33:04.468694480 +0200
+@@ -22,6 +22,5 @@
+ 
+     companion object {
+         protected val buildInVariableNames: Array<String?> = arrayOf<String?>("initialcost")
+-            get() = Companion.field
+     }
+ }
+diff -ruN last/btools/expressions/BExpressionContextWay.kt cur/btools/expressions/BExpressionContextWay.kt
+--- x/btools/expressions/BExpressionContextWay.kt	2026-09-14 19:29:56.337369806 +0200
++++ x/btools/expressions/BExpressionContextWay.kt	2026-09-14 19:33:04.468694480 +0200
+@@ -120,6 +120,5 @@
+             "uphillmaxslopecost",
+             "downhillmaxslopecost"
+         )
+-            get() = Companion.field
+     }
+ }
+diff -ruN last/btools/expressions/CacheNode.kt cur/btools/expressions/CacheNode.kt
+--- x/btools/expressions/CacheNode.kt	2026-09-14 19:29:56.337369806 +0200
++++ x/btools/expressions/CacheNode.kt	2026-09-14 19:33:04.468694480 +0200
+@@ -5,9 +5,9 @@
+ 
+ class CacheNode : LruMapNode() {
+     @JvmField
+-    var ab: ByteArray?
++    var ab: ByteArray? = null
+     @JvmField
+-    var vars: FloatArray?
++    var vars: FloatArray? = null
+ 
+     override fun hashCode(): Int {
+         return hash
+diff -ruN last/btools/expressions/VarWrapper.kt cur/btools/expressions/VarWrapper.kt
+--- x/btools/expressions/VarWrapper.kt	2026-09-14 19:29:56.337369806 +0200
++++ x/btools/expressions/VarWrapper.kt	2026-09-14 19:33:04.468694480 +0200
+@@ -5,7 +5,7 @@
+ 
+ class VarWrapper : LruMapNode() {
+     @JvmField
+-    var vars: FloatArray?
++    var vars: FloatArray? = null
+ 
+     override fun hashCode(): Int {
+         return hash
+diff -ruN last/btools/mapaccess/GeometryDecoder.kt cur/btools/mapaccess/GeometryDecoder.kt
+--- x/btools/mapaccess/GeometryDecoder.kt	2026-09-14 19:29:56.339504218 +0200
++++ x/btools/mapaccess/GeometryDecoder.kt	2026-09-14 19:33:04.470913872 +0200
+@@ -15,7 +15,7 @@
+     // result-cache
+     private var firstTransferNode: OsmTransferNode? = null
+     private var lastReverse = false
+-    private var lastGeometry: ByteArray?
++    private var lastGeometry: ByteArray? = null
+ 
+     init {
+         // create some caches
+diff -ruN last/btools/mapaccess/OsmFile.kt cur/btools/mapaccess/OsmFile.kt
+--- x/btools/mapaccess/OsmFile.kt	2026-09-14 19:29:56.339504218 +0200
++++ x/btools/mapaccess/OsmFile.kt	2026-09-14 19:33:04.470913872 +0200
+@@ -17,8 +17,8 @@
+     private var `is`: RandomAccessFile? = null
+     private var fileOffset: Long = 0
+ 
+-    private var posIdx: IntArray
+-    private var microCaches: Array<MicroCache?>?
++    private lateinit var posIdx: IntArray
++    private var microCaches: Array<MicroCache?>? = null
+ 
+     @JvmField
+     var filename: String? = null
+diff -ruN last/btools/mapaccess/OsmLink.kt cur/btools/mapaccess/OsmLink.kt
+--- x/btools/mapaccess/OsmLink.kt	2026-09-14 19:29:56.339504218 +0200
++++ x/btools/mapaccess/OsmLink.kt	2026-09-14 19:33:04.470913872 +0200
+@@ -12,13 +12,13 @@
+      * The description bitmap contains the waytags (valid for both directions)
+      */
+     @JvmField
+-    var descriptionBitmap: ByteArray?
++    var descriptionBitmap: ByteArray? = null
+ 
+     /**
+      * The geometry contains intermediate nodes, null for none (valid for both directions)
+      */
+     @JvmField
+-    var geometry: ByteArray?
++    var geometry: ByteArray? = null
+ 
+     // a link logically knows only its target, but for the reverse link, source and target are swapped
+     @JvmField
+diff -ruN last/btools/mapaccess/OsmLinkHolder.kt cur/btools/mapaccess/OsmLinkHolder.kt
+--- x/btools/mapaccess/OsmLinkHolder.kt	2026-09-14 19:29:56.339504218 +0200
++++ x/btools/mapaccess/OsmLinkHolder.kt	2026-09-14 19:33:04.470913872 +0200
+@@ -7,6 +7,5 @@
+ import kotlin.jvm.JvmField
+ 
+ interface OsmLinkHolder {
+-    @JvmField
+     var nextForLink: OsmLinkHolder?
+ }
+diff -ruN last/btools/mapaccess/OsmNode.kt cur/btools/mapaccess/OsmNode.kt
+--- x/btools/mapaccess/OsmNode.kt	2026-09-14 19:29:56.339504218 +0200
++++ x/btools/mapaccess/OsmNode.kt	2026-09-14 19:33:04.470913872 +0200
+@@ -17,23 +17,23 @@
+     /**
+      * The latitude
+      */
+-    var iLat: Int = 0
++    override var iLat: Int = 0
+ 
+     /**
+      * The longitude
+      */
+-    var iLon: Int = 0
++    override var iLon: Int = 0
+ 
+     /**
+      * The elevation
+      */
+-    var sElev: Short = Short.MIN_VALUE
++    override var sElev: Short = Short.MIN_VALUE
+ 
+     /**
+      * The node-tags, if any
+      */
+     @JvmField
+-    var nodeDescription: ByteArray?
++    var nodeDescription: ByteArray? = null
+ 
+     @JvmField
+     var firstRestriction: TurnRestriction? = null
+@@ -65,7 +65,7 @@
+     }
+ 
+ 
+-    val elev: Double
++    override val elev: Double
+         get() = this.sElev / 4.0
+ 
+     fun addLink(link: OsmLink, isReverse: Boolean, tn: OsmNode) {
+@@ -194,7 +194,7 @@
+         this.sElev = -12345
+     }
+ 
+-    val idFromPos: Long
++    override val idFromPos: Long
+         get() = (iLon.toLong()) shl 32 or iLat.toLong()
+ 
+     fun vanish() {
+diff -ruN last/btools/mapaccess/OsmPos.kt cur/btools/mapaccess/OsmPos.kt
+--- x/btools/mapaccess/OsmPos.kt	2026-09-14 19:29:56.339504218 +0200
++++ x/btools/mapaccess/OsmPos.kt	2026-09-14 19:33:04.470913872 +0200
+@@ -8,10 +8,8 @@
+ 
+ 
+ interface OsmPos {
+-    @JvmField
+     val iLat: Int
+ 
+-    @JvmField
+     val iLon: Int
+ 
+     val sElev: Short
+@@ -20,6 +18,5 @@
+ 
+     fun calcDistance(p: OsmPos?): Int
+ 
+-    @JvmField
+     val idFromPos: Long
+ }
+diff -ruN last/btools/router/FormatJson.kt cur/btools/router/FormatJson.kt
+--- x/btools/router/FormatJson.kt	2026-09-14 19:29:56.342827017 +0200
++++ x/btools/router/FormatJson.kt	2026-09-14 19:33:04.474815369 +0200
+@@ -43,7 +43,7 @@
+ 
+                 sb.append("],\n")
+             }
+-            sb.deleteCharAt(sb.lastIndexOf(","))
++            sb.deleteAt(sb.lastIndexOf(","))
+             sb.append("        ],\n")
+         }
+         if (t.showSpeedProfile) { // set in profile
+@@ -63,7 +63,7 @@
+             for (m in t.aggregateMessages()) {
+                 sb.append("          [\"").append(m!!.replace("\t".toRegex(), "\", \"")).append("\"],\n")
+             }
+-            sb.deleteCharAt(sb.lastIndexOf(","))
++            sb.deleteAt(sb.lastIndexOf(","))
+             sb.append("        ],\n")
+         }
+ 
+@@ -72,10 +72,10 @@
+             for (n in t.nodes) {
+                 sb.append(btools.kmp.TextFormat.decimal3(n.time)).append(",")
+             }
+-            sb.deleteCharAt(sb.lastIndexOf(","))
++            sb.deleteAt(sb.lastIndexOf(","))
+             sb.append("]\n")
+         } else {
+-            sb.deleteCharAt(sb.lastIndexOf(","))
++            sb.deleteAt(sb.lastIndexOf(","))
+         }
+ 
+         sb.append("      },\n")
+@@ -85,7 +85,7 @@
+             for (s in t.iternity) {
+                 sb.append("        \"").append(s).append("\",\n")
+             }
+-            sb.deleteCharAt(sb.lastIndexOf(","))
++            sb.deleteAt(sb.lastIndexOf(","))
+             sb.append("        ],\n")
+         }
+         sb.append("      \"geometry\": {\n")
+@@ -110,7 +110,7 @@
+                 .append(sele).append("],\n")
+             nn = n
+         }
+-        sb.deleteCharAt(sb.lastIndexOf(","))
++        sb.deleteAt(sb.lastIndexOf(","))
+ 
+         sb.append("        ]\n")
+         sb.append("      }\n")
+diff -ruN last/btools/router/KinematicNoCostPath.kt cur/btools/router/KinematicNoCostPath.kt
+--- x/btools/router/KinematicNoCostPath.kt	2026-09-14 19:29:56.342827017 +0200
++++ x/btools/router/KinematicNoCostPath.kt	2026-09-14 19:33:04.474815369 +0200
+@@ -12,9 +12,9 @@
+ 
+ internal class KinematicNoCostPath : OsmPath() {
+     private var ekin = 0.0 // kinetic energy (Joule)
+-    var totalTime: Double = 0.0 // travel time (seconds)
++    override var totalTime: Double = 0.0 // travel time (seconds)
+         private set
+-    var totalEnergy: Double = 0.0 // total route energy (Joule)
++    override var totalEnergy: Double = 0.0 // total route energy (Joule)
+         private set
+     private var floatingAngleLeft = 0f // sliding average left bend (degree)
+     private var floatingAngleRight = 0f // sliding average right bend (degree)
+@@ -140,9 +140,9 @@
+ 
+         if (message != null) {
+             message!!.costfactor = (distanceCost / dist).toFloat()
+-            message!!.vmax = (km.getWayMaxspeed() * 3.6 + 0.5).toInt()
+-            message!!.vmaxExplicit = (km.getWayMaxspeedExplicit() * 3.6 + 0.5).toInt()
+-            message!!.vmin = (km.getWayMinspeed() * 3.6 + 0.5).toInt()
++            message!!.vmax = (km.wayMaxspeed * 3.6 + 0.5).toInt()
++            message!!.vmaxExplicit = (km.wayMaxspeedExplicit * 3.6 + 0.5).toInt()
++            message!!.vmin = (km.wayMinspeed * 3.6 + 0.5).toInt()
+             message!!.extraTime = (extraTime * 1000).toInt()
+         }
+ 
+@@ -157,7 +157,7 @@
+         // elevation force
+         val fh = delta_h * km.totalweight * 9.81 / dist
+ 
+-        val effectiveSpeedLimit = km.getEffectiveSpeedLimit()
++        val effectiveSpeedLimit = km.effectiveSpeedLimit
+         val emax = 0.5 * km.totalweight * effectiveSpeedLimit * effectiveSpeedLimit
+         if (emax <= 0.0) {
+             return -1.0
+@@ -237,13 +237,13 @@
+             if (initialcost >= 1000000.0) {
+                 return -1.0
+             }
+-            cutEkin(km.totalweight, km.getNodeMaxspeed().toDouble()) // apply node maxspeed
++            cutEkin(km.totalweight, km.nodeMaxspeed.toDouble()) // apply node maxspeed
+ 
+             if (message != null) {
+                 message!!.linknodecost += initialcost.toInt()
+                 message!!.nodeKeyValues = rc.expctxNode.getKeyValueDescription(false, targetNode!!.nodeDescription!!)
+ 
+-                message!!.vnode1 = (km.getNodeMaxspeed() * 3.6 + 0.5).toInt()
++                message!!.vnode1 = (km.nodeMaxspeed * 3.6 + 0.5).toInt()
+             }
+             return initialcost.toDouble()
+         }
+diff -ruN last/btools/router/KinematicPath.kt cur/btools/router/KinematicPath.kt
+--- x/btools/router/KinematicPath.kt	2026-09-14 19:29:56.342827017 +0200
++++ x/btools/router/KinematicPath.kt	2026-09-14 19:33:04.474815369 +0200
+@@ -12,9 +12,9 @@
+ 
+ internal class KinematicPath : OsmPath() {
+     private var ekin = 0.0 // kinetic energy (Joule)
+-    var totalTime: Double = 0.0 // travel time (seconds)
++    override var totalTime: Double = 0.0 // travel time (seconds)
+         private set
+-    var totalEnergy: Double = 0.0 // total route energy (Joule)
++    override var totalEnergy: Double = 0.0 // total route energy (Joule)
+         private set
+     private var floatingAngleLeft = 0f // sliding average left bend (degree)
+     private var floatingAngleRight = 0f // sliding average right bend (degree)
+@@ -145,9 +145,9 @@
+ 
+         if (message != null) {
+             message!!.costfactor = (distanceCost / dist).toFloat()
+-            message!!.vmax = (km.getWayMaxspeed() * 3.6 + 0.5).toInt()
+-            message!!.vmaxExplicit = (km.getWayMaxspeedExplicit() * 3.6 + 0.5).toInt()
+-            message!!.vmin = (km.getWayMinspeed() * 3.6 + 0.5).toInt()
++            message!!.vmax = (km.wayMaxspeed * 3.6 + 0.5).toInt()
++            message!!.vmaxExplicit = (km.wayMaxspeedExplicit * 3.6 + 0.5).toInt()
++            message!!.vmin = (km.wayMinspeed * 3.6 + 0.5).toInt()
+             message!!.extraTime = (extraTime * 1000).toInt()
+         }
+ 
+@@ -166,7 +166,7 @@
+         // elevation force
+         val fh = delta_h * km.totalweight * 9.81 / dist
+ 
+-        val effectiveSpeedLimit = km.getEffectiveSpeedLimit()
++        val effectiveSpeedLimit = km.effectiveSpeedLimit
+         val emax = 0.5 * km.totalweight * effectiveSpeedLimit * effectiveSpeedLimit
+         if (emax <= 0.0) {
+             return -1.0
+@@ -246,13 +246,13 @@
+             if (initialcost >= 1000000.0) {
+                 return -1.0
+             }
+-            cutEkin(km.totalweight, km.getNodeMaxspeed().toDouble()) // apply node maxspeed
++            cutEkin(km.totalweight, km.nodeMaxspeed.toDouble()) // apply node maxspeed
+ 
+             if (message != null) {
+                 message!!.linknodecost += initialcost.toInt()
+                 message!!.nodeKeyValues = rc.expctxNode.getKeyValueDescription(false, targetNode!!.nodeDescription!!)
+ 
+-                message!!.vnode1 = (km.getNodeMaxspeed() * 3.6 + 0.5).toInt()
++                message!!.vnode1 = (km.nodeMaxspeed * 3.6 + 0.5).toInt()
+             }
+             return initialcost.toDouble()
+         }
+diff -ruN last/btools/router/OsmPath.kt cur/btools/router/OsmPath.kt
+--- x/btools/router/OsmPath.kt	2026-09-14 19:29:56.342827017 +0200
++++ x/btools/router/OsmPath.kt	2026-09-14 19:33:04.474001154 +0200
+@@ -41,7 +41,7 @@
+     var originElement: OsmPathElement? = null
+     var myElement: OsmPathElement? = null
+ 
+-    var nextForLink: OsmLinkHolder? = null
++    override var nextForLink: OsmLinkHolder? = null
+ 
+     @JvmField
+     var treedepth: Int = 0
+diff -ruN last/btools/router/OsmPathElement.kt cur/btools/router/OsmPathElement.kt
+--- x/btools/router/OsmPathElement.kt	2026-09-14 19:29:56.342692951 +0200
++++ x/btools/router/OsmPathElement.kt	2026-09-14 19:33:04.474001154 +0200
+@@ -16,11 +16,11 @@
+  */
+ class OsmPathElement protected constructor() : OsmPos {
+     // interface OsmPos
+-    var iLat: Int = 0 // latitude
++    override var iLat: Int = 0 // latitude
+         private set
+-    var iLon: Int = 0 // longitude
++    override var iLon: Int = 0 // longitude
+         private set
+-    var sElev: Short = 0 // longitude
++    override var sElev: Short = 0 // longitude
+ 
+     @JvmField
+     var message: MessageData? = null // description
+@@ -28,7 +28,7 @@
+     @JvmField
+     var cost: Int = 0
+ 
+-    val elev: Double
++    override val elev: Double
+         get() = this.sElev / 4.0
+ 
+     var time: Float
+@@ -53,7 +53,7 @@
+         }
+     }
+ 
+-    val idFromPos: Long
++    override val idFromPos: Long
+         get() = (iLon.toLong()) shl 32 or iLat.toLong()
+ 
+     override fun calcDistance(p: OsmPos): Int {
+diff -ruN last/btools/router/OsmTrack.kt cur/btools/router/OsmTrack.kt
+--- x/btools/router/OsmTrack.kt	2026-09-14 19:29:56.342827017 +0200
++++ x/btools/router/OsmTrack.kt	2026-09-14 19:33:04.474001154 +0200
+@@ -17,8 +17,7 @@
+ class OsmTrack {
+     @JvmField
+     var endPoint: MatchedWaypoint? = null
+-    @JvmField
+-    var nogoChecksums: LongArray
++    lateinit var nogoChecksums: LongArray
+     @JvmField
+     var profileTimestamp: Long = 0
+     @JvmField
+diff -ruN last/btools/router/RoutingEngine.kt cur/btools/router/RoutingEngine.kt
+--- x/btools/router/RoutingEngine.kt	2026-09-14 19:29:56.343827012 +0200
++++ x/btools/router/RoutingEngine.kt	2026-09-14 19:33:04.474815369 +0200
+@@ -84,7 +84,7 @@
+ 
+     var quite: Boolean = false
+ 
+-    private var extract: Array<Any?>?
++    private var extract: Array<Any?>? = null
+ 
+     private val directWeaving = !System.getBoolean("disableDirectWeaving")
+     var outfile: String? = null
+diff -ruN last/btools/router/StdPath.kt cur/btools/router/StdPath.kt
+--- x/btools/router/StdPath.kt	2026-09-14 19:29:56.342827017 +0200
++++ x/btools/router/StdPath.kt	2026-09-14 19:33:04.474815369 +0200
+@@ -17,8 +17,8 @@
+     private var ehbd = 0 // in micrometer
+     private var ehbu = 0 // in micrometer
+ 
+-    private var totalTime = 0f // travel time (seconds)
+-    private var totalEnergy = 0f // total route energy (Joule)
++    private override var totalTime = 0f // travel time (seconds)
++    private override var totalEnergy = 0f // total route energy (Joule)
+     private var elevation_buffer = 0f // just another elevation buffer (for travel time)
+ 
+     private var uphillcostdiv = 0
+diff -ruN last/btools/util/ByteArrayUnifier.kt cur/btools/util/ByteArrayUnifier.kt
+--- x/btools/util/ByteArrayUnifier.kt	2026-09-14 19:29:56.345924244 +0200
++++ x/btools/util/ByteArrayUnifier.kt	2026-09-14 19:33:04.478035066 +0200
+@@ -5,7 +5,7 @@
+ 
+ class ByteArrayUnifier(private val size: Int, validateImmutability: Boolean) : IByteArrayUnifier {
+     private val byteArrayCache: Array<ByteArray>
+-    private var crcCrosscheck: IntArray?
++    private var crcCrosscheck: IntArray? = null
+ 
+     init {
+         byteArrayCache = arrayOfNulls<ByteArray>(size)
+diff -ruN last/btools/util/CompactLongMap.kt cur/btools/util/CompactLongMap.kt
+--- x/btools/util/CompactLongMap.kt	2026-09-14 19:29:56.345924244 +0200
++++ x/btools/util/CompactLongMap.kt	2026-09-14 19:33:04.478035066 +0200
+@@ -274,6 +274,6 @@
+ 
+     companion object {
+         protected const val MAXLISTS: Int = 31 // enough for size Int.MAX_VALUE
+-        private val earlyDuplicateCheck: Boolean
++        private var earlyDuplicateCheck: Boolean = false
+     }
+ }
+diff -ruN last/btools/util/ProgressListener.kt cur/btools/util/ProgressListener.kt
+--- x/btools/util/ProgressListener.kt	2026-09-14 19:29:56.345924244 +0200
++++ x/btools/util/ProgressListener.kt	2026-09-14 19:33:04.478035066 +0200
+@@ -5,6 +5,5 @@
+ interface ProgressListener {
+     fun updateProgress(task: String?, progress: Int)
+ 
+-    @JvmField
+     val isCanceled: Boolean
+ }

@@ -22,6 +22,7 @@ pnpm test
 # (packages/edge/scripts/build.ts), so this is the size assertion too.
 pnpm build
 
-# The app's shared Kotlin, on the JVM and as native Linux code: that it still agrees
-# with those fixtures.
-(cd app && ./gradlew --quiet :shared:jvmTest :shared:linuxX64Test)
+# The app's Kotlin, on the JVM and as native Linux code: the shared codecs against those
+# fixtures, and BRouter against brouter.de on every parity route. The first run downloads
+# the 450 MB tile snapshot into ~/.cache/tracks.
+(cd app && ./gradlew --quiet :shared:jvmTest :shared:linuxX64Test :brouter:jvmTest :brouter:linuxX64ReleaseTest)

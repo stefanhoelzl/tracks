@@ -1,0 +1,593 @@
+diff -ruN last/btools/codec/DataBuffers.kt cur/btools/codec/DataBuffers.kt
+--- x/btools/codec/DataBuffers.kt	2026-09-14 19:41:21.083351356 +0200
++++ x/btools/codec/DataBuffers.kt	2026-09-14 19:43:51.085274516 +0200
+@@ -11,7 +11,7 @@
+ /**
+  * construct a set of databuffers except
+  * for 'iobuffer', where the given array is used
+- */ @JvmOverloads constructor(@JvmField var iobuffer: ByteArray? = ByteArray(65636)) {
++ */ @JvmOverloads constructor(@JvmField var iobuffer: ByteArray = ByteArray(65636)) {
+     @JvmField
+     var tagbuf1: ByteArray = ByteArray(256)
+     @JvmField
+diff -ruN last/btools/codec/TagValueCoder.kt cur/btools/codec/TagValueCoder.kt
+--- x/btools/codec/TagValueCoder.kt	2026-09-14 19:41:21.083351356 +0200
++++ x/btools/codec/TagValueCoder.kt	2026-09-14 19:43:51.085274516 +0200
+@@ -59,7 +59,7 @@
+                 identityMap!!.put(dummy, dummy)
+             }
+             val queue = PriorityQueue<TagValueSet>(2 * identityMap!!.size, FrequencyComparator())
+-            queue.addAll(identityMap!!.values)
++            queue.addAll(identityMap!!.values.map { it!! })
+             while (queue.size > 1) {
+                 val node = TagValueSet(nextTagValueSetId++)
+                 node.child1 = queue.poll()
+diff -ruN last/btools/expressions/BExpression.kt cur/btools/expressions/BExpression.kt
+--- x/btools/expressions/BExpression.kt	2026-09-14 19:41:21.085542530 +0200
++++ x/btools/expressions/BExpression.kt	2026-09-14 19:43:51.087340093 +0200
+@@ -32,7 +32,7 @@
+     }
+ 
+     // Evaluate the expression
+-    fun evaluate(ctx: BExpressionContext): Float {
++    fun evaluate(ctx: BExpressionContext?): Float {
+         when (typ) {
+             OR_EXP -> return if (op1!!.evaluate(ctx) != 0f) 1f else (if (op2!!.evaluate(ctx) != 0f) 1f else 0f)
+             XOR_EXP -> return (if ((op1!!.evaluate(ctx) != 0f) xor (op2!!.evaluate(ctx) != 0f)) 1f else 0f)
+@@ -47,12 +47,12 @@
+             GREATER_EXP -> return if (op1!!.evaluate(ctx) > op2!!.evaluate(ctx)) 1f else 0f
+             LESSER_EXP -> return if (op1!!.evaluate(ctx) < op2!!.evaluate(ctx)) 1f else 0f
+             SWITCH_EXP -> return if (op1!!.evaluate(ctx) != 0f) op2!!.evaluate(ctx) else op3!!.evaluate(ctx)
+-            ASSIGN_EXP -> return ctx.assign(variableIdx, op1!!.evaluate(ctx))
+-            LOOKUP_EXP -> return ctx.getLookupMatch(lookupNameIdx, lookupValueIdxArray)
++            ASSIGN_EXP -> return ctx!!.assign(variableIdx, op1!!.evaluate(ctx))
++            LOOKUP_EXP -> return ctx!!.getLookupMatch(lookupNameIdx, lookupValueIdxArray)
+             NUMBER_EXP -> return numberValue
+-            VARIABLE_EXP -> return ctx.getVariableValue(variableIdx)
+-            FOREIGN_VARIABLE_EXP -> return ctx.getForeignVariableValue(variableIdx)
+-            VARIABLE_GET_EXP -> return ctx.getLookupValue(lookupNameIdx)
++            VARIABLE_EXP -> return ctx!!.getVariableValue(variableIdx)
++            FOREIGN_VARIABLE_EXP -> return ctx!!.getForeignVariableValue(variableIdx)
++            VARIABLE_GET_EXP -> return ctx!!.getLookupValue(lookupNameIdx)
+             NOT_EXP -> return if (op1!!.evaluate(ctx) == 0f) 1f else 0f
+             else -> throw IllegalArgumentException("unknown op-code: " + typ)
+         }
+@@ -180,16 +180,16 @@
+ 
+             if (ASSIGN_EXP == e.typ) {
+                 // manage assined an injected values
+-                val assignedBefore = ctx.lastAssignedExpression.get(e.variableIdx)
++                val assignedBefore = ctx.lastAssignedExpression!!.get(e.variableIdx)
+                 if (assignedBefore != null && assignedBefore.doNotChange) {
+                     e.op1 = assignedBefore // was injected as key-value
+                     e.op1!!.doNotChange = false // protect just once, can be changed in second assignement
+                 }
+-                ctx.lastAssignedExpression.set(e.variableIdx, e.op1)
++                ctx.lastAssignedExpression!!.set(e.variableIdx, e.op1)
+             } else if (!ctx.skipConstantExpressionOptimizations) {
+                 // try to simplify the expression
+                 if (VARIABLE_EXP == e.typ) {
+-                    val ae = ctx.lastAssignedExpression.get(e.variableIdx)
++                    val ae = ctx.lastAssignedExpression!!.get(e.variableIdx)
+                     if (ae != null && ae.typ == NUMBER_EXP) {
+                         e = ae
+                     }
+@@ -376,7 +376,7 @@
+             e.op1!!.typ = NUMBER_EXP
+             e.op1!!.numberValue = value.toFloat()
+             e.op1!!.doNotChange = true
+-            ctx.lastAssignedExpression.set(e.variableIdx, e.op1)
++            ctx.lastAssignedExpression!!.set(e.variableIdx, e.op1)
+             return e
+         }
+     }
+diff -ruN last/btools/expressions/BExpressionContext.kt cur/btools/expressions/BExpressionContext.kt
+--- x/btools/expressions/BExpressionContext.kt	2026-09-14 19:41:21.085542530 +0200
++++ x/btools/expressions/BExpressionContext.kt	2026-09-14 19:43:51.087340093 +0200
+@@ -31,8 +31,8 @@
+     var _modelClass: String? = null
+ 
+     private val lookupNumbers: MutableMap<String?, Int?> = HashMap<String?, Int?>()
+-    private val lookupValues: MutableList<Array<BExpressionLookupValue?>?> =
+-        ArrayList<Array<BExpressionLookupValue?>?>()
++    private val lookupValues: MutableList<Array<BExpressionLookupValue>> =
++        ArrayList<Array<BExpressionLookupValue>>()
+     private val lookupNames: MutableList<String?> = ArrayList<String?>()
+     private val lookupHistograms: MutableList<IntArray> = ArrayList<IntArray>()
+     private lateinit var lookupIdxUsed: BooleanArray
+@@ -449,7 +449,7 @@
+             val values = lookupValues.get(inum)!!
+             val histo = lookupHistograms.get(inum)
+             if (values.size == 1000) continue
+-            val svalues = arrayOfNulls<String>(values.size)
++            val svalues = (arrayOfNulls<String>(values.size) as Array<String>)
+             for (i in values.indices) {
+                 var scnt = "0000000000" + histo[i]
+                 scnt = scnt.substring(scnt.length - 10)
+@@ -465,7 +465,7 @@
+     /**
+      * @return a new lookupData array, or null if no metadata defined
+      */
+-    fun createNewLookupData(): IntArray {
++    fun createNewLookupData(): IntArray? {
+         if (lookupDataFrozen) {
+             return IntArray(lookupValues.size)
+         }
+diff -ruN last/btools/expressions/BExpressionContextNode.kt cur/btools/expressions/BExpressionContextNode.kt
+--- x/btools/expressions/BExpressionContextNode.kt	2026-09-14 19:41:21.085542530 +0200
++++ x/btools/expressions/BExpressionContextNode.kt	2026-09-14 19:43:51.087340093 +0200
+@@ -7,6 +7,9 @@
+ 
+ 
+ class BExpressionContextNode : BExpressionContext {
++    override val buildInVariableNames: Array<String?>
++        get() = Companion.buildInVariableNames
++
+     val initialcost: Float
+         get() = getBuildInVariable(0)
+ 
+diff -ruN last/btools/expressions/BExpressionContextWay.kt cur/btools/expressions/BExpressionContextWay.kt
+--- x/btools/expressions/BExpressionContextWay.kt	2026-09-14 19:41:21.085542530 +0200
++++ x/btools/expressions/BExpressionContextWay.kt	2026-09-14 19:43:51.087340093 +0200
+@@ -8,6 +8,9 @@
+ import btools.codec.TagValueValidator
+ 
+ class BExpressionContextWay : BExpressionContext, TagValueValidator {
++    override val buildInVariableNames: Array<String?>
++        get() = Companion.buildInVariableNames
++
+     private var decodeForbidden = true
+ 
+     val costfactor: Float
+diff -ruN last/btools/mapaccess/MatchedWaypoint.kt cur/btools/mapaccess/MatchedWaypoint.kt
+--- x/btools/mapaccess/MatchedWaypoint.kt	2026-09-14 19:41:21.087777667 +0200
++++ x/btools/mapaccess/MatchedWaypoint.kt	2026-09-14 19:43:51.089553498 +0200
+@@ -53,7 +53,7 @@
+         dos.writeDouble(radius)
+         dos.writeByte(wpttype.toInt())
+         dos.writeShort(name!!.length)
+-        dos.writeBytes(name)
++        dos.writeBytes(name!!)
+     }
+ 
+     companion object {
+diff -ruN last/btools/mapaccess/NodesCache.kt cur/btools/mapaccess/NodesCache.kt
+--- x/btools/mapaccess/NodesCache.kt	2026-09-14 19:41:21.087777667 +0200
++++ x/btools/mapaccess/NodesCache.kt	2026-09-14 19:43:51.089996944 +0200
+@@ -132,9 +132,9 @@
+             }
+             for (osmf in fileRow) {
+                 if (garbageCollectionEnabled && !ghostCleaningDone) {
+-                    cacheSum -= osmf.cleanGhosts()
++                    cacheSum -= osmf!!.cleanGhosts()
+                 } else {
+-                    cacheSum -= osmf.collectAll()
++                    cacheSum -= osmf!!.collectAll()
+                 }
+             }
+         }
+diff -ruN last/btools/mapaccess/OsmFile.kt cur/btools/mapaccess/OsmFile.kt
+--- x/btools/mapaccess/OsmFile.kt	2026-09-14 19:41:21.087777667 +0200
++++ x/btools/mapaccess/OsmFile.kt	2026-09-14 19:43:51.089553498 +0200
+@@ -47,7 +47,7 @@
+ 
+             val index = rafile.fileIndex
+             fileOffset = if (tileIndex > 0) index[tileIndex - 1] else 200L
+-            if (fileOffset == index[tileIndex]) return  // empty
++            if (fileOffset != index[tileIndex]) { // else: empty
+ 
+ 
+             `is` = rafile.ra
+@@ -58,7 +58,7 @@
+ 
+             if (rafile.fileHeaderCrcs != null) {
+                 val headerCrc = Crc32.crc(iobuffer!!, 0, indexsize)
+-                if (rafile.fileHeaderCrcs[tileIndex] != headerCrc) {
++                if (rafile.fileHeaderCrcs!![tileIndex] != headerCrc) {
+                     throw IOException("sub index checksum error")
+                 }
+             }
+@@ -67,6 +67,7 @@
+             for (i in 0..<ncaches) {
+                 posIdx[i] = dis.readInt()
+             }
++            }
+         }
+     }
+ 
+diff -ruN last/btools/mapaccess/OsmNodesMap.kt cur/btools/mapaccess/OsmNodesMap.kt
+--- x/btools/mapaccess/OsmNodesMap.kt	2026-09-14 19:41:21.087777667 +0200
++++ x/btools/mapaccess/OsmNodesMap.kt	2026-09-14 19:43:51.089553498 +0200
+@@ -91,7 +91,7 @@
+                 l = nextLink
+                 continue
+             }
+-            if (t!!.isHollow()) {
++            if (t!!.isHollow) {
+                 l = nextLink
+                 continue
+             }
+@@ -219,7 +219,7 @@
+                 l = l.getNext(n)
+             }
+             if (destination != null && currentMaxCost < 1000000000) {
+-                val distance = n.calcDistance(destination)
++                val distance = n.calcDistance(destination!!)
+                 if (distance > currentMaxCost - currentPathCost + 100) {
+                     n.vanish()
+                 }
+diff -ruN last/btools/mapaccess/PhysicalFile.kt cur/btools/mapaccess/PhysicalFile.kt
+--- x/btools/mapaccess/PhysicalFile.kt	2026-09-14 19:41:21.087777667 +0200
++++ x/btools/mapaccess/PhysicalFile.kt	2026-09-14 19:43:51.089553498 +0200
+@@ -22,7 +22,7 @@
+     @JvmField
+     var fileIndex: LongArray = LongArray(25)
+     @JvmField
+-    var fileHeaderCrcs: IntArray
++    var fileHeaderCrcs: IntArray? = null
+ 
+     var creationTime: Long
+ 
+@@ -59,7 +59,7 @@
+         val pos = fileIndex[24]
+         var extraLen = 8 + 26 * 4
+ 
+-        if (len == pos) return  // old format o.k.
++        if (len != pos) { // else: old format o.k.
+ 
+ 
+         if ((len - pos) > extraLen) {
+@@ -85,12 +85,13 @@
+         }
+         fileHeaderCrcs = IntArray(25)
+         for (i in 0..24) {
+-            fileHeaderCrcs[i] = dis.readInt()
++            fileHeaderCrcs!![i] = dis.readInt()
+         }
+         try {
+             elevationType = dis.readByte()
+         } catch (e: Exception) {
+         }
++        }
+     }
+ 
+     fun close() {
+diff -ruN last/btools/mapaccess/WaypointMatcherImpl.kt cur/btools/mapaccess/WaypointMatcherImpl.kt
+--- x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:41:21.087777667 +0200
++++ x/btools/mapaccess/WaypointMatcherImpl.kt	2026-09-14 19:43:51.089996944 +0200
+@@ -262,7 +262,7 @@
+     }
+ 
+     // check limit of list size (avoid long runs)
+-    fun updateWayList(ways: MutableList<MatchedWaypoint?>, mw: MatchedWaypoint?) {
++    fun updateWayList(ways: MutableList<MatchedWaypoint>, mw: MatchedWaypoint) {
+         ways.add(mw)
+         // use only shortest distances by smallest direction difference
+         btools.kmp.util.JCollections.sort(ways, comparator)
+diff -ruN last/btools/router/AreaReader.kt cur/btools/router/AreaReader.kt
+--- x/btools/router/AreaReader.kt	2026-09-14 19:41:21.091436644 +0200
++++ x/btools/router/AreaReader.kt	2026-09-14 19:43:51.093996931 +0200
+@@ -265,7 +265,7 @@
+         dos.close()
+     }
+ 
+-    fun readAreaInfo(fai: File, wp: MatchedWaypoint, ais: MutableList<AreaInfo?>) {
++    fun readAreaInfo(fai: File, wp: MatchedWaypoint, ais: MutableList<AreaInfo>) {
+         var dis: DataInputStream? = null
+         var ep: MatchedWaypoint? = null
+         try {
+diff -ruN last/btools/router/Formatter.kt cur/btools/router/Formatter.kt
+--- x/btools/router/Formatter.kt	2026-09-14 19:41:21.091436644 +0200
++++ x/btools/router/Formatter.kt	2026-09-14 19:43:51.093996931 +0200
+@@ -25,7 +25,7 @@
+     @Throws(Exception::class)
+     fun write(filename: String, t: OsmTrack?) {
+         val bw = BufferedWriter(FileWriter(filename))
+-        bw.write(format(t))
++        bw.write(format(t!!)!!)
+         bw.close()
+     }
+ 
+diff -ruN last/btools/router/OsmPath.kt cur/btools/router/OsmPath.kt
+--- x/btools/router/OsmPath.kt	2026-09-14 19:41:21.091101033 +0200
++++ x/btools/router/OsmPath.kt	2026-09-14 19:43:51.093392402 +0200
+@@ -157,8 +157,8 @@
+         rc.expctxWay.evaluate(rc.inverseDirection xor isReverse, description)
+ 
+         // and check if is useful
+-        if (rc.ai != null && rc.ai.polygon!!.isWithin(lon1.toLong(), lat1.toLong())) {
+-            rc.ai.checkAreaInfo(rc.expctxWay, ele1 / 4.0, description)
++        if (rc.ai != null && rc.ai!!.polygon!!.isWithin(lon1.toLong(), lat1.toLong())) {
++            rc.ai!!.checkAreaInfo(rc.expctxWay, ele1 / 4.0, description)
+         }
+ 
+         // calculate the costfactor inputs
+@@ -312,7 +312,7 @@
+             // apply a start-direction if appropriate (by faking the origin position)
+             if (isStartpoint) {
+                 if (rc.startDirectionValid) {
+-                    val dir = rc.startDirection * CheapRuler.DEG_TO_RAD
++                    val dir = rc.startDirection!! * CheapRuler.DEG_TO_RAD
+                     val lonlat2m = getLonLatToMeterScales((lon0 + lat1) shr 1)
+                     lon0 = lon1 - (1000.0 * sin(dir) / lonlat2m[0]).toInt()
+                     lat0 = lat1 - (1000.0 * cos(dir) / lonlat2m[1]).toInt()
+diff -ruN last/btools/router/OsmPrePath.kt cur/btools/router/OsmPrePath.kt
+--- x/btools/router/OsmPrePath.kt	2026-09-14 19:41:21.091436644 +0200
++++ x/btools/router/OsmPrePath.kt	2026-09-14 19:43:51.093392402 +0200
+@@ -20,7 +20,7 @@
+     @JvmField
+     var next: OsmPrePath? = null
+ 
+-    fun init(origin: OsmPath, link: OsmLink, rc: RoutingContext?) {
++    fun init(origin: OsmPath, link: OsmLink, rc: RoutingContext) {
+         this.link = link
+         this.sourceNode = origin.getTargetNode()
+         this.targetNode = link.getTarget(sourceNode)
+diff -ruN last/btools/router/OsmTrack.kt cur/btools/router/OsmTrack.kt
+--- x/btools/router/OsmTrack.kt	2026-09-14 19:41:21.091101033 +0200
++++ x/btools/router/OsmTrack.kt	2026-09-14 19:43:51.093392402 +0200
+@@ -72,7 +72,7 @@
+         nodes.add(0, node!!)
+     }
+ 
+-    fun registerDetourForId(id: Long, detour: OsmPathElement) {
++    fun registerDetourForId(id: Long, detour: OsmPathElement?) {
+         if (detourMap == null) {
+             detourMap = CompactLongMap<OsmPathElementHolder?>()
+         }
+@@ -90,7 +90,7 @@
+     }
+ 
+     fun copyDetours(source: OsmTrack) {
+-        detourMap = if (source.detourMap == null) null else FrozenLongMap<OsmPathElementHolder?>(source.detourMap)
++        detourMap = source.detourMap?.let { FrozenLongMap<OsmPathElementHolder?>(it) }
+     }
+ 
+     fun addDetours(source: OsmTrack) {
+@@ -101,7 +101,7 @@
+             val oldidlist = (detourMap as FrozenLongMap<*>).keyArray
+             for (i in oldidlist.indices) {
+                 val id = oldidlist[i]
+-                val v = detourMap.get(id)
++                val v = detourMap!!.get(id)
+ 
+                 tmpDetourMap.put(id, v)
+             }
+@@ -110,7 +110,7 @@
+                 val idlist = (source.detourMap as FrozenLongMap<*>).keyArray
+                 for (i in idlist.indices) {
+                     val id = idlist[i]
+-                    val v = source.detourMap.get(id)
++                    val v = source.detourMap!!.get(id)
+                     if (!tmpDetourMap.contains(id) && source.nodesMap!!.contains(id)) {
+                         tmpDetourMap.put(id, v)
+                     }
+@@ -393,7 +393,7 @@
+         }
+         var nodeNr = nodes.size - 1
+         var i = nodeNr
+-        var node = nodes.get(nodeNr)
++        var node: OsmPathElement? = nodes.get(nodeNr)
+         while (node != null) {
+             node = node.origin
+         }
+@@ -428,7 +428,7 @@
+                     if (mwpt != null && mwpt.wpttype == MatchedWaypoint.WAYPOINT_TYPE_DIRECT) {
+                         input.cmd = VoiceHint.BL
+                         input.angle = (if (nodeNr == 0) node.origin!!.message!!.turnangle else node.message!!.turnangle)
+-                        input.distanceToNext = node.calcDistance(node.origin).toDouble()
++                        input.distanceToNext = node.calcDistance(node.origin!!).toDouble()
+                     }
+                 }
+                 if (detourMap != null) {
+diff -ruN last/btools/router/ProfileCache.kt cur/btools/router/ProfileCache.kt
+--- x/btools/router/ProfileCache.kt	2026-09-14 19:41:21.091436644 +0200
++++ x/btools/router/ProfileCache.kt	2026-09-14 19:43:51.093996931 +0200
+@@ -71,8 +71,8 @@
+                     if (pc != null) {
+                         if ((!pc.profilesBusy) && profileFile == pc.lastProfileFile) {
+                             if (rc.profileTimestamp == pc.lastProfileTimestamp) {
+-                                rc.expctxWay = pc.expctxWay
+-                                rc.expctxNode = pc.expctxNode
++                                rc.expctxWay = pc.expctxWay!!
++                                rc.expctxNode = pc.expctxNode!!
+                                 rc.readGlobalConfig()
+                                 pc.profilesBusy = true
+                                 return true
+diff -ruN last/btools/router/RoutingContext.kt cur/btools/router/RoutingContext.kt
+--- x/btools/router/RoutingContext.kt	2026-09-14 19:41:21.091436644 +0200
++++ x/btools/router/RoutingContext.kt	2026-09-14 19:43:51.093996931 +0200
+@@ -61,9 +61,7 @@
+             return name
+         }
+ 
+-    @JvmField
+     lateinit var expctxWay: BExpressionContextWay
+-    @JvmField
+     lateinit var expctxNode: BExpressionContextNode
+ 
+     var geometryDecoder: GeometryDecoder = GeometryDecoder()
+diff -ruN last/btools/router/RoutingEngine.kt cur/btools/router/RoutingEngine.kt
+--- x/btools/router/RoutingEngine.kt	2026-09-14 19:41:21.091436644 +0200
++++ x/btools/router/RoutingEngine.kt	2026-09-14 19:43:51.093996931 +0200
+@@ -372,7 +372,7 @@
+                 var minIdx = -1
+                 for (i in t.nodes.indices) {
+                     val ope = t.nodes.get(i)
+-                    val dist = ope.calcDistance(listOne.get(0).crosspoint)
++                    val dist = ope.calcDistance(listOne.get(0).crosspoint!!)
+                     if (mindist > dist) {
+                         mindist = dist
+                         minIdx = i
+@@ -384,7 +384,7 @@
+                 } else {
+                     otherIdx = minIdx + 1
+                 }
+-                val otherdist = t.nodes.get(otherIdx).calcDistance(listOne.get(0).crosspoint)
++                val otherdist = t.nodes.get(otherIdx).calcDistance(listOne.get(0).crosspoint!!)
+                 val minSElev = t.nodes.get(minIdx).sElev.toInt()
+                 val otherSElev = t.nodes.get(otherIdx).sElev.toInt()
+                 var diffSElev = 0
+@@ -607,7 +607,7 @@
+                 if (a == 3) rc.ai!!.polygon!!.addVertex(listOne.get(0).iLon, listOne.get(0).iLat)
+                 else rc.ai!!.polygon!!.addVertex(listOne.get(a + 1).iLon, listOne.get(a + 1).iLat)
+ 
+-                ais.add(rc.ai)
++                ais.add(rc.ai!!)
+             }
+ 
+             var maxscale = abs(searchRect.points.get(2).x - searchRect.points.get(0).x)
+@@ -676,7 +676,7 @@
+                 startIdx = idx
+                 startPt = lastPt
+                 dist = 0
+-                if (lastPt != null) dist += n.calcDistance(lastPt)
++                if (lastPt != null) dist += n.calcDistance(lastPt!!)
+             } else if (n.sElev != Short.MIN_VALUE && lastElev == Short.MIN_VALUE && startElev != Short.MIN_VALUE) {
+                 // end one point behind exit point to get better elevation results
+                 if (idx + 1 < track.nodes.size) endElev = track.nodes.get(idx + 1).sElev
+@@ -684,8 +684,8 @@
+                 endIdx = idx
+                 var tmpPt = track.nodes.get(if (startIdx > 1) startIdx - 2 else startIdx - 1)
+                 val diffElev = endElev - startElev
+-                dist += tmpPt.calcDistance(startPt)
+-                dist += n.calcDistance(lastPt)
++                dist += tmpPt.calcDistance(startPt!!)
++                dist += n.calcDistance(lastPt!!)
+                 var distRest = dist
+                 var incline = diffElev / (dist / 100.0)
+                 var lastMsg = ""
+@@ -753,7 +753,7 @@
+                     track.nodes.get(i).sElev = lastElev
+                 }
+             } else if (n.sElev == Short.MIN_VALUE) {
+-                if (lastPt != null) dist += n.calcDistance(lastPt)
++                if (lastPt != null) dist += n.calcDistance(lastPt!!)
+             }
+             lastElev = n.sElev
+             lastPt = n
+@@ -807,7 +807,7 @@
+         terminate()
+     }
+ 
+-    private fun findTrack(refTracks: Array<OsmTrack?>, lastTracks: Array<OsmTrack?>): OsmTrack {
++    private fun findTrack(refTracks: Array<OsmTrack?>, lastTracks: Array<OsmTrack?>): OsmTrack? {
+         while (true) {
+             try {
+                 return tryFindTrack(refTracks, lastTracks)
+@@ -1543,7 +1543,7 @@
+         t.distance = totaldist
+ 
+         //t.energy = totalenergy;
+-        val keys: List<Int> = directMap.keys.sorted()
++        val keys: List<Int> = directMap.keys.map { it!! }.sorted()
+         for (key in keys) {
+             val value: Int = directMap.get(key)!!
+             val addTime = (value / (speed_min / 3.6f))
+@@ -1891,11 +1891,11 @@
+         costCuttingTrack: OsmTrack?,
+         refTrack: OsmTrack?,
+         fastPartialRecalc: Boolean
+-    ): OsmTrack {
++    ): OsmTrack? {
+         try {
+             val wpts2: MutableList<OsmNode> = ArrayList<OsmNode>()
+-            if (startWp != null) wpts2.add(startWp.waypoint)
+-            if (endWp != null) wpts2.add(endWp.waypoint)
++            if (startWp != null) wpts2.add(startWp.waypoint!!)
++            if (endWp != null) wpts2.add(endWp.waypoint!!)
+             routingContext.cleanNogoList(wpts2)
+ 
+             val detailed = guideTrack != null
+diff -ruN last/btools/router/VoiceHint.kt cur/btools/router/VoiceHint.kt
+--- x/btools/router/VoiceHint.kt	2026-09-14 19:41:21.091101033 +0200
++++ x/btools/router/VoiceHint.kt	2026-09-14 19:43:51.093392402 +0200
+@@ -177,7 +177,7 @@
+     }
+ 
+     fun formatGeometry(): String {
+-        val oldPrio: Float = if (oldWay == null) 0f else oldWay!!.prio
++        val oldPrio: Float = if (oldWay == null) 0f else oldWay!!.prio.toFloat()
+         val sb = StringBuilder(30)
+         sb.append(' ').append(oldPrio.toInt())
+         appendTurnGeometry(sb, goodWay!!)
+diff -ruN last/btools/router/VoiceHintProcessor.kt cur/btools/router/VoiceHintProcessor.kt
+--- x/btools/router/VoiceHintProcessor.kt	2026-09-14 19:41:21.091101033 +0200
++++ x/btools/router/VoiceHintProcessor.kt	2026-09-14 19:43:51.093392402 +0200
+@@ -119,7 +119,7 @@
+                 input.exitNumber = if (roundAboutTurnAngle < 0) roundaboutExit else -roundaboutExit
+                 var tmpangle = 0f
+                 val tmpRndAbt = VoiceHint()
+-                tmpRndAbt.badWays = ArrayList<MessageData?>()
++                tmpRndAbt.badWays = ArrayList<MessageData>()
+                 for (i in hintIdx - 1 downTo roundaboudStartIdx + 1) {
+                     val vh = inputs.get(i)
+                     tmpangle += inputs.get(i).goodWay!!.turnangle
+diff -ruN last/btools/util/CompactLongMap.kt cur/btools/util/CompactLongMap.kt
+--- x/btools/util/CompactLongMap.kt	2026-09-14 19:41:21.094436636 +0200
++++ x/btools/util/CompactLongMap.kt	2026-09-14 19:43:51.097996919 +0200
+@@ -16,7 +16,7 @@
+  * @author ab
+  */
+ open class CompactLongMap<V> {
+-    private var al: Array<LongArray>?
++    private var al: Array<LongArray?>?
+     private val pa: IntArray
+     private var size = 0
+     private val _maxKeepExponent = 14 // the maximum exponent to keep the invalid arrays
+diff -ruN last/btools/util/CompactLongSet.kt cur/btools/util/CompactLongSet.kt
+--- x/btools/util/CompactLongSet.kt	2026-09-14 19:41:21.094436636 +0200
++++ x/btools/util/CompactLongSet.kt	2026-09-14 19:43:51.097996919 +0200
+@@ -6,7 +6,7 @@
+  * @author ab
+  */
+ open class CompactLongSet {
+-    private var al: Array<LongArray>?
++    private var al: Array<LongArray?>?
+     private val pa: IntArray
+     private var size = 0
+     private val _maxKeepExponent = 14 // the maximum exponent to keep the invalid arrays
+diff -ruN last/btools/util/DenseLongMap.kt cur/btools/util/DenseLongMap.kt
+--- x/btools/util/DenseLongMap.kt	2026-09-14 19:41:21.094436636 +0200
++++ x/btools/util/DenseLongMap.kt	2026-09-14 19:43:51.097996919 +0200
+@@ -105,9 +105,9 @@
+ 
+         for (i in 0..<valuebits) {
+             if ((idx and probebit) != 0) {
+-                block[blockidx] = block[blockidx].toInt() or bitmask
++                block[blockidx] = (block[blockidx].toInt() or bitmask).toByte()
+             } else {
+-                block[blockidx] = block[blockidx].toInt() and invmask
++                block[blockidx] = (block[blockidx].toInt() and invmask).toByte()
+             }
+             probebit = probebit shl 1
+             blockidx += blocksize
+diff -ruN last/btools/util/StringUtils.kt cur/btools/util/StringUtils.kt
+--- x/btools/util/StringUtils.kt	2026-09-14 19:41:21.094436636 +0200
++++ x/btools/util/StringUtils.kt	2026-09-14 19:43:51.097996919 +0200
+@@ -6,11 +6,11 @@
+  */
+ object StringUtils {
+     private val xmlChr = charArrayOf('&', '<', '>', '\'', '"', '\t', '\n', '\r')
+-    private val xmlEsc: Array<String?> =
++    private val xmlEsc: Array<String> =
+         arrayOf<String>("&amp;", "&lt;", "&gt;", "&apos;", "&quot;", "&#x9;", "&#xA;", "&#xD;")
+ 
+     private val jsnChr = charArrayOf('\'', '"', '\\', '/')
+-    private val jsnEsc: Array<String?> = arrayOf<String>("\\'", "\\\"", "\\\\", "\\/")
++    private val jsnEsc: Array<String> = arrayOf<String>("\\'", "\\\"", "\\\\", "\\/")
+ 
+     /**
+      * Escape a literal to put into a json document
+diff -ruN last/btools/util/TinyDenseLongMap.kt cur/btools/util/TinyDenseLongMap.kt
+--- x/btools/util/TinyDenseLongMap.kt	2026-09-14 19:41:21.095436633 +0200
++++ x/btools/util/TinyDenseLongMap.kt	2026-09-14 19:43:51.097996919 +0200
+@@ -11,7 +11,7 @@
+  * @author ab
+  */
+ class TinyDenseLongMap : DenseLongMap() {
+-    private val al: Array<LongArray>
++    private val al: Array<LongArray?>
+     private val pa: IntArray
+     private var size = 0
+     private val _maxKeepExponent = 14 // the maximum exponent to keep the invalid arrays
