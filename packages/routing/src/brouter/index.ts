@@ -3,6 +3,7 @@ import {
   descentOf,
   type Leg,
   type Profile,
+  type RoutedLeg,
   type Router,
   RouterError,
   stretches,
@@ -29,7 +30,7 @@ import {
 const ENDPOINT = 'https://brouter.de/brouter'
 
 /** Their filenames for our five words. */
-const PROFILE_FILES = {
+export const PROFILE_FILES = {
   road: 'fastbike',
   trekking: 'trekking',
   gravel: 'gravel',
@@ -84,6 +85,49 @@ function wirePoint(waypoint: Waypoint): string {
   return name === '' ? `${at},m` : `${at},${name}`
 }
 
+/** One stretch as BRouter's `lonlats`. Exported for the phone's fixtures, which pin its port. */
+export function lonlatsOf(stretch: readonly Waypoint[]): string {
+  return stretch.map(wirePoint).join('|')
+}
+
+/**
+ * A leg, read off BRouter's GeoJSON.
+ *
+ * Apart from `leg` so that the phone's port can be pinned to it: the engine on the phone
+ * answers with the same bytes brouter.de does, so it is read by the same rules.
+ */
+export function routedLeg(from: Waypoint, to: Waypoint, body: unknown): RoutedLeg {
+  const parsed = trackSchema.safeParse(body)
+  if (!parsed.success)
+    throw new RouterError(`BRouter sent an unrecognised track: ${parsed.error.message}`)
+
+  const feature = parsed.data.features[0]
+  if (!feature) throw new RouterError('BRouter sent no track')
+
+  const coordinates: Array<[number, number]> = []
+  const altitudeM: number[] = []
+  for (const point of feature.geometry.coordinates) {
+    const [lon, lat, ele] = point
+    if (lon === undefined || lat === undefined) continue
+    coordinates.push([lon, lat])
+    altitudeM.push(ele ?? 0)
+  }
+
+  const ascentM = feature.properties['filtered ascend']
+
+  return {
+    ok: true,
+    from,
+    to,
+    coordinates,
+    altitudeM,
+    distanceM: feature.properties['track-length'],
+    ascentM,
+    descentM: descentOf(ascentM, altitudeM),
+    durationS: feature.properties['total-time'],
+  }
+}
+
 export class BRouterRouter implements Router {
   readonly id = 'brouter'
   readonly profiles = ['road', 'trekking', 'gravel', 'mtb', 'hiking'] as const
@@ -125,7 +169,7 @@ export class BRouterRouter implements Router {
     if (!from || !to) throw new RouterError('a leg needs two ends')
 
     const params = new URLSearchParams({
-      lonlats: stretch.map(wirePoint).join('|'),
+      lonlats: lonlatsOf(stretch),
       profile: PROFILE_FILES[profile],
       alternativeidx: '0',
       format: 'geojson',
@@ -168,34 +212,6 @@ export class BRouterRouter implements Router {
       )
     }
 
-    const parsed = trackSchema.safeParse(await response.json())
-    if (!parsed.success)
-      throw new RouterError(`BRouter sent an unrecognised track: ${parsed.error.message}`)
-
-    const feature = parsed.data.features[0]
-    if (!feature) throw new RouterError('BRouter sent no track')
-
-    const coordinates: Array<[number, number]> = []
-    const altitudeM: number[] = []
-    for (const point of feature.geometry.coordinates) {
-      const [lon, lat, ele] = point
-      if (lon === undefined || lat === undefined) continue
-      coordinates.push([lon, lat])
-      altitudeM.push(ele ?? 0)
-    }
-
-    const ascentM = feature.properties['filtered ascend']
-
-    return {
-      ok: true,
-      from,
-      to,
-      coordinates,
-      altitudeM,
-      distanceM: feature.properties['track-length'],
-      ascentM,
-      descentM: descentOf(ascentM, altitudeM),
-      durationS: feature.properties['total-time'],
-    }
+    return routedLeg(from, to, await response.json())
   }
 }

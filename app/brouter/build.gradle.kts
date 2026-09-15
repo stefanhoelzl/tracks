@@ -58,6 +58,9 @@ val tiles = manifest.filterNot { it.startsWith("release ") }.map { line ->
 }
 val segments = file("${System.getenv("TRACKS_CACHE") ?: "${System.getProperty("user.home")}/.cache/tracks"}/segments/$snapshot")
 
+// :shared routes over the same snapshot to test the on-device router.
+extra["paritySegments"] = segments.absolutePath
+
 fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().use { input ->

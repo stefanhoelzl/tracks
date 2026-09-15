@@ -3,8 +3,9 @@
  *
  *     pnpm fixtures:app
  *
- * The phone and the web meet in exactly four places — the plan fragment, the polyline codec,
- * the scalar codec and the import frame — and in each the TypeScript is the reference. So
+ * The phone and the web meet wherever the phone does what the web does — the plan fragment and
+ * its editing, the codecs, the import frame, and reading BRouter's and Photon's answers — and
+ * in each the TypeScript is the reference. So
  * agreement is not written by hand on either side: this runs the TypeScript over a set of
  * inputs chosen for their edges (halves, wraps, malformed escapes, truncated streams) and
  * writes what it answered, and the Kotlin tests read those answers and have to match them.
@@ -12,7 +13,7 @@
  * `app-fixtures.test.ts` regenerates them in memory and compares with what is committed,
  * so a change to a codec that is not carried to the Kotlin fails the TypeScript suite first.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import polyline from '@mapbox/polyline'
@@ -26,12 +27,42 @@ import {
   importFrameSchema,
   TRACK_PRECISION,
 } from '@tracks/core'
-import { PROFILES, type Waypoint } from '@tracks/routing'
+import { descentOf, type Leg, PROFILES, stretches, type Waypoint } from '@tracks/routing'
+import { lonlatsOf, PROFILE_FILES, routedLeg } from '../routing/src/brouter/index.ts'
+import { placesFrom, reverseParams, searchParams } from '../routing/src/photon/index.ts'
+import { nearestOnPath } from '../web/src/lib/geo.ts'
 import { DEFAULT_PROFILE, formatPlan, type Plan, parsePlan } from '../web/src/lib/plan.ts'
+import {
+  addWaypoint,
+  derivedName,
+  insertionAt,
+  kindIsAChoice,
+  legCount,
+  legLabel,
+  moveStop,
+  moveWaypoint,
+  nearestLeg,
+  placementAt,
+  poiIndices,
+  removeWaypoint,
+  setKind,
+} from '../web/src/lib/plan-ops.ts'
+import {
+  cumulative,
+  legGeometries,
+  planBounds,
+  planTotals,
+  planTrack,
+  readingsFrom,
+} from '../web/src/lib/plan-track.ts'
 
 export const FIXTURE_DIR = fileURLToPath(
   new URL('../../app/shared/src/commonTest/fixtures/', import.meta.url),
 )
+
+/** Where the recorded answers live; the Kotlin reads the same files by these paths. */
+const REPO = fileURLToPath(new URL('../../', import.meta.url))
+const repoJson = (path: string): unknown => JSON.parse(readFileSync(join(REPO, path), 'utf8'))
 
 type Pair = [number, number]
 
@@ -353,6 +384,535 @@ function importFixture() {
   return { IMPORT_PRECISION, frames }
 }
 
+function stop(lat: number, lon: number, name: string | null = null): Waypoint {
+  return { lat, lon, kind: 'poi', name }
+}
+
+function hint(lat: number, lon: number): Waypoint {
+  return { lat, lon, kind: 'routing', name: null }
+}
+
+const range = (from: number, to: number) =>
+  Array.from({ length: Math.max(0, to - from) }, (_, i) => from + i)
+
+/**
+ * Legs for a plan, the way a router might have answered it: `r` routed, `f` failed and
+ * `u` still out, cycling through `shape` leg by leg. Routed ones wander between their
+ * waypoints so that *nearest* and *along* have a real line to measure against.
+ */
+function legsFor(
+  waypoints: readonly Waypoint[],
+  shape: string,
+  seed: number,
+): Array<Leg | undefined> {
+  const next = random(seed)
+  const round = (value: number) => Number(value.toFixed(6))
+
+  return stretches(waypoints).map((stretch, index): Leg | undefined => {
+    const from = stretch[0]
+    const to = stretch[stretch.length - 1]
+    if (!from || !to) throw new Error('a stretch has two ends')
+
+    const mode = shape[index % shape.length]
+    if (mode === 'u') return undefined
+    if (mode === 'f') {
+      return {
+        ok: false,
+        from,
+        to,
+        coordinates: [
+          [from.lon, from.lat],
+          [to.lon, to.lat],
+        ],
+        reason: `No route to stop ${index + 1}`,
+      }
+    }
+
+    const coordinates: Array<[number, number]> = []
+    stretch.forEach((a, s) => {
+      const b = stretch[s + 1]
+      if (!b) return
+      for (let k = 0; k < 4; k++) {
+        const t = k / 4
+        const wobble = k === 0 ? 0 : (next() - 0.5) * 0.004
+        coordinates.push([
+          round(a.lon + (b.lon - a.lon) * t + wobble),
+          round(a.lat + (b.lat - a.lat) * t - wobble),
+        ])
+      }
+    })
+    coordinates.push([to.lon, to.lat])
+
+    const altitudeM = coordinates.map(() => Math.round(5000 + next() * 15_000) / 10)
+    const ascentM = Math.round(next() * 8000) / 10
+    return {
+      ok: true,
+      from,
+      to,
+      coordinates,
+      altitudeM,
+      distanceM: Math.round(1000 + next() * 50_000),
+      ascentM,
+      descentM: descentOf(ascentM, altitudeM),
+      durationS: Math.round(next() * 20_000),
+    }
+  })
+}
+
+function planEditFixture() {
+  const plan = (waypoints: Waypoint[]): Plan => ({ name: '', profile: 'trekking', waypoints })
+  const walked = walk(14, 7).map(([lat, lon], i) =>
+    i % 4 === 0 || i === 13 ? stop(lat, lon, i === 13 ? null : `Stop ${i}`) : hint(lat, lon),
+  )
+
+  // `sweep` tries every edit at every index; the walk is too long for that to stay readable.
+  const scenarios = [
+    { name: 'empty', plan: plan([]), shape: 'r', sweep: true },
+    {
+      name: 'one stop',
+      plan: plan([stop(47.2654, 11.3931, 'Innsbruck')]),
+      shape: 'r',
+      sweep: true,
+    },
+    {
+      name: 'one stop and a hint',
+      plan: plan([stop(47.2654, 11.3931, 'Innsbruck'), hint(47.28, 11.42)]),
+      shape: 'r',
+      sweep: true,
+    },
+    {
+      name: 'two stops',
+      plan: plan([stop(47.2654, 11.3931, 'Innsbruck'), stop(47.2692, 11.4928)]),
+      shape: 'r',
+      sweep: true,
+    },
+    {
+      name: 'hints inside and outside the legs',
+      plan: plan([
+        hint(47.25, 11.35),
+        stop(47.2654, 11.3931, 'Start'),
+        hint(47.27, 11.41),
+        hint(47.275, 11.43),
+        stop(47.28, 11.45),
+        hint(47.29, 11.47),
+        stop(47.3, 11.5, 'End'),
+        hint(47.31, 11.52),
+      ]),
+      shape: 'rf',
+      sweep: true,
+    },
+    {
+      name: 'routed, failed and in flight',
+      plan: plan([
+        stop(46.8600108, 10.9146696, 'Vent'),
+        stop(46.87, 10.95, 'Hütte'),
+        hint(46.9, 10.97),
+        stop(46.95, 11.0),
+        stop(47.0, 11.05, 'Sölden'),
+        stop(47.05, 11.1, 'Längenfeld'),
+      ]),
+      shape: 'rfur',
+      sweep: true,
+    },
+    { name: 'a walk', plan: plan(walked), shape: 'rrfu', sweep: false },
+  ]
+
+  const tapsFor = (waypoints: readonly Waypoint[], seed: number) => {
+    const next = random(seed)
+    const taps = [
+      { lat: 47.2, lon: 11.3 },
+      { lat: -33.8, lon: 151.2 },
+    ]
+    for (const w of waypoints.slice(0, 3)) taps.push({ lat: w.lat, lon: w.lon })
+    for (let i = 0; i < 4; i++) {
+      const base = waypoints[Math.floor(next() * waypoints.length)]
+      if (!base) continue
+      taps.push({
+        lat: Number((base.lat + (next() - 0.5) * 0.05).toFixed(6)),
+        lon: Number((base.lon + (next() - 0.5) * 0.05).toFixed(6)),
+      })
+    }
+    return taps
+  }
+
+  const edits = (p: Plan) => {
+    const n = p.waypoints.length
+    const stops = poiIndices(p.waypoints).length
+    return {
+      added: [-1, 0, 1, n, n + 3].map((index) => ({
+        index,
+        plan: addWaypoint(p, stop(47.1, 11.2, 'New'), index),
+      })),
+      removed: range(-1, n + 1).map((index) => ({ index, plan: removeWaypoint(p, index) })),
+      kinds: range(-1, n + 1).flatMap((index) =>
+        (['poi', 'routing'] as const).map((kind) => ({
+          index,
+          kind,
+          plan: setKind(p, index, kind),
+        })),
+      ),
+      moved: range(-1, n + 1).map((index) => ({
+        index,
+        plan: moveWaypoint(p, index, { lat: 47.123456, lon: 11.654321 }),
+      })),
+      // Every stop to either end, to its neighbours and to itself, and out of range both ways.
+      stops: range(-1, stops + 1).flatMap((from) =>
+        [...new Set([-1, 0, from - 1, from, from + 1, stops - 1, stops])].map((to) => ({
+          from,
+          to,
+          plan: moveStop(p, from, to),
+        })),
+      ),
+    }
+  }
+
+  const paths: Array<Array<[number, number]>> = [
+    [],
+    [[11.39, 47.26]],
+    [
+      [11.39, 47.26],
+      [11.39, 47.26],
+    ],
+    [
+      [11.39, 47.26],
+      [11.45, 47.3],
+      [11.39, 47.26],
+    ],
+    walk(12, 9).map(([lat, lon]): [number, number] => [lon, lat]),
+    [
+      [179.9, -60],
+      [-179.9, -60],
+    ],
+  ]
+  const points: Array<[number, number]> = [
+    [11.39, 47.26],
+    [11.42, 47.28],
+    [11.3, 47.1],
+    [0, 0],
+    [179.95, -60.01],
+  ]
+
+  return {
+    scenarios: scenarios.map(({ name, plan: p, shape, sweep }, index) => {
+      const legs = legsFor(p.waypoints, shape, 100 + index)
+      const legTotal = legCount(p)
+      const track = planTrack(legs)
+      return {
+        name,
+        plan: p,
+        legs,
+        poiIndices: poiIndices(p.waypoints),
+        derivedName: derivedName(p),
+        legCount: legTotal,
+        kindIsAChoice: kindIsAChoice(p),
+        legLabels: range(-1, legTotal + 1).map((leg) => ({ leg, label: legLabel(p, leg) })),
+        taps: tapsFor(p.waypoints, 200 + index).map((at) => {
+          const nearest = nearestLeg(p, legs, at)
+          return {
+            at,
+            nearestLeg: nearest,
+            insertions: range(-1, legTotal + 1).map((leg) => ({
+              leg,
+              index: insertionAt(p, legs, leg, at),
+            })),
+            start: placementAt(p, legs, 'start', nearest, at),
+            end: placementAt(p, legs, 'end', nearest, at),
+            nearest: placementAt(p, legs, 'nearest', nearest, at),
+            unplaced: placementAt(p, legs, 'nearest', null, at),
+          }
+        }),
+        ...(sweep ? edits(p) : {}),
+        geometries: legGeometries(p.waypoints, legs),
+        totals: planTotals(legs),
+        track: { coordinates: track.coordinates, altitudeM: track.altitudeM },
+        cumulative: cumulative(legs),
+        readings: range(-1, legTotal + 2).map((base) => ({
+          base,
+          readings: readingsFrom(legs, base),
+        })),
+        bounds: planBounds(p.waypoints, legs),
+      }
+    }),
+    // An empty path answers an infinite distance, which JSON carries as null.
+    nearestOnPath: paths.flatMap((path) =>
+      points.map(([lon, lat]) => ({ path, lon, lat, hit: nearestOnPath(path, lon, lat) })),
+    ),
+  }
+}
+
+function brouterFixture() {
+  // BRouter's own grammar back into waypoints: a name is a via, `m` an unnamed one, bare is shaping.
+  const waypointsOf = (lonlats: string): Waypoint[] =>
+    lonlats.split('|').map((part) => {
+      const [lon, lat, name] = part.split(',')
+      if (name === undefined) return hint(Number(lat), Number(lon))
+      return stop(Number(lat), Number(lon), name === 'm' ? null : name)
+    })
+  const route = (id: string) => {
+    const row = readFileSync(join(REPO, 'app/brouter/parity/routes.tsv'), 'utf8')
+      .split('\n')
+      .map((line) => line.split('\t'))
+      .find(([name]) => name === id)
+    if (!row?.[2]) throw new Error(`no parity route ${id}`)
+    return row[2]
+  }
+
+  const ends = (stretch: Waypoint[]) => {
+    const from = stretch[0]
+    const to = stretch[stretch.length - 1]
+    if (!from || !to) throw new Error('a stretch has two ends')
+    return { from, to }
+  }
+  const file = (path: string, stretch: Waypoint[]) => {
+    const { from, to } = ends(stretch)
+    return { file: path, from, to, leg: routedLeg(from, to, repoJson(path)) }
+  }
+
+  const track = (
+    properties: Record<string, unknown>,
+    coordinates: unknown = [
+      [11.39, 47.26, 574.5],
+      [11.4, 47.27],
+    ],
+    geometryType = 'LineString',
+    type = 'FeatureCollection',
+  ) => ({
+    type,
+    features: [{ type: 'Feature', geometry: { type: geometryType, coordinates }, properties }],
+  })
+  const good = { 'track-length': '893', 'filtered ascend': '1', 'total-time': '154' }
+  const bodies: unknown[] = [
+    track(good),
+    track({ ...good, 'track-length': 893.5, 'filtered ascend': ' 12 ', 'total-time': '1e3' }),
+    track({ ...good, 'track-length': '', 'filtered ascend': null, 'total-time': true }),
+    track({ ...good, 'track-length': '0x1F', 'filtered ascend': '+.5', 'total-time': '5.' }),
+    track({ ...good, 'track-length': '﻿\n 7  ' }),
+    track({ ...good, 'track-length': 'abc' }),
+    track({ ...good, 'track-length': 'Infinity' }),
+    track({ ...good, 'track-length': '1e400' }),
+    track({ ...good, 'track-length': '1_000' }),
+    track({ 'track-length': '1', 'filtered ascend': '1' }),
+    track(good, [
+      [11.39, 47.26, 574.5, 9],
+      [11.4, 47.27, 580],
+    ]),
+    track(good, [[11.39, 47.26], [11.4]]),
+    track(good, [[11.39, '47.26']]),
+    track(good, []),
+    track(good, undefined, 'Point'),
+    track(good, undefined, 'LineString', 'Feature'),
+    { type: 'FeatureCollection', features: [] },
+    { type: 'FeatureCollection', features: [track(good).features[0], { geometry: null }] },
+    [],
+    null,
+    'track',
+  ]
+  const { from, to } = ends([stop(47.2654, 11.3931, 'Start'), stop(47.2668, 11.3975, 'Ende')])
+
+  const stretchCases: Waypoint[][] = [
+    [],
+    [hint(47, 11)],
+    [stop(47, 11)],
+    [stop(47, 11, 'A'), stop(47.1, 11.1)],
+    [
+      hint(46.9, 10.9),
+      stop(47, 11, 'A'),
+      hint(47.01, 11.01),
+      hint(47.02, 11.02),
+      stop(47.1, 11.1),
+      hint(47.11, 11.11),
+      stop(47.2, 11.2, 'C'),
+      hint(47.3, 11.3),
+    ],
+    [stop(47, 11, 'A'), hint(47.01, 11.01), hint(47.02, 11.02)],
+    [hint(47, 11), hint(47.1, 11.1)],
+  ]
+  const descents: Array<[number, number[]]> = [
+    [100, [500, 520, 480]],
+    [100, [500, 600]],
+    [10, [500, 700]],
+    [0, []],
+    [5.5, [512.25]],
+    [12, [100, 90.5]],
+  ]
+
+  return {
+    profileFiles: PROFILE_FILES,
+    stretches: stretchCases.map((waypoints) => ({ waypoints, stretches: stretches(waypoints) })),
+    descents: descents.map(([ascentM, altitudeM]) => ({
+      ascentM,
+      altitudeM,
+      descentM: descentOf(ascentM, altitudeM),
+    })),
+    lonlats: [
+      [stop(47.2654, 11.3931, 'Start'), stop(47.2668, 11.3975, 'Ende')],
+      [stop(48.1374, 11.5755), hint(48, 11.5), stop(47.2692, 11.3928, '')],
+      [stop(46.4983, 11.3548, 'Gasthof, Vent | Hütte; oben'), stop(47, 11, '  ,|; ')],
+      [stop(0.00001, -0.000001, 'tiny'), hint(-89.99999, 179.99999), stop(1e-7, 180, '﻿ x ')],
+      waypointsOf(route('trekking-named-via')),
+    ].map((stretch) => ({ stretch, lonlats: lonlatsOf(stretch) })),
+    files: [
+      file('fixtures/brouter/leg-trekking.json', [
+        stop(47.2654, 11.3931, 'Start'),
+        stop(47.2668, 11.3975, 'Ende'),
+      ]),
+      file('fixtures/brouter/leg-shaped.json', [
+        stop(47.2654, 11.3931, 'Start'),
+        stop(47.2668, 11.3975, 'Ende'),
+      ]),
+      file(
+        'app/brouter/parity/brouter.de/trekking-salzburg-hallein.geojson',
+        waypointsOf(route('trekking-salzburg-hallein')),
+      ),
+    ],
+    bodies: bodies.map((body) => {
+      const result = attempt(() => routedLeg(from, to, body))
+      return 'value' in result ? { body, leg: result.value } : { body, error: result.error }
+    }),
+  }
+}
+
+function photonFixture() {
+  const feature = (
+    properties: Record<string, unknown>,
+    coordinates: unknown = [11.39315, 47.26545],
+  ) => ({ type: 'Feature', geometry: { type: 'Point', coordinates }, properties })
+  const bodies: unknown[] = [
+    { features: [] },
+    {},
+    { features: [feature({})] },
+    { features: [feature({}, [11.00005, -47.00005])] },
+    { features: [feature({ street: 'Dorfstraße', housenumber: '12', city: 'Vent' })] },
+    { features: [feature({ street: 'Dorfstraße', housenumber: '' })] },
+    { features: [feature({ name: '', city: '', county: 'Imst' })] },
+    {
+      features: [
+        feature({
+          name: 'Sölden',
+          city: 'Sölden',
+          district: 'Sölden',
+          state: 'Tyrol',
+          country: 'Austria',
+        }),
+      ],
+    },
+    { features: [feature({ county: 'Imst' })] },
+    { features: [feature({ name: 'Vent', district: 'Sölden', county: 'Imst', osm_id: 5 })] },
+    { features: [feature({ name: null })] },
+    { features: [feature({ name: 5 })] },
+    { features: [feature({ name: 'a' }, [11, 47, 3])] },
+    { features: [feature({ name: 'a' }, ['11', 47])] },
+    {
+      features: [
+        { ...feature({ name: 'a' }), geometry: { type: 'LineString', coordinates: [11, 47] } },
+      ],
+    },
+    { features: [feature({ name: 'a' }), feature({ name: 'b' }), { geometry: null }] },
+    [],
+    null,
+  ]
+  const searches: Array<[string, { lat: number; lon: number } | null]> = [
+    ['Vent', null],
+    ['  Gasthof Vent  ', { lat: 47.26, lon: 11.39 }],
+    ['', null],
+    ['   ', { lat: 47.26, lon: 11.39 }],
+    ['﻿a&b=c+d%e/f?g#h', { lat: 0.000001, lon: -180 }],
+    ['Café 🚲', { lat: 46.8600108, lon: 10.9146696 }],
+  ]
+
+  return {
+    searches: searches.map(([query, near]) => ({
+      query,
+      near,
+      params: searchParams(query, near)?.toString() ?? null,
+    })),
+    reverses: [
+      { lat: 47.26, lon: 11.39 },
+      { lat: 1e-7, lon: 0 },
+    ].map((at) => ({ at, params: reverseParams(at).toString() })),
+    files: ['fixtures/photon/search-vent.json', 'fixtures/photon/reverse-innsbruck.json'].map(
+      (path) => ({ file: path, places: placesFrom(repoJson(path)) }),
+    ),
+    bodies: bodies.map((body) => ({ body, places: placesFrom(body) })),
+  }
+}
+
+/** What JavaScript makes of a number as text, and of text as a number, where the ports must agree. */
+function numbersFixture() {
+  const values = [
+    0,
+    1,
+    11,
+    11.5,
+    -11.39,
+    47.2654,
+    1e-7,
+    0.00001,
+    0.000001,
+    1.5e-10,
+    1e21,
+    1e20,
+    123456789012345680000,
+    0.1 + 0.2,
+    5e-324,
+    Number.MAX_VALUE,
+    180,
+    -180,
+    46.4983,
+    0.000005,
+    -0.000005,
+    2.5,
+    1.00005,
+    1.23455,
+    47.26545,
+    11.39315,
+    -0.00001,
+    99.99995,
+    1234.5678,
+  ]
+  const texts = [
+    '',
+    ' ',
+    '7',
+    ' 7 ',
+    '﻿7 ',
+    '7',
+    ' 7　',
+    '+7',
+    '-7',
+    '.5',
+    '5.',
+    '1e3',
+    '1E-3',
+    '0x1F',
+    '0X1f',
+    '0b101',
+    '0o17',
+    '-0x10',
+    '0x',
+    '1_000',
+    'abc',
+    'Infinity',
+    '-Infinity',
+    '1e400',
+    '7 7',
+    '٣',
+  ]
+  // toFixed only where the phone's port claims to follow it: coordinates, not astronomy.
+  const fixed = (value: number, digits: number) =>
+    Math.abs(value) < 1e9 || Math.abs(value) >= 1e21 ? value.toFixed(digits) : null
+
+  return {
+    numbers: values.map((value) => ({
+      value,
+      string: String(value),
+      fixed4: fixed(value, 4),
+      fixed6: fixed(value, 6),
+    })),
+    texts: texts.map((text) => ({ text, trimmed: text.trim(), number: String(Number(text)) })),
+  }
+}
+
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
 
 export function generateAppFixtures(): Record<string, string> {
@@ -361,6 +921,10 @@ export function generateAppFixtures(): Record<string, string> {
     'track-codec.json': json(trackCodecFixture()),
     'plan.json': json(planFixture()),
     'import.json': json(importFixture()),
+    'plan-edit.json': json(planEditFixture()),
+    'brouter.json': json(brouterFixture()),
+    'photon.json': json(photonFixture()),
+    'numbers.json': json(numbersFixture()),
   }
 }
 

@@ -24,11 +24,14 @@ internal expect fun readText(path: String): String
  * these tests only ever read them.
  */
 internal object Fixtures {
-    fun read(name: String): JsonObject {
-        val dir = environment("TRACKS_APP_FIXTURES")
+    private val dir: String
+        get() = environment("TRACKS_APP_FIXTURES")
             ?: error("TRACKS_APP_FIXTURES is not set — run the tests through Gradle")
-        return Json.parseToJsonElement(readText("$dir/$name")).jsonObject
-    }
+
+    fun read(name: String): JsonObject = Json.parseToJsonElement(readText("$dir/$name")).jsonObject
+
+    /** A recorded answer elsewhere in the repository, by the path relative to its root that a fixture names. */
+    fun repoText(path: String): String = readText("$dir/../../../../../$path")
 }
 
 internal fun JsonObject.cases(key: String): List<JsonObject> = getValue(key).jsonArray.map { it.jsonObject }

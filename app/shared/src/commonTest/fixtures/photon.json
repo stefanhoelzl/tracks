@@ -1,0 +1,491 @@
+{
+  "searches": [
+    {
+      "query": "Vent",
+      "near": null,
+      "params": "q=Vent&limit=5&lang=en"
+    },
+    {
+      "query": "  Gasthof Vent  ",
+      "near": {
+        "lat": 47.26,
+        "lon": 11.39
+      },
+      "params": "q=Gasthof+Vent&limit=5&lang=en&lat=47.26&lon=11.39"
+    },
+    {
+      "query": "",
+      "near": null,
+      "params": null
+    },
+    {
+      "query": "   ",
+      "near": {
+        "lat": 47.26,
+        "lon": 11.39
+      },
+      "params": null
+    },
+    {
+      "query": "﻿a&b=c+d%e/f?g#h",
+      "near": {
+        "lat": 0.000001,
+        "lon": -180
+      },
+      "params": "q=a%26b%3Dc%2Bd%25e%2Ff%3Fg%23h&limit=5&lang=en&lat=0.000001&lon=-180"
+    },
+    {
+      "query": "Café 🚲",
+      "near": {
+        "lat": 46.8600108,
+        "lon": 10.9146696
+      },
+      "params": "q=Caf%C3%A9+%F0%9F%9A%B2&limit=5&lang=en&lat=46.8600108&lon=10.9146696"
+    }
+  ],
+  "reverses": [
+    {
+      "at": {
+        "lat": 47.26,
+        "lon": 11.39
+      },
+      "params": "lat=47.26&lon=11.39&lang=en&limit=1"
+    },
+    {
+      "at": {
+        "lat": 1e-7,
+        "lon": 0
+      },
+      "params": "lat=1e-7&lon=0&lang=en&limit=1"
+    }
+  ],
+  "files": [
+    {
+      "file": "fixtures/photon/search-vent.json",
+      "places": [
+        {
+          "name": "Vent",
+          "context": "Sölden · Tyrol · Austria",
+          "lat": 46.8600108,
+          "lon": 10.9146696
+        },
+        {
+          "name": "Vent",
+          "context": "Sölden · Tyrol · Austria",
+          "lat": 46.8632382,
+          "lon": 10.908008
+        },
+        {
+          "name": "Venter Tal",
+          "context": "Sölden · Tyrol · Austria",
+          "lat": 46.9044801,
+          "lon": 10.9657835
+        },
+        {
+          "name": "Venter Ache",
+          "context": "Sölden · Tyrol · Austria",
+          "lat": 46.9037324,
+          "lon": 10.9664586
+        },
+        {
+          "name": "Venter Straße",
+          "context": "Sölden · Tyrol · Austria",
+          "lat": 46.9402027,
+          "lon": 11.0271241
+        }
+      ]
+    },
+    {
+      "file": "fixtures/photon/reverse-innsbruck.json",
+      "places": [
+        {
+          "name": "Lacoste",
+          "context": "Innsbruck · Tyrol · Austria",
+          "lat": 47.2653976,
+          "lon": 11.3929725
+        }
+      ]
+    }
+  ],
+  "bodies": [
+    {
+      "body": {
+        "features": []
+      },
+      "places": []
+    },
+    {
+      "body": {},
+      "places": []
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {}
+          }
+        ]
+      },
+      "places": [
+        {
+          "name": "47.2655, 11.3932",
+          "context": "",
+          "lat": 47.26545,
+          "lon": 11.39315
+        }
+      ]
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.00005,
+                -47.00005
+              ]
+            },
+            "properties": {}
+          }
+        ]
+      },
+      "places": [
+        {
+          "name": "-47.0001, 11.0000",
+          "context": "",
+          "lat": -47.00005,
+          "lon": 11.00005
+        }
+      ]
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "street": "Dorfstraße",
+              "housenumber": "12",
+              "city": "Vent"
+            }
+          }
+        ]
+      },
+      "places": [
+        {
+          "name": "Dorfstraße 12",
+          "context": "Vent",
+          "lat": 47.26545,
+          "lon": 11.39315
+        }
+      ]
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "street": "Dorfstraße",
+              "housenumber": ""
+            }
+          }
+        ]
+      },
+      "places": [
+        {
+          "name": "Dorfstraße",
+          "context": "",
+          "lat": 47.26545,
+          "lon": 11.39315
+        }
+      ]
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "name": "",
+              "city": "",
+              "county": "Imst"
+            }
+          }
+        ]
+      },
+      "places": [
+        {
+          "name": "",
+          "context": "Imst",
+          "lat": 47.26545,
+          "lon": 11.39315
+        }
+      ]
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "name": "Sölden",
+              "city": "Sölden",
+              "district": "Sölden",
+              "state": "Tyrol",
+              "country": "Austria"
+            }
+          }
+        ]
+      },
+      "places": [
+        {
+          "name": "Sölden",
+          "context": "Tyrol · Austria",
+          "lat": 47.26545,
+          "lon": 11.39315
+        }
+      ]
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "county": "Imst"
+            }
+          }
+        ]
+      },
+      "places": [
+        {
+          "name": "Imst",
+          "context": "",
+          "lat": 47.26545,
+          "lon": 11.39315
+        }
+      ]
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "name": "Vent",
+              "district": "Sölden",
+              "county": "Imst",
+              "osm_id": 5
+            }
+          }
+        ]
+      },
+      "places": [
+        {
+          "name": "Vent",
+          "context": "Sölden · Imst",
+          "lat": 47.26545,
+          "lon": 11.39315
+        }
+      ]
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "name": null
+            }
+          }
+        ]
+      },
+      "places": []
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "name": 5
+            }
+          }
+        ]
+      },
+      "places": []
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11,
+                47,
+                3
+              ]
+            },
+            "properties": {
+              "name": "a"
+            }
+          }
+        ]
+      },
+      "places": []
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                "11",
+                47
+              ]
+            },
+            "properties": {
+              "name": "a"
+            }
+          }
+        ]
+      },
+      "places": []
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                11,
+                47
+              ]
+            },
+            "properties": {
+              "name": "a"
+            }
+          }
+        ]
+      },
+      "places": []
+    },
+    {
+      "body": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "name": "a"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                11.39315,
+                47.26545
+              ]
+            },
+            "properties": {
+              "name": "b"
+            }
+          },
+          {
+            "geometry": null
+          }
+        ]
+      },
+      "places": []
+    },
+    {
+      "body": [],
+      "places": []
+    },
+    {
+      "body": null,
+      "places": []
+    }
+  ]
+}

@@ -91,6 +91,39 @@ function toPlace(feature: z.infer<typeof featureSchema>): Place {
   return { name, context: contextOf(feature.properties, name), lat, lon }
 }
 
+/*
+ * The request and the reading of the answer, apart from `fetch`, so that the phone's port
+ * can be pinned to them by fixtures.
+ */
+
+/** The query string of a search, or null when there is nothing to ask. */
+export function searchParams(query: string, near: LatLon | null): URLSearchParams | null {
+  const trimmed = query.trim()
+  if (trimmed === '') return null
+
+  const params = new URLSearchParams({ q: trimmed, limit: String(LIMIT), lang: 'en' })
+  if (near) {
+    params.set('lat', String(near.lat))
+    params.set('lon', String(near.lon))
+  }
+  return params
+}
+
+export function reverseParams(at: LatLon): URLSearchParams {
+  return new URLSearchParams({
+    lat: String(at.lat),
+    lon: String(at.lon),
+    lang: 'en',
+    limit: '1',
+  })
+}
+
+/** Every place in an answer, or none when the answer is not one Photon gives. */
+export function placesFrom(body: unknown): Place[] {
+  const parsed = responseSchema.safeParse(body)
+  return parsed.success ? parsed.data.features.map(toPlace) : []
+}
+
 export class PhotonGeocoder implements Geocoder {
   readonly id = 'photon'
 
@@ -101,14 +134,8 @@ export class PhotonGeocoder implements Geocoder {
   }
 
   async search(query: string, near: LatLon | null, signal?: AbortSignal): Promise<Place[]> {
-    const trimmed = query.trim()
-    if (trimmed === '') return []
-
-    const params = new URLSearchParams({ q: trimmed, limit: String(LIMIT), lang: 'en' })
-    if (near) {
-      params.set('lat', String(near.lat))
-      params.set('lon', String(near.lon))
-    }
+    const params = searchParams(query, near)
+    if (!params) return []
 
     const response = await fetch(`${this.endpoint}/api/?${params}`, { signal })
     // A geocoder that is down makes the field useless, not the app: an empty result
@@ -116,23 +143,13 @@ export class PhotonGeocoder implements Geocoder {
     // interrupting a plan for.
     if (!response.ok) return []
 
-    const parsed = responseSchema.safeParse(await response.json())
-    return parsed.success ? parsed.data.features.map(toPlace) : []
+    return placesFrom(await response.json())
   }
 
   async reverse(at: LatLon, signal?: AbortSignal): Promise<string | null> {
-    const params = new URLSearchParams({
-      lat: String(at.lat),
-      lon: String(at.lon),
-      lang: 'en',
-      limit: '1',
-    })
-
-    const response = await fetch(`${this.endpoint}/reverse?${params}`, { signal })
+    const response = await fetch(`${this.endpoint}/reverse?${reverseParams(at)}`, { signal })
     if (!response.ok) return null
 
-    const parsed = responseSchema.safeParse(await response.json())
-    const feature = parsed.success ? parsed.data.features[0] : undefined
-    return feature ? toPlace(feature).name : null
+    return placesFrom(await response.json())[0]?.name ?? null
   }
 }
