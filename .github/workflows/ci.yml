@@ -116,7 +116,16 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v6
-      - run: ./gradlew :ui:jvmTest
+      # The dev server, for the test that records a replayed ride and uploads it to a real Tracks: started by
+      # local-tracks.sh on a database file made for the run, so the test cannot skip and nothing reaches production.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: scripts/local-tracks.sh ./gradlew :ui:jvmTest
       - run: desktopApp/screenshots/run.sh
         env:
           CONTAINER_ENGINE: docker
