@@ -12,6 +12,7 @@ rootProject.name = "tracks-app"
 pluginManagement {
     repositories {
         gradlePluginPortal()
+        google()
         mavenCentral()
     }
 }
@@ -24,10 +25,14 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
+// google() for the androidx artifacts Compose Multiplatform is built on.
 dependencyResolutionManagement {
     repositories {
+        google()
         mavenCentral()
     }
 }
 
-include(":shared", ":brouter")
+// :shared and :brouter stay free of Compose, so they keep their native Linux target and the parity
+// gate on it; the map library has no linuxX64 build. The UI is :ui, and :desktopApp hosts it on Linux.
+include(":shared", ":brouter", ":ui", ":desktopApp")
