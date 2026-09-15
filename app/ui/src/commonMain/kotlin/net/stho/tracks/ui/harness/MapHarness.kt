@@ -1,7 +1,6 @@
 package net.stho.tracks.ui.harness
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +27,8 @@ import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
+import net.stho.tracks.ui.recording.Recorder
+import net.stho.tracks.ui.recording.RecordingControls
 import net.stho.tracks.ui.resources.Res
 import net.stho.tracks.ui.sensors.RideReplay
 import net.stho.tracks.ui.sensors.Sensors
@@ -41,10 +41,16 @@ suspend fun bundledRide(): RideReplay = RideReplay.gpx(Res.readBytes("files/ride
  * M11's only screen: the map, fed by [sensors], with [plan] drawn on it.
  *
  * Not the riding screen (M14) — just enough around the map to exercise it: the heading-up and north-up toggle, follow
- * and overview, and a readout of what the sensors and the last tap said.
+ * and overview, a readout of what the sensors and the last tap said, and — given a [recorder] — recording's controls.
  */
 @Composable
-fun MapHarness(sensors: Sensors, plan: List<Coordinate>, modifier: Modifier = Modifier.fillMaxSize(), onIdle: () -> Unit = {}) {
+fun MapHarness(
+    sensors: Sensors,
+    plan: List<Coordinate>,
+    modifier: Modifier = Modifier.fillMaxSize(),
+    recorder: Recorder? = null,
+    onIdle: () -> Unit = {},
+) {
     val style by produceState<MapStyle?>(null) { value = MapStyle.colorful() }
     val fix by remember(sensors) { sensors.fixes }.collectAsState(null)
     val heading by remember(sensors) { sensors.headings }.collectAsState(null)
@@ -73,6 +79,7 @@ fun MapHarness(sensors: Sensors, plan: List<Coordinate>, modifier: Modifier = Mo
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            recorder?.let { RecordingControls(it) }
             Pill {
                 val f = fix
                 val lines = listOfNotNull(
@@ -97,19 +104,4 @@ private fun Double.fixed(digits: Int): String {
     var factor = 1.0
     repeat(digits) { factor *= 10 }
     return ((this * factor).roundToInt() / factor).toString()
-}
-
-@Composable
-private fun Pill(content: @Composable () -> Unit) {
-    Box(Modifier.background(Tokens.glassHi, RoundedCornerShape(9.dp)).padding(horizontal = 10.dp, vertical = 6.dp)) { content() }
-}
-
-@Composable
-private fun Button(label: String, onClick: () -> Unit) {
-    Box(
-        Modifier.background(Tokens.accent, RoundedCornerShape(999.dp)).clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        BasicText(label, style = TextStyle(color = Tokens.surface, fontSize = 14.sp))
-    }
 }

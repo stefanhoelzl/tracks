@@ -9,6 +9,10 @@ import javax.swing.JFrame
 /*
  * The window as the screen sees it: captured and clicked through the X server, the way a user would.
  * Robot needs a server that allows it — Xvfb does, a GNOME Wayland session does not.
+ *
+ * Only ever inside the screenshots container's Xvfb (screenshots/run.sh). Never on a developer's desktop, by a person or
+ * an agent: there this is capturing and clicking someone's real screen, and asking the desktop to allow it. To see a
+ * screen of the harness, run it in the container with --shot, as the screenshot tests do.
  */
 
 /** The window's content on screen: what the app draws, without any decoration a window manager adds. */
