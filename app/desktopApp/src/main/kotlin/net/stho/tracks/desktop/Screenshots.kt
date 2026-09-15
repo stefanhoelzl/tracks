@@ -33,9 +33,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.stho.tracks.codec.Coordinate
-import net.stho.tracks.sensors.Heading
-import net.stho.tracks.sensors.distanceM
+import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.harness.bundledRide
+import net.stho.tracks.ui.plans.HomeScreen
+import net.stho.tracks.ui.plans.PlanPreview
+import okio.FileSystem
+import okio.Path.Companion.toPath
 import net.stho.tracks.ui.map.DesktopMapHost
 import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.MapStyle
@@ -71,6 +74,9 @@ private const val PIXEL_TOLERANCE = 0.0003
 /** How far from the expected coordinate a tap may land, in pixels. */
 private const val TAP_TOLERANCE_PX = 2.0
 
+/** What a scene draws: the map on its own, or one of the app's screens over it. */
+private enum class Screen { Map, Home, Preview }
+
 private class Scene(
     val name: String,
     /** The second of the bundled ride the rider is held at. */
@@ -78,9 +84,15 @@ private class Scene(
     val camera: (RideReplay) -> MapCamera,
     /** Where to click, from the map's centre, in pixels; a tap scene checks the coordinate instead of a picture. */
     val tap: Pair<Int, Int>? = null,
+    val screen: Screen = Screen.Map,
 )
 
+/** The plans the app's screens are drawn with, recorded by `./gradlew :desktopApp:recordPlans`. */
+private val PLANS = DIRECTORY.resolve("fixture/plans")
+
 private val SCENES = listOf(
+    Scene("home", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Home),
+    Scene("preview", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Preview),
     Scene("follow", second = 185, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("stop-compass", second = 950, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("north-up", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp, FOLLOW_ZOOM) }),
@@ -173,20 +185,48 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
             }
             DesktopMapHost(window) {
                 val style by produceState<MapStyle?>(null) { value = MapStyle.colorful() }
-                style?.let {
-                    TracksMap(
-                        style = it,
-                        camera = remember { scene.camera(ride) },
-                        modifier = Modifier.fillMaxSize(),
-                        plan = ride.track,
+                val onIdle = {
+                    val now = System.currentTimeMillis()
+                    firstIdle.compareAndSet(0, now)
+                    lastIdle.set(now)
+                }
+                // Only read: nothing in a scene routes or saves.
+                val plans = remember { PlanStore(PLANS.absolutePath.toPath(), FileSystem.SYSTEM).list() }
+                when (scene.screen) {
+                    Screen.Map -> style?.let {
+                        TracksMap(
+                            style = it,
+                            camera = remember { scene.camera(ride) },
+                            modifier = Modifier.fillMaxSize(),
+                            plan = ride.track,
+                            fix = fix,
+                            heading = heading,
+                            onTap = { at -> tapped.set(at) },
+                            onIdle = onIdle,
+                        )
+                    }
+                    Screen.Home -> HomeScreen(
+                        style = style,
                         fix = fix,
-                        heading = heading,
-                        onTap = { at -> tapped.set(at) },
-                        onIdle = {
-                            val now = System.currentTimeMillis()
-                            firstIdle.compareAndSet(0, now)
-                            lastIdle.set(now)
-                        },
+                        plans = plans,
+                        routing = emptyMap(),
+                        notice = null,
+                        onPaste = {},
+                        onOpen = {},
+                        onCopy = {},
+                        onShare = {},
+                        onDelete = {},
+                        onIdle = onIdle,
+                    )
+                    Screen.Preview -> PlanPreview(
+                        style = style,
+                        stored = plans.first { it.plan.name == "Partnachklamm" },
+                        routing = null,
+                        fix = fix,
+                        onBack = {},
+                        onCopy = {},
+                        onShare = {},
+                        onIdle = onIdle,
                     )
                 }
             }

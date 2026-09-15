@@ -18,6 +18,10 @@ kotlin {
 
 dependencies {
     implementation(project(":ui"))
+    implementation(libs.okio)
+    implementation(libs.kotlinx.coroutines.core)
+    // Dispatchers.Main on the desktop: the plan library keeps its state on the UI's thread, as it does on the phone.
+    implementation(libs.kotlinx.coroutines.swing)
     implementation(compose.desktop.currentOs)
     runtimeOnly(libs.maplibre.compose.runtime.vulkan.linux)
 }
@@ -28,6 +32,23 @@ compose.desktop {
         // MapLibre Native is reached through Java's foreign function API.
         jvmArgs += listOf("--enable-native-access=ALL-UNNAMED", "-Xmx1g")
     }
+}
+
+// The plans the screenshot scenes draw, routed over the parity snapshot :brouter's tests fetch (RecordPlans.kt).
+evaluationDependsOn(":brouter")
+val brouter = project(":brouter")
+
+tasks.register<JavaExec>("recordPlans") {
+    description = "Writes screenshots/fixture/plans: plan links routed by the on-device engine."
+    dependsOn(brouter.tasks.named("paritySegments"))
+    mainClass = "net.stho.tracks.desktop.RecordPlansKt"
+    classpath = sourceSets.main.get().runtimeClasspath
+    maxHeapSize = "1g"
+    args(
+        file("screenshots/fixture/plans").absolutePath,
+        brouter.extra["paritySegments"].toString(),
+        brouter.file("profiles").absolutePath,
+    )
 }
 
 /*

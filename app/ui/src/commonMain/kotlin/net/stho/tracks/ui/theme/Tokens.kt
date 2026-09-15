@@ -16,6 +16,7 @@ object Tokens {
     val surface = Color(0xFFFFFFFF) // --surface
     val glass = Color(0xD1FFFFFF) // --glass
     val glassHi = Color(0xEBFFFFFF) // --glass-hi
+    val sunk = Color(0xFFF1F4F1) // --sunk
 
     val ink = Color(0xFF0F1513) // --ink
     val ink2 = Color(0xFF3E4945) // --ink-2

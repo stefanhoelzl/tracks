@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import kotlin.time.Duration.Companion.milliseconds
@@ -74,11 +75,15 @@ class MapStyle(val json: String) {
 }
 
 sealed interface MapCamera {
-    /** Keep the rider centred at [zoom], turned by [orientation]. */
-    data class Follow(val orientation: Orientation, val zoom: Double = 15.5) : MapCamera
+    /** Keep the rider centred at [zoom], turned by [orientation] — centred in what [inset] leaves of the map. */
+    data class Follow(
+        val orientation: Orientation,
+        val zoom: Double = 15.5,
+        val inset: PaddingValues = PaddingValues(0.dp),
+    ) : MapCamera
 
-    /** Fit [points], north-up. */
-    data class Overview(val points: List<Coordinate>) : MapCamera
+    /** Fit [points], north-up, clear of [inset] — whatever is drawn over the map's edges. */
+    data class Overview(val points: List<Coordinate>, val inset: PaddingValues = PaddingValues(32.dp)) : MapCamera
 }
 
 /**
@@ -121,16 +126,12 @@ private val RIDDEN_COLOUR = Color(0xFFCE7A0C)
 private fun widthByZoom(stops: List<Pair<Int, Double>>) =
     interpolate(linear(), zoom(), *stops.map { (z, width) -> z to const(width.toFloat().dp) }.toTypedArray())
 
-/** A line through [points], or nothing: a LineString needs two points, and MapLibre refuses the whole source otherwise. */
-private fun lineJson(points: List<Coordinate>): String = if (points.size < 2) {
-    """{"type":"FeatureCollection","features":[]}"""
-} else {
-    points.joinToString(
-        separator = ",",
-        prefix = """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[""",
-        postfix = "]}}",
-    ) { "[${it.lon},${it.lat}]" }
-}
+/** A map with no plan has nothing to draw, and MapLibre refuses a line of fewer than two points. */
+private fun lineJson(points: List<Coordinate>): String = if (points.size < 2) EMPTY_COLLECTION else points.joinToString(
+    separator = ",",
+    prefix = """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[""",
+    postfix = "]}}",
+) { "[${it.lon},${it.lat}]" }
 
 private fun Fix.measurement() = LocationMeasurement(
     position = Position(longitude = at.lon, latitude = at.lat),
@@ -148,9 +149,11 @@ private const val FIELD_OF_VIEW_DEG = 60.0
 /** The black of the rider's dot, inside its white rim: LocationPuckSizes' default radius of 6 dp. */
 private val RIDER_DOT_DIAMETER = 12.dp
 
+private const val EMPTY_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
+
 private fun pointJson(at: Coordinate?): String = at?.let {
     """{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[${it.lon},${it.lat}]}}"""
-} ?: """{"type":"FeatureCollection","features":[]}"""
+} ?: EMPTY_COLLECTION
 
 /** A pie slice [sweepDeg] wide, pointing up from the centre: rotated by the heading, it points where the phone faces. */
 private class FacingWedge(private val color: Color, private val sweepDeg: Float) : Painter() {
@@ -179,7 +182,7 @@ private fun MapLibreMap(
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnIdle by rememberUpdatedState(onIdle)
     val planJson = remember(plan) { lineJson(plan) }
-    val riddenJson = remember(ridden) { lineJson(ridden) }
+    val layoutDirection = LocalLayoutDirection.current
 
     // Start where the camera is going when that is known, rather than flying in: every tile a fly-in passes through is
     // one more download, on a phone that may be on a hillside's last bar of signal.
@@ -274,8 +277,16 @@ private fun MapLibreMap(
             when (camera) {
                 is MapCamera.Follow -> if (fix != null) {
                     val bearing = mapBearing(camera.orientation, fix, heading, previous = state.cameraPosition.bearing)
+                    val inset = camera.inset
+                    val aim = insetTarget(
+                        at = fix.at,
+                        zoom = camera.zoom,
+                        bearingDeg = bearing,
+                        downDp = (inset.calculateBottomPadding() - inset.calculateTopPadding()).value / 2.0,
+                        rightDp = (inset.calculateRightPadding(layoutDirection) - inset.calculateLeftPadding(layoutDirection)).value / 2.0,
+                    )
                     state.animateCameraPosition(
-                        CameraPosition(target = Position(fix.at.lon, fix.at.lat), zoom = camera.zoom, bearing = bearing),
+                        CameraPosition(target = Position(aim.lon, aim.lat), zoom = camera.zoom, bearing = bearing),
                         duration = FOLLOW_MS.milliseconds,
                     )
                 }
@@ -287,7 +298,7 @@ private fun MapLibreMap(
                             east = camera.points.maxOf { it.lon },
                             north = camera.points.maxOf { it.lat },
                         ),
-                        padding = PaddingValues(32.dp),
+                        padding = camera.inset,
                         duration = 600.milliseconds,
                     )
                 }
