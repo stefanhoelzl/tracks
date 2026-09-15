@@ -15,8 +15,16 @@ kotlin {
     jvmToolchain(25)
 
     jvm()
-    iosArm64()
-    iosSimulatorArm64()
+
+    // The iOS app links the whole Kotlin side as one static framework, named Shared as in M10. It exports :shared, so
+    // Swift still sees OnDeviceRouter and NativeMemory for the measurement harness; everything else stays internal.
+    listOf(iosArm64(), iosSimulatorArm64()).forEach {
+        it.binaries.framework {
+            baseName = "Shared"
+            isStatic = true
+            export(project(":shared"))
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {

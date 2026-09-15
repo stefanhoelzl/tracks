@@ -3,9 +3,9 @@
 #
 #     cd app/iosApp && xcodegen generate
 #
-# M10's shell hosts the converted engine and nothing else: no screens, a measurement harness that only
-# runs when launched with TRACKS_MEASURE set. The Kotlin comes from :shared as a static framework, built by
-# the pre-build script for whatever configuration and SDK Xcode is building.
+# The shell hosts the Compose UI (M11) and M10's measurement harness, which runs instead when launched with
+# TRACKS_MEASURE set. The Kotlin comes from :ui — which exports :shared — as one static framework, built by the
+# pre-build script for whatever configuration and SDK Xcode is building.
 name: iosApp
 options:
   bundleIdPrefix: net.stho
@@ -38,13 +38,25 @@ targets:
         UILaunchScreen: {}
         UIRequiredDeviceCapabilities: [arm64]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Foreground only: background location arrives with recording (M15).
+        NSLocationWhenInUseUsageDescription: Tracks shows where you are on the map, and which way you are heading.
+        # Lets Compose draw at 120 Hz on ProMotion screens.
+        CADisableMinimumFrameDurationOnPhone: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.stho.tracks
         PRODUCT_NAME: Tracks
         TARGETED_DEVICE_FAMILY: "1"
-        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
-        OTHER_LDFLAGS: ["$(inherited)", "-framework", "Shared"]
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        # Shared is the whole Kotlin side (:ui, exporting :shared). The rest is what maplibre-compose's statically
+        # linked MapLibre Native needs from the system, as its iOS docs list it, and CoreLocation for LocationSensors.
+        OTHER_LDFLAGS: [
+          "$(inherited)", "-framework", "Shared",
+          "-lc++", "-lz",
+          "-framework", "CoreFoundation", "-framework", "CoreGraphics", "-framework", "CoreLocation",
+          "-framework", "CoreText", "-framework", "Foundation", "-framework", "ImageIO",
+          "-framework", "Metal", "-framework", "QuartzCore",
+        ]
         # The Gradle build reads and writes outside the sandbox Xcode gives build scripts.
         ENABLE_USER_SCRIPT_SANDBOXING: NO
     preBuildScripts:
@@ -54,4 +66,4 @@ targets:
           set -e
           export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25 2>/dev/null || /usr/libexec/java_home)}"
           cd "$SRCROOT/.."
-          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+          ./gradlew :ui:embedAndSignAppleFrameworkForXcode
