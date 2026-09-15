@@ -94,9 +94,11 @@ jobs:
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
+      # arm64 only: a generic simulator destination otherwise asks for an x86_64 slice too,
+      # and the Kotlin side has no Intel simulator target (Apple silicon only, like the runner).
       - run: >-
           xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug
-          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+          -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
 
   deploy:
     needs: test
