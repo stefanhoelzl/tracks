@@ -88,7 +88,7 @@ fun HomeScreen(
             TracksMap(
                 style = it,
                 // Centred on you in the part of the map the open sheet leaves.
-                camera = MapCamera.Follow(Orientation.NorthUp, zoom = 13.0, inset = PaddingValues(bottom = maxHeight * SHEET_SHARE)),
+                camera = MapCamera.Centre(zoom = 13.0, inset = PaddingValues(bottom = maxHeight * SHEET_SHARE)),
                 modifier = Modifier.fillMaxSize(),
                 fix = fix,
                 onIdle = onIdle,
