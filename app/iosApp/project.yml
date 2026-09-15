@@ -52,6 +52,6 @@ targets:
         basedOnDependencyAnalysis: false
         script: |
           set -e
-          export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 252>/dev/null || /usr/libexec/java_home)}"
+          export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25 2>/dev/null || /usr/libexec/java_home)}"
           cd "$SRCROOT/.."
           ./gradlew :shared:embedAndSignAppleFrameworkForXcode
