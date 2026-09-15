@@ -38,8 +38,17 @@ targets:
         UILaunchScreen: {}
         UIRequiredDeviceCapabilities: [arm64]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        # Foreground only: background location arrives with recording (M15).
-        NSLocationWhenInUseUsageDescription: Tracks shows where you are on the map, and which way you are heading.
+        # When In Use, and never Always: a ride started in the app is a use, and the location mode below keeps it
+        # running with the phone locked for as long as the ride is being recorded (M15).
+        NSLocationWhenInUseUsageDescription: Tracks shows where you are on the map, and records your ride while you ride it, also with the phone locked.
+        UIBackgroundModes: [location]
+        # CMAltimeter: the barometer a ride's ascent is measured with.
+        NSMotionUsageDescription: Tracks reads the barometer to measure how far you climb.
+        # Plain http to a dev server on the local network, for uploads tested without reaching production. Nothing else
+        # is exempt from App Transport Security.
+        NSLocalNetworkUsageDescription: Tracks can upload rides to a test server on this network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         # Lets Compose draw at 120 Hz on ProMotion screens.
         CADisableMinimumFrameDurationOnPhone: true
     settings:
@@ -49,11 +58,13 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         # Shared is the whole Kotlin side (:ui, exporting :shared). The rest is what maplibre-compose's statically
-        # linked MapLibre Native needs from the system, as its iOS docs list it, and CoreLocation for LocationSensors.
+        # linked MapLibre Native needs from the system, as its iOS docs list it; CoreLocation and CoreMotion for
+        # LocationSensors; Security for the Keychain and Network for noticing a network come back (M15).
         OTHER_LDFLAGS: [
           "$(inherited)", "-framework", "Shared",
           "-lc++", "-lz",
           "-framework", "CoreFoundation", "-framework", "CoreGraphics", "-framework", "CoreLocation",
+          "-framework", "CoreMotion", "-framework", "Network", "-framework", "Security",
           "-framework", "CoreText", "-framework", "Foundation", "-framework", "ImageIO",
           "-framework", "Metal", "-framework", "QuartzCore",
         ]
