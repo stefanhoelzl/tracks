@@ -38,6 +38,8 @@ import net.stho.tracks.ui.map.WaypointMark
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.ui.sensors.Fix
+import net.stho.tracks.ui.theme.IconButton
+import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.theme.SnapSheet
 import net.stho.tracks.ui.theme.Tokens
@@ -124,9 +126,9 @@ fun PlanPreview(
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Pill("Edit", onClick = onEdit)
-                    Pill("Copy", onClick = onCopy)
-                    Pill("Share link", onClick = onShare)
+                    IconButton(Icons.Edit, "Edit", onClick = onEdit)
+                    IconButton(Icons.Copy, "Copy", onClick = onCopy)
+                    IconButton(Icons.Share, "Share link", onClick = onShare)
                 }
             },
             content = {
