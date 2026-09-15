@@ -1,0 +1,12 @@
+# Where the screenshot tests render: an X server and Mesa's software renderers — llvmpipe for OpenGL, lavapipe for
+# Vulkan — and one font. The same image runs on a laptop (podman) and in CI (docker), so a reference picture made on
+# one is the picture on the other. The JDK and the app's classpath are mounted in from the host.
+FROM docker.io/library/ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      xvfb \
+      libvulkan1 mesa-vulkan-drivers \
+      libgl1 libegl1 libgl1-mesa-dri \
+      libx11-6 libxext6 libxrender1 libxtst6 libxi6 libxrandr2 libxcursor1 \
+      libfontconfig1 fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*

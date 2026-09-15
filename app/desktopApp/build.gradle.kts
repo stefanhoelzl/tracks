@@ -29,3 +29,26 @@ compose.desktop {
         jvmArgs += listOf("--enable-native-access=ALL-UNNAMED", "-Xmx1g")
     }
 }
+
+/*
+ * The screenshot tests run the harness inside a container rather than through Gradle (screenshots/run.sh). This writes
+ * what the container needs to start it: the runtime classpath as absolute paths — the container mounts the Gradle home
+ * read-only at the same path — and the JDK 25 to run it with, which it mounts the same way.
+ */
+val screenshotJdk = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+
+tasks.register("screenshotClasspath") {
+    val jar = tasks.named<Jar>("jar")
+    val runtime = configurations.named("runtimeClasspath")
+    val javaHome = screenshotJdk.map { it.metadata.installationPath.asFile.absolutePath }
+    val out = layout.buildDirectory.dir("screenshot-run")
+    dependsOn(jar)
+    inputs.files(runtime)
+    outputs.dir(out)
+    doLast {
+        val dir = out.get().asFile.apply { mkdirs() }
+        val files = listOf(jar.get().archiveFile.get().asFile) + runtime.get().files
+        dir.resolve("classpath.txt").writeText(files.joinToString(":") { it.absolutePath })
+        dir.resolve("java-home.txt").writeText(javaHome.get())
+    }
+}

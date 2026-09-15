@@ -9,9 +9,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import java.awt.Rectangle
-import java.awt.Robot
-import java.awt.event.InputEvent
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
@@ -26,52 +23,38 @@ import net.stho.tracks.ui.map.configureDesktopMap
 import net.stho.tracks.ui.sensors.ReplaySensors
 import net.stho.tracks.ui.sensors.RideReplay
 
+/** An iPhone's logical size, so what fits here fits there. */
+val PHONE = DpSize(393.dp, 852.dp)
+
 /**
  * The desktop harness.
  *
  *     --gpx <file>     the ride to replay (default: the bundled Garmisch ride)
  *     --from <s>       start that many seconds into it
  *     --speed <x>      replay x times faster than real time
+ *     --tap-at <s>     click the map that many seconds after launch
  *     --shot <png>     capture the window to this file, then exit
  *     --shot-at <s>    how many seconds after launch to capture (default 20)
- *     --tap-at <s>     click the map that many seconds after launch
  *
- * The capture and the click go through the screen, so they need an X server that allows it: Xvfb does, a GNOME
- * Wayland session does not.
+ * The click and the capture go through the screen: see Screen.kt.
  */
 fun main(args: Array<String>) {
     fun option(name: String) = args.indexOf(name).takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
     val gpx = option("--gpx")?.let { File(it).readText() }
     val from = option("--from")?.toInt() ?: 0
     val speedup = option("--speed")?.toDouble() ?: 1.0
+    val tapAt = option("--tap-at")?.toDouble()
     val shot = option("--shot")?.let(::File)
     val shotAt = option("--shot-at")?.toDouble() ?: 20.0
-    val tapAt = option("--tap-at")?.toDouble()
 
     configureDesktopMap()
     application {
-        Window(
-            onCloseRequest = ::exitApplication,
-            title = "Tracks — desktop harness",
-            // An iPhone's logical size, so what fits here fits there.
-            state = rememberWindowState(size = DpSize(393.dp, 852.dp)),
-        ) {
-            fun contentBounds() = window.contentPane.let { pane ->
-                val origin = pane.locationOnScreen
-                Rectangle(origin.x, origin.y, pane.width, pane.height)
-            }
+        Window(onCloseRequest = ::exitApplication, title = "Tracks — desktop harness", state = rememberWindowState(size = PHONE)) {
             if (tapAt != null) {
                 LaunchedEffect(Unit) {
                     delay(tapAt.seconds)
-                    withContext(Dispatchers.IO) {
-                        // A third of the way down the map, clear of the controls at the bottom.
-                        val bounds = contentBounds()
-                        Robot().apply {
-                            mouseMove(bounds.x + bounds.width / 2, bounds.y + bounds.height / 3)
-                            mousePress(InputEvent.BUTTON1_DOWN_MASK)
-                            mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
-                        }
-                    }
+                    // A third of the way down the map, clear of the controls at the bottom.
+                    withContext(Dispatchers.IO) { window.click(window.contentPane.width / 2, window.contentPane.height / 3) }
                     println("tapped")
                 }
             }
@@ -80,7 +63,7 @@ fun main(args: Array<String>) {
                     delay(shotAt.seconds)
                     withContext(Dispatchers.IO) {
                         shot.absoluteFile.parentFile?.mkdirs()
-                        ImageIO.write(Robot().createScreenCapture(contentBounds()), "png", shot)
+                        ImageIO.write(window.capture(), "png", shot)
                     }
                     println("shot ${shot.path}")
                     exitProcess(0)
