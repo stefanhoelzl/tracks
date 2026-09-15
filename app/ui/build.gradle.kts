@@ -34,6 +34,7 @@ kotlin {
             implementation(libs.compose.ui)
             implementation(libs.compose.resources)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.okio)
             // Imported only under net.stho.tracks.ui.map; nothing outside it names a MapLibre type.
             implementation(libs.maplibre.compose)
         }

@@ -6,73 +6,76 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.window.ComposeUIViewController
-import net.stho.tracks.codec.Coordinate
-import net.stho.tracks.recording.Rides
-import net.stho.tracks.ui.harness.MapHarness
+import kotlin.time.Clock
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.MainScope
+import net.stho.tracks.routing.LegRouter
+import net.stho.tracks.store.PlanLibrary
+import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.recording.RecorderState
 import net.stho.tracks.ui.sensors.LocationSensors
 import net.stho.tracks.ui.sensors.ReplaySensors
 import net.stho.tracks.ui.sensors.Sensors
-import net.stho.tracks.ui.sensors.shared
-import net.stho.tracks.ui.upload.KeychainSessionStore
-import net.stho.tracks.ui.upload.UploadQueue
-import net.stho.tracks.ui.upload.tracksHttpClient
-import net.stho.tracks.upload.TracksApi
+import okio.FileSystem
+import okio.Path.Companion.toPath
+import platform.Foundation.NSApplicationSupportDirectory
+import platform.Foundation.NSBundle
+import platform.Foundation.NSDocumentDirectory
+import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
+import platform.Foundation.NSURL
+import platform.Foundation.NSUserDomainMask
+import platform.UIKit.UIActivityViewController
+import platform.UIKit.UIApplication
+import platform.UIKit.UIPasteboard
 import platform.UIKit.UIViewController
 
 /**
  * The app's screen, for the Swift shell to put in its window: the map, recording, and the upload queue.
  *
- * It follows the phone's own location, compass and barometer, and uploads to tracks.stho.net. Two launch variables
- * (`pymobiledevice3 developer dvt launch --env`) change that for testing:
+ * It follows the phone's own location and compass. Launched with TRACKS_REPLAY=<second> (`pymobiledevice3 developer
+ * dvt launch --env`), it replays the bundled ride from that second instead — the same ride the desktop harness and the
+ * screenshot tests draw, which is how the three are compared.
  *
- * - `TRACKS_REPLAY=<second>` replays the bundled ride from that second — the same ride the desktop harness and the
- *   screenshot tests draw, which is how the three are compared.
- * - `TRACKS_SERVER=<url>` uploads somewhere else: a dev server on this network, `http://<address>:<port>`, which is how a
- *   ride is uploaded from the phone without reaching production.
+ * Plans live in Application Support, which an app update keeps and iOS never purges. Routing tiles are read from
+ * Documents/segments, where they are pushed by hand until M13 downloads them.
  */
 fun MainViewController(): UIViewController = ComposeUIViewController {
-    val environment = NSProcessInfo.processInfo.environment
-    val replayFrom = (environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
-    val server = (environment["TRACKS_SERVER"] as? String) ?: PRODUCTION_SERVER
-
-    // The UI's own scope, on the main thread: what the recorder and the queue need theirs to be.
-    val scope = rememberCoroutineScope()
-    val location = remember { LocationSensors().takeIf { replayFrom == null } }
-    val source by produceState<Pair<Sensors, List<Coordinate>>?>(null) {
-        value = if (replayFrom != null) {
-            bundledRide().let { ReplaySensors(it, fromSecond = replayFrom).shared(scope) to it.track }
-        } else {
-            location!!.shared(scope) to emptyList()
-        }
+    val library = remember {
+        PlanLibrary(
+            store = PlanStore(directory("plans", NSApplicationSupportDirectory).toPath(), FileSystem.SYSTEM),
+            router = LegRouter(
+                segmentDir = directory("segments", NSDocumentDirectory),
+                profileDir = NSBundle.mainBundle.resourcePath + "/profiles",
+                dispatcher = Dispatchers.IO,
+            ),
+            scope = MainScope(),
+            io = Dispatchers.IO,
+            now = { Clock.System.now().toEpochMilliseconds() },
+        )
     }
-    val rides = remember { Rides(ridesDirectory()) }
-    val queue = remember { UploadQueue(rides, TracksApi(tracksHttpClient(), server), KeychainSessionStore(), scope) }
+    val sensors by produceState<Sensors?>(null) {
+        val replayFrom = (NSProcessInfo.processInfo.environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
+        value = if (replayFrom != null) ReplaySensors(bundledRide(), fromSecond = replayFrom) else LocationSensors()
+    }
+    sensors?.let { TracksApp(library, it, IosPlatform) }
+}
 
-    source?.let { (sensors, plan) ->
-        val recorder = remember(sensors) { Recorder(rides, sensors, scope, dateTitle = ::localDate, onSaved = queue::kick) }
-        val recording by recorder.state.collectAsState()
+private fun directory(name: String, base: ULong): String {
+    val root = NSFileManager.defaultManager.URLsForDirectory(base, NSUserDomainMask).first() as NSURL
+    return root.path + "/" + name
+}
 
-        // Location keeps running with the phone locked only while there is a ride to record, paused or not.
-        LaunchedEffect(recording is RecorderState.Recording) {
-            location?.recording = recording is RecorderState.Recording
-        }
+private object IosPlatform : AppPlatform {
+    override fun clipboardText(): String? = UIPasteboard.generalPasteboard.string
 
-        DisposableEffect(recorder) {
-            // Leaving the screen is when iOS may end the app without asking: what is buffered goes to disk first.
-            val stopLifecycle = onAppLifecycle(background = recorder::flush, foreground = queue::kick)
-            val stopNetwork = whenOnline(queue::kick)
-            onDispose {
-                stopLifecycle()
-                stopNetwork()
-            }
-        }
-
-        MapHarness(sensors, plan, recorder = recorder, upload = queue)
+    override fun share(url: String) {
+        val link = NSURL.URLWithString(url) ?: return
+        val sheet = UIActivityViewController(activityItems = listOf(link), applicationActivities = null)
+        UIApplication.sharedApplication.keyWindow?.rootViewController?.presentViewController(sheet, animated = true, completion = null)
     }
 }
