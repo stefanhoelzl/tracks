@@ -221,6 +221,19 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     thread.start()
     return true
   }
+
+  // A universal link: a tracks.stho.net plan link, opened in the app as the link it is. It lands in the plan list,
+  // as a pasted one does, and never starts anything.
+  func application(
+    _ application: UIApplication, continue userActivity: NSUserActivity,
+    restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
+  ) -> Bool {
+    guard userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL else {
+      return false
+    }
+    IncomingLinks.shared.receive(url: url.absoluteString)
+    return true
+  }
 }
 
 UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))

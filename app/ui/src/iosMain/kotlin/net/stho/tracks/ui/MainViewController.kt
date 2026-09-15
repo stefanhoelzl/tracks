@@ -69,7 +69,16 @@ fun MainViewController(): UIViewController = ComposeUIViewController {
         val replayFrom = (NSProcessInfo.processInfo.environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
         value = if (replayFrom != null) ReplaySensors(bundledRide(), fromSecond = replayFrom) else LocationSensors()
     }
-    sensors?.let { TracksApp(library = library, router = router, geocoder = geocoder, sensors = it, platform = IosPlatform) }
+    sensors?.let {
+        TracksApp(
+            library = library,
+            router = router,
+            geocoder = geocoder,
+            sensors = it,
+            platform = IosPlatform,
+            links = IncomingLinks.links,
+        )
+    }
 }
 
 private fun directory(name: String, base: ULong): String {
