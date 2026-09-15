@@ -23,11 +23,11 @@ Two files share the name `idea-2026.2.2.tar.gz`; they are not the same product:
 | terms | JetBrains User Agreement 2.0 | JetBrains Open-Source Build Terms 1.3 (Apache 2.0) |
 | cache it in CI, bake it into an image | not clearly allowed (see §3.5(d)) | allowed |
 
-**Before switching, one thing has to be shown, not assumed:** that the open-source build converts
-BRouter to the same Kotlin. It should — J2K lives in `plugins/kotlin/j2k/k2` of the same tag —
-but the whole pipeline rests on the output being deterministic, so change 2 runs `convert.sh`
-against it and diffs the result against the spike's `j2k-raw-perfile/`. If it differs, the fix
-passes are re-based once and the difference is written down.
+**Shown, not assumed:** the open-source build converts BRouter to the same Kotlin. `convert.sh`
+run against it (2026-09-15) produced 101 files, 0 unresolved references, and a tree identical
+to the one the unified build produced during the spike — `diff -r` finds no difference — so the
+fix passes apply unchanged and `replay.sh --check` passes. J2K lives in
+`plugins/kotlin/j2k/k2` of the same tag, which is why.
 
 ## The unified distribution
 
@@ -73,7 +73,7 @@ x86_64 and aarch64. Building it ourselves is possible but not needed: JetBrains 
 (the README calls the migration's rough edges out), at least 8 GB of RAM, and
 `docker build . --target intellij_idea` or `./installers.cmd`.
 
-## What the pipeline does with this (change 2)
+## What the pipeline does with this
 
 - `convert.sh` downloads the open-source `idea-<version>.tar.gz` from the GitHub release and
   checks its sha256, pinned in the script. The unified download stays behind a switch, as the
