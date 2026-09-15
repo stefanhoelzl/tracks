@@ -18,5 +18,6 @@ object Type {
     val label = TextStyle(color = Tokens.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.12.em)
     val number = TextStyle(color = Tokens.ink, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.04).em)
     val unit = TextStyle(color = Tokens.muted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+    val axis = TextStyle(color = Tokens.muted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
     val control = TextStyle(color = Tokens.surface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
 }

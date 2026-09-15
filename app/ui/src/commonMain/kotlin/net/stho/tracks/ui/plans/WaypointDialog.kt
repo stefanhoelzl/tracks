@@ -1,0 +1,148 @@
+package net.stho.tracks.ui.plans
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.plan.Placement
+import net.stho.tracks.plan.Waypoint
+import net.stho.tracks.plan.WaypointKind
+import net.stho.tracks.ui.theme.Pill
+import net.stho.tracks.ui.theme.Shapes
+import net.stho.tracks.ui.theme.Tokens
+import net.stho.tracks.ui.theme.Type
+
+/** What the dialog is about: a place not yet in the plan, or a waypoint that is. */
+sealed interface PinTarget {
+    /**
+     * [leg] is the leg the place is nearest, if the plan has one; [between] says which, so a choice names its
+     * consequence. [name] is known when the place came from a search or a map label.
+     */
+    data class New(val at: Coordinate, val leg: Int?, val between: String?, val name: String?) : PinTarget
+
+    data class Edit(val index: Int, val waypoint: Waypoint) : PinTarget
+}
+
+/**
+ * The one thing that commits a waypoint and the one thing that edits one, as on the web: however a place was found —
+ * a tap on the map, a search result — adding it is this; and a waypoint's name, kind and removal are here.
+ */
+@Composable
+fun WaypointDialog(
+    target: PinTarget,
+    count: Int,
+    kindIsAChoice: Boolean,
+    onAdd: (WaypointKind, Placement) -> Unit,
+    onKind: (WaypointKind) -> Unit,
+    onRename: (String) -> Unit,
+    onRemove: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier.fillMaxWidth().background(Tokens.surface, Shapes.panel).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        when (target) {
+            is PinTarget.New -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    BasicText(target.name ?: "Waypoint", style = Type.title, modifier = Modifier.weight(1f))
+                    Close(onClose)
+                }
+                BasicText(
+                    if (target.leg != null && target.between != null) "Add to ${target.between}" else "Add as stop",
+                    style = Type.label,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Splitting a leg is on offer as soon as there is a leg to split.
+                    if (target.leg != null) Pill("Insert", onClick = { onAdd(WaypointKind.Poi, Placement.Nearest) })
+                    if (count == 0) {
+                        Pill("Add", onClick = { onAdd(WaypointKind.Poi, Placement.End) })
+                    } else {
+                        Pill("Start", onClick = { onAdd(WaypointKind.Poi, Placement.Start) })
+                        Pill("End", onClick = { onAdd(WaypointKind.Poi, Placement.End) })
+                    }
+                }
+                // A shaping hint with no leg to shape has nowhere to go.
+                if (kindIsAChoice && target.leg != null) {
+                    Pill("Shaping point", onClick = { onAdd(WaypointKind.Routing, Placement.Nearest) }, primary = false)
+                    BasicText(
+                        target.between?.let { "Bends $it without stopping there" } ?: "Bends this leg without stopping there",
+                        style = Type.note,
+                    )
+                }
+            }
+
+            is PinTarget.Edit -> {
+                var name by remember(target) { mutableStateOf(target.waypoint.name ?: "") }
+                val done = {
+                    if (target.waypoint.kind == WaypointKind.Poi && name.trim() != (target.waypoint.name ?: "")) onRename(name.trim())
+                    onClose()
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (target.waypoint.kind == WaypointKind.Poi) {
+                        BasicTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            singleLine = true,
+                            textStyle = Type.title,
+                            cursorBrush = SolidColor(Tokens.accent),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { done() }),
+                            decorationBox = { field ->
+                                Box {
+                                    if (name.isEmpty()) BasicText("Name this stop", style = Type.title.copy(color = Tokens.muted))
+                                    field()
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        BasicText("Shaping point", style = Type.title, modifier = Modifier.weight(1f))
+                    }
+                    Close(done)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (kindIsAChoice) {
+                        val poi = target.waypoint.kind == WaypointKind.Poi
+                        Pill(
+                            if (poi) "Make shaping" else "Make a stop",
+                            onClick = { onKind(if (poi) WaypointKind.Routing else WaypointKind.Poi) },
+                            primary = false,
+                        )
+                    }
+                    Pill("Remove", onClick = onRemove, primary = false)
+                }
+                // POI is a break and ROUTING a pass-through, so flipping the kind merges or splits a leg.
+                if (kindIsAChoice) BasicText("Changing the kind redraws this part of the route", style = Type.note)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Close(onClick: () -> Unit) {
+    Box(Modifier.size(40.dp).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        BasicText("×", style = Type.title.copy(color = Tokens.muted))
+    }
+}

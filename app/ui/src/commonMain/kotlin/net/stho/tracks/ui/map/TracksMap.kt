@@ -1,12 +1,22 @@
 package net.stho.tracks.ui.map
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -15,23 +25,35 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonPrimitive
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.sensors.Fix
 import net.stho.tracks.sensors.Heading
 import net.stho.tracks.ui.resources.Res
 import net.stho.tracks.ui.theme.Tokens
 import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.expressions.dsl.asString
 import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.dsl.feature
+import org.maplibre.compose.expressions.dsl.format
 import org.maplibre.compose.expressions.dsl.image
 import org.maplibre.compose.expressions.dsl.interpolate
 import org.maplibre.compose.expressions.dsl.linear
+import org.maplibre.compose.expressions.dsl.span
+import org.maplibre.compose.expressions.dsl.textOffset
 import org.maplibre.compose.expressions.dsl.zoom
 import org.maplibre.compose.expressions.value.IconRotationAlignment
 import org.maplibre.compose.expressions.value.LineCap
@@ -39,12 +61,14 @@ import org.maplibre.compose.expressions.value.LineJoin
 import org.maplibre.compose.expressions.value.SymbolAnchor
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
+import org.maplibre.compose.layers.CircleLayer
 import org.maplibre.compose.layers.LineLayer
 import org.maplibre.compose.layers.SymbolLayer
 import org.maplibre.compose.location.LocationMeasurement
 import org.maplibre.compose.location.LocationPuck
 import org.maplibre.compose.location.LocationPuckColors
 import org.maplibre.compose.map.MapEvent
+import org.maplibre.compose.map.MapState
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.overlay.ExpandingAttributionButton
@@ -86,12 +110,34 @@ sealed interface MapCamera {
     data class Overview(val points: List<Coordinate>, val inset: PaddingValues = PaddingValues(32.dp)) : MapCamera
 }
 
+/** How a leg is drawn, from plan-layers.ts: one dash pattern, one meaning — *this is a straight line, not a route*. */
+enum class LegState {
+    Routed,
+
+    /** Not a route yet: the dash in the plan's colour, pulsing while the engine works. */
+    Routing,
+
+    /** Not a route, and not being made one: a still dash — could not be routed, no data here, or a drag in progress. */
+    Unroutable,
+}
+
+data class LegLine(val coordinates: List<Coordinate>, val state: LegState)
+
+/** A waypoint on the map: a stop, labelled with its name, or a shaping point on the line. */
+data class WaypointMark(val at: Coordinate, val stop: Boolean, val label: String)
+
+/** A plan as the editor draws it. [pulse] animates routing legs; the screenshot scenes hold them still. */
+data class PlanDrawing(val legs: List<LegLine>, val waypoints: List<WaypointMark>, val pulse: Boolean = true)
+
 /**
- * The map: the basemap, the [plan] line, the [ridden] track over it, the rider at [fix], and a camera that does what
- * [camera] says.
+ * The map: the basemap, the [plan] line (or a [drawing] of one being edited), the rider at [fix], and a camera that
+ * does what [camera] says.
  *
- * [onTap] reports where on the map a tap landed. [onIdle] is called whenever the map has finished drawing what it was
- * asked for — what a screenshot waits for.
+ * [onTap] reports where a tap landed. With [onPlace] set, a tap instead reports where it landed together with the name
+ * of the place labelled under it on the map — how a stop is named with no signal. [onLongPress] reports a long press.
+ * A [drawing]'s waypoints can be tapped ([onWaypointTap]) and dragged ([onWaypointDrag], reported as they move and once
+ * more, `done`, where they are let go). [onIdle] is called whenever the map has finished drawing what it was asked for —
+ * what a screenshot waits for.
  */
 @Composable
 fun TracksMap(
@@ -102,13 +148,20 @@ fun TracksMap(
     ridden: List<Coordinate> = emptyList(),
     fix: Fix? = null,
     heading: Heading? = null,
+    drawing: PlanDrawing? = null,
     onTap: (Coordinate) -> Unit = {},
+    onPlace: ((Coordinate, String?) -> Unit)? = null,
+    onLongPress: ((Coordinate) -> Unit)? = null,
+    onWaypointTap: (Int) -> Unit = {},
+    onWaypointDrag: (index: Int, at: Coordinate, done: Boolean) -> Unit = { _, _, _ -> },
     onIdle: () -> Unit = {},
 ) {
     // A Metal or Vulkan surface created at 0×0 never recovers (the KRAIL pitfalls): wait for a size, once.
     var sized by remember { mutableStateOf(false) }
     Box(modifier.onSizeChanged { if (it.width > 0 && it.height > 0) sized = true }) {
-        if (sized) MapLibreMap(style, camera, plan, ridden, fix, heading, onTap, onIdle)
+        if (sized) {
+            MapLibreMap(style, camera, plan, fix, heading, drawing, onTap, onPlace, onLongPress, onWaypointTap, onWaypointDrag, onIdle)
+        }
     }
 }
 
@@ -117,21 +170,51 @@ private val PLAN_WIDTH = listOf(6 to 2.0, 10 to 2.8, 14 to 3.6)
 private val PLAN_CASING_WIDTH = listOf(6 to 3.6, 10 to 4.8, 14 to 6.0)
 private const val PLAN_CASING_OPACITY = 0.55f
 
-/**
- * The track being recorded: the web palette's second hue (lib/colour.ts), not the accent. The plan is the accent because
- * it is the thing you edit; a ride is data, which the accent never is — and a green over the green plan would not show.
- */
-private val RIDDEN_COLOUR = Color(0xFFCE7A0C)
+/** A beeline's weight and dash, and how faint a routing one gets at the low of its pulse. */
+private val BEELINE_WIDTH = 3.dp
+private val BEELINE_DASH: List<Number> = listOf(2, 2.5)
+private const val UNROUTABLE_OPACITY = 0.5f
+private const val ROUTING_REST_OPACITY = 0.55f
+private const val ROUTING_LOW_OPACITY = 0.2f
+private const val ROUTING_PERIOD_MS = 1100
+
+/** Below this a shaping point is noise: a dot on a line whose shape is the only thing readable. */
+private const val SHAPING_MIN_ZOOM = 10f
+
+/** How big a waypoint's handle is under a finger: bigger than the marker, which is drawn for the eye. */
+private val HANDLE_SIZE = 44.dp
+
+/** The map's labels a stop may take its name from, most specific first: things, then stations, then places. */
+private val NAMED_LAYERS = setOf(
+    "poi-amenity", "poi-leisure", "poi-tourism", "poi-shop", "poi-man_made", "poi-historic", "poi-emergency",
+    "poi-highway", "poi-office", "symbol-transit-station", "symbol-transit-airfield", "symbol-transit-airport",
+    "label-place-neighbourhood", "label-place-quarter", "label-place-suburb", "label-place-hamlet",
+    "label-place-village", "label-place-town", "label-place-city", "label-place-statecapital", "label-place-capital",
+)
+
+/** How far from a tap a label still names it. */
+private val NAME_REACH = 16.dp
 
 private fun widthByZoom(stops: List<Pair<Int, Double>>) =
     interpolate(linear(), zoom(), *stops.map { (z, width) -> z to const(width.toFloat().dp) }.toTypedArray())
 
-/** A map with no plan has nothing to draw, and MapLibre refuses a line of fewer than two points. */
-private fun lineJson(points: List<Coordinate>): String = if (points.size < 2) EMPTY_COLLECTION else points.joinToString(
+private const val EMPTY_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
+
+private fun lineFeature(points: List<Coordinate>): String = points.joinToString(
     separator = ",",
     prefix = """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[""",
     postfix = "]}}",
 ) { "[${it.lon},${it.lat}]" }
+
+/** Lines as one collection. MapLibre refuses a line of fewer than two points, so those are left out. */
+private fun linesJson(lines: List<List<Coordinate>>): String =
+    lines.filter { it.size >= 2 }.joinToString(",", """{"type":"FeatureCollection","features":[""", "]}", transform = ::lineFeature)
+
+private fun pointsJson(marks: List<WaypointMark>): String = marks.joinToString(
+    ",",
+    """{"type":"FeatureCollection","features":[""",
+    "]}",
+) { """{"type":"Feature","properties":{"label":${JsonPrimitive(it.label)}},"geometry":{"type":"Point","coordinates":[${it.at.lon},${it.at.lat}]}}""" }
 
 private fun Fix.measurement() = LocationMeasurement(
     position = Position(longitude = at.lon, latitude = at.lat),
@@ -148,8 +231,6 @@ private const val FIELD_OF_VIEW_DEG = 60.0
 
 /** The black of the rider's dot, inside its white rim: LocationPuckSizes' default radius of 6 dp. */
 private val RIDER_DOT_DIAMETER = 12.dp
-
-private const val EMPTY_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
 
 private fun pointJson(at: Coordinate?): String = at?.let {
     """{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[${it.lon},${it.lat}]}}"""
@@ -173,21 +254,50 @@ private fun MapLibreMap(
     ridden: List<Coordinate>,
     fix: Fix?,
     heading: Heading?,
+    drawing: PlanDrawing?,
     onTap: (Coordinate) -> Unit,
+    onPlace: ((Coordinate, String?) -> Unit)?,
+    onLongPress: ((Coordinate) -> Unit)?,
+    onWaypointTap: (Int) -> Unit,
+    onWaypointDrag: (Int, Coordinate, Boolean) -> Unit,
     onIdle: () -> Unit,
 ) {
     val currentCamera by rememberUpdatedState(camera)
     val currentFix by rememberUpdatedState(fix)
     val currentHeading by rememberUpdatedState(heading)
     val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnPlace by rememberUpdatedState(onPlace)
+    val currentOnLongPress by rememberUpdatedState(onLongPress)
     val currentOnIdle by rememberUpdatedState(onIdle)
-    val planJson = remember(plan) { lineJson(plan) }
     val layoutDirection = LocalLayoutDirection.current
+    val scope = rememberCoroutineScope()
+
+    // What each layer draws. Without a drawing, the plan is one routed line.
+    val routedJson = remember(plan, drawing) {
+        linesJson(drawing?.legs?.filter { it.state == LegState.Routed }?.map { it.coordinates } ?: listOf(plan))
+    }
+    val routingJson = remember(drawing) { linesJson(drawing?.legs?.filter { it.state == LegState.Routing }?.map { it.coordinates } ?: emptyList()) }
+    val unroutableJson = remember(drawing) { linesJson(drawing?.legs?.filter { it.state == LegState.Unroutable }?.map { it.coordinates } ?: emptyList()) }
+    val stopsJson = remember(drawing) { pointsJson(drawing?.waypoints?.filter { it.stop } ?: emptyList()) }
+    val shapingJson = remember(drawing) { pointsJson(drawing?.waypoints?.filterNot { it.stop } ?: emptyList()) }
+
+    // The one thing on the map that moves on its own, because it is the one thing waiting on somebody else.
+    val waiting = drawing != null && drawing.pulse && drawing.legs.any { it.state == LegState.Routing }
+    val routingOpacity = if (waiting) {
+        val pulse by rememberInfiniteTransition().animateFloat(
+            initialValue = ROUTING_REST_OPACITY,
+            targetValue = ROUTING_LOW_OPACITY,
+            animationSpec = infiniteRepeatable(tween(ROUTING_PERIOD_MS / 2), RepeatMode.Reverse),
+        )
+        pulse
+    } else {
+        ROUTING_REST_OPACITY
+    }
 
     // Start where the camera is going when that is known, rather than flying in: every tile a fly-in passes through is
     // one more download, on a phone that may be on a hillside's last bar of signal.
     val initialCamera = remember {
-        val at = fix?.at ?: plan.firstOrNull() ?: Coordinate(47.4917, 11.0950)
+        val at = fix?.at ?: plan.firstOrNull() ?: drawing?.waypoints?.firstOrNull()?.at ?: Coordinate(47.4917, 11.0950)
         when (camera) {
             is MapCamera.Follow -> CameraPosition(
                 target = Position(at.lon, at.lat),
@@ -202,10 +312,10 @@ private fun MapLibreMap(
         baseStyle = remember(style) { BaseStyle.Json(style.json) },
         initialCameraPosition = initialCamera,
     ) {
-        val planSource = rememberGeoJsonSource(GeoJsonData.JsonString(planJson))
+        val routedSource = rememberGeoJsonSource(GeoJsonData.JsonString(routedJson))
         LineLayer(
             id = "plan-casing",
-            source = planSource,
+            source = routedSource,
             color = const(Tokens.ink),
             opacity = const(PLAN_CASING_OPACITY),
             width = widthByZoom(PLAN_CASING_WIDTH),
@@ -214,22 +324,71 @@ private fun MapLibreMap(
         )
         LineLayer(
             id = "plan",
-            source = planSource,
+            source = routedSource,
             color = const(Tokens.accent),
             width = widthByZoom(PLAN_WIDTH),
             cap = const(LineCap.Round),
             join = const(LineJoin.Round),
         )
-        // Over the plan, at the plan's weight: where you went, drawn on where you meant to.
-        val riddenSource = rememberGeoJsonSource(GeoJsonData.JsonString(riddenJson))
+
+        // Could not be routed: dashed and uncased, so it reads as a gap in the plan rather than as part of it.
         LineLayer(
-            id = "ridden",
-            source = riddenSource,
-            color = const(RIDDEN_COLOUR),
-            width = widthByZoom(PLAN_WIDTH),
-            cap = const(LineCap.Round),
+            id = "plan-unroutable",
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(unroutableJson)),
+            color = const(Tokens.ink),
+            opacity = const(UNROUTABLE_OPACITY),
+            width = const(BEELINE_WIDTH),
+            dasharray = const(BEELINE_DASH),
+            cap = const(LineCap.Butt),
             join = const(LineJoin.Round),
         )
+        // Not a route yet: the same dash in the plan's own colour.
+        LineLayer(
+            id = "plan-routing",
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(routingJson)),
+            color = const(Tokens.accent),
+            opacity = const(routingOpacity),
+            width = const(BEELINE_WIDTH),
+            dasharray = const(BEELINE_DASH),
+            cap = const(LineCap.Butt),
+            join = const(LineJoin.Round),
+        )
+
+        // A shaping point is a property of the route, not a place: small, white, on the line, in the route's colour.
+        CircleLayer(
+            id = "plan-shaping",
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(shapingJson)),
+            minZoom = SHAPING_MIN_ZOOM,
+            color = const(Color.White),
+            opacity = const(0.9f),
+            radius = const(3.5.dp),
+            strokeWidth = const(1.5.dp),
+            strokeColor = const(Tokens.accent),
+        )
+        // A stop is the plan, so it is the plan's colour, ringed in white to hold against the terrain.
+        val stopsSource = rememberGeoJsonSource(GeoJsonData.JsonString(stopsJson))
+        CircleLayer(
+            id = "plan-stops",
+            source = stopsSource,
+            color = const(Tokens.accent),
+            radius = const(7.dp),
+            strokeWidth = const(2.5.dp),
+            strokeColor = const(Color.White),
+        )
+        SymbolLayer(
+            id = "plan-stop-labels",
+            source = stopsSource,
+            textField = format(span(feature.get("label").asString())),
+            textFont = const(listOf("noto_sans_bold")),
+            textSize = const(12.sp),
+            textOffset = textOffset(0.em, 1.1.em),
+            textAnchor = const(SymbolAnchor.Top),
+            textOptional = const(true),
+            textColor = const(Tokens.ink),
+            textHaloColor = const(Color.White.copy(alpha = 0.92f)),
+            textHaloWidth = const(1.6.dp),
+        )
+
         // Ink, not accent: the rider sits on the plan line, and an accent dot would vanish into it. The library's own
         // bearing marks — an arrow, and a thin arc on the dot's rim — are off; the facing wedge below replaces them.
         LocationPuck(
@@ -306,24 +465,103 @@ private fun MapLibreMap(
         }
     }
 
-    MaplibreMap(
-        state = state,
-        interactions = remember {
-            MapInteractions {
-                callbacks {
-                    click {
-                        onUnhandled { event ->
-                            val at = event.position ?: return@onUnhandled ClickResult.Pass
-                            currentOnTap(Coordinate(lat = at.latitude, lon = at.longitude))
-                            ClickResult.Consume
+    Box {
+        MaplibreMap(
+            state = state,
+            interactions = remember {
+                MapInteractions {
+                    callbacks {
+                        click {
+                            onUnhandled { event ->
+                                val at = event.position ?: return@onUnhandled ClickResult.Pass
+                                val coordinate = Coordinate(lat = at.latitude, lon = at.longitude)
+                                val place = currentOnPlace
+                                if (place == null) {
+                                    currentOnTap(coordinate)
+                                } else {
+                                    val screen = event.screenOffset
+                                    scope.launch { place(coordinate, nameAt(state, screen)) }
+                                }
+                                ClickResult.Consume
+                            }
+                        }
+                        longClick {
+                            onEvent { event ->
+                                val press = currentOnLongPress ?: return@onEvent ClickResult.Pass
+                                val at = event.position ?: return@onEvent ClickResult.Pass
+                                press(Coordinate(lat = at.latitude, lon = at.longitude))
+                                ClickResult.Consume
+                            }
                         }
                     }
                 }
-            }
-        },
-    ) {
-        // Only the attribution OpenStreetMap's licence asks for. The default overlay's logo and compass collide with
-        // the app's own controls, and its scale bar is in feet.
-        ExpandingAttributionButton()
+            },
+        ) {
+            // Only the attribution OpenStreetMap's licence asks for. The default overlay's logo and compass collide with
+            // the app's own controls, and its scale bar is in feet.
+            ExpandingAttributionButton()
+        }
+
+        drawing?.let { WaypointHandles(state, it.waypoints, onWaypointTap, onWaypointDrag) }
+    }
+}
+
+/** The name of the place labelled nearest a tap, from the map's own labels: English where the tiles have it. */
+private suspend fun nameAt(state: MapState, at: DpOffset): String? {
+    val reach = DpRect(at.x - NAME_REACH, at.y - NAME_REACH, at.x + NAME_REACH, at.y + NAME_REACH)
+    val features = try {
+        state.queryRenderedFeatures(reach, NAMED_LAYERS)
+    } catch (e: IllegalStateException) {
+        // The map is not ready to be asked yet; a stop placed now simply has no name from it.
+        return null
+    }
+    for (feature in features) {
+        val properties = feature.properties ?: continue
+        val name = (properties["name_en"] ?: properties["name"]) as? JsonPrimitive ?: continue
+        if (name.isString && name.content.isNotBlank()) return name.content
+    }
+    return null
+}
+
+/**
+ * Touch targets over each waypoint, placed where the map draws it and moved with the camera: a tap edits one, a drag
+ * moves it. They are Compose over the map rather than map layers, so a drag on one never pans the map beneath it.
+ */
+@Composable
+private fun WaypointHandles(
+    state: MapState,
+    waypoints: List<WaypointMark>,
+    onTap: (Int) -> Unit,
+    onDrag: (Int, Coordinate, Boolean) -> Unit,
+) {
+    val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    // Read so the handles follow the camera: the position is Compose state.
+    state.cameraPosition
+
+    waypoints.forEachIndexed { index, mark ->
+        val screen = runCatching { state.screenLocationFromPosition(Position(mark.at.lon, mark.at.lat)) }.getOrNull() ?: return@forEachIndexed
+        var dragged by remember(index, mark) { mutableStateOf(screen) }
+        Box(
+            Modifier
+                .offset(screen.x - HANDLE_SIZE / 2, screen.y - HANDLE_SIZE / 2)
+                .size(HANDLE_SIZE)
+                .pointerInput(index, mark) { detectTapGestures(onTap = { currentOnTap(index) }) }
+                .pointerInput(index, mark) {
+                    detectDragGestures(
+                        onDragStart = { dragged = screen },
+                        onDragEnd = {
+                            val at = state.positionFromScreenLocation(dragged) ?: return@detectDragGestures
+                            currentOnDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), true)
+                        },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            dragged = DpOffset(dragged.x + amount.x.toDp(), dragged.y + amount.y.toDp())
+                            val at = state.positionFromScreenLocation(dragged) ?: return@detectDragGestures
+                            currentOnDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), false)
+                        },
+                    )
+                },
+        )
     }
 }

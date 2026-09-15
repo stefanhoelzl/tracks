@@ -11,7 +11,9 @@ import kotlin.time.Clock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.MainScope
+import net.stho.tracks.places.PhotonGeocoder
 import net.stho.tracks.routing.LegRouter
+import net.stho.tracks.ui.net.IosHttp
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.harness.bundledRide
@@ -45,14 +47,19 @@ import platform.UIKit.UIViewController
  * Documents/segments, where they are pushed by hand until M13 downloads them.
  */
 fun MainViewController(): UIViewController = ComposeUIViewController {
+    // One engine: the library's background routing and the editor's share it, one route at a time.
+    val router = remember {
+        LegRouter(
+            segmentDir = directory("segments", NSDocumentDirectory),
+            profileDir = NSBundle.mainBundle.resourcePath + "/profiles",
+            dispatcher = Dispatchers.IO,
+        )
+    }
+    val geocoder = remember { PhotonGeocoder(IosHttp) }
     val library = remember {
         PlanLibrary(
             store = PlanStore(directory("plans", NSApplicationSupportDirectory).toPath(), FileSystem.SYSTEM),
-            router = LegRouter(
-                segmentDir = directory("segments", NSDocumentDirectory),
-                profileDir = NSBundle.mainBundle.resourcePath + "/profiles",
-                dispatcher = Dispatchers.IO,
-            ),
+            router = router,
             scope = MainScope(),
             io = Dispatchers.IO,
             now = { Clock.System.now().toEpochMilliseconds() },
@@ -62,7 +69,7 @@ fun MainViewController(): UIViewController = ComposeUIViewController {
         val replayFrom = (NSProcessInfo.processInfo.environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
         value = if (replayFrom != null) ReplaySensors(bundledRide(), fromSecond = replayFrom) else LocationSensors()
     }
-    sensors?.let { TracksApp(library, it, IosPlatform) }
+    sensors?.let { TracksApp(library = library, router = router, geocoder = geocoder, sensors = it, platform = IosPlatform) }
 }
 
 private fun directory(name: String, base: ULong): String {

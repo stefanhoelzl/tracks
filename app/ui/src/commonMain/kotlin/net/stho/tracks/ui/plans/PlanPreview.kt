@@ -46,8 +46,7 @@ import net.stho.tracks.ui.theme.Type
 /**
  * A stored plan, read-only: the whole of it on the map, its numbers, and what can be done with it.
  *
- * What a tap in the list opens until riding exists (M14), when that tap starts a ride instead. Editing arrives with the
- * editor; until then there is no control for it.
+ * What a tap in the list opens until riding exists (M14), when that tap starts a ride instead.
  */
 @Composable
 fun PlanPreview(
@@ -56,13 +55,13 @@ fun PlanPreview(
     routing: PlanRouting?,
     fix: Fix?,
     onBack: () -> Unit,
+    onEdit: () -> Unit,
     onCopy: () -> Unit,
     onShare: () -> Unit,
     modifier: Modifier = Modifier,
     onIdle: () -> Unit = {},
 ) {
     val plan = stored.plan
-    val totals = remember(stored.legs) { planTotals(stored.legs) }
     // Every leg as it is drawn, routed or not: a leg with no answer yet is the straight run through its waypoints.
     val line = remember(stored) { legGeometries(plan.waypoints, stored.legs).flatten() }
     val frame = remember(stored) {
@@ -112,18 +111,12 @@ fun PlanPreview(
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatTile("Distance", Format.km(totals.distanceM), "km", Modifier.weight(1f))
-                StatTile("Ascent", Format.metres(totals.ascentM), "m", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatTile("Descent", Format.metres(totals.descentM), "m", Modifier.weight(1f))
-                StatTile("Est. time", Format.duration(totals.durationS), "h", Modifier.weight(1f))
-            }
+            PlanTiles(stored.legs)
 
             statusOf(stored, routing)?.let { BasicText(it, style = Type.note) }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Edit", onClick = onEdit, primary = false)
                 Pill("Copy", onClick = onCopy, primary = false)
                 Pill("Share link", onClick = onShare)
             }
