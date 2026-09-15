@@ -1,5 +1,6 @@
 package net.stho.tracks.ui
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -18,7 +19,13 @@ import net.stho.tracks.routing.LegRouter
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.harness.bundledRide
+import net.stho.tracks.ui.map.configureMaps
 import net.stho.tracks.ui.net.IosHttp
+import net.stho.tracks.ui.offline.freeBytes
+import net.stho.tracks.ui.offline.mapsCacheFile
+import net.stho.tracks.ui.offline.offlineData
+import net.stho.tracks.ui.offline.offlineDirectory
+import net.stho.tracks.ui.offline.segmentsDirectory
 import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.recording.RecorderState
 import net.stho.tracks.ui.sensors.LocationSensors
@@ -56,9 +63,16 @@ import platform.UIKit.UIViewController
  *   ride is uploaded from the phone without reaching production.
  *
  * Plans live in Application Support, which an app update keeps and iOS never purges. Routing tiles are read from
- * Documents/segments, where they are pushed by hand until M13 downloads them.
+ * Documents/segments, where offline data downloads them; the map's offline packs are in Application Support too.
  */
-fun MainViewController(): UIViewController = ComposeUIViewController {
+fun MainViewController(): UIViewController {
+    // MapLibre's setup belongs to the process, and comes before the first map.
+    configureMaps(cacheFile = mapsCacheFile())
+    return ComposeUIViewController { TracksScreen() }
+}
+
+@Composable
+private fun TracksScreen() {
     val environment = NSProcessInfo.processInfo.environment
     val replayFrom = (environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
     val server = (environment["TRACKS_SERVER"] as? String) ?: PRODUCTION_SERVER
@@ -66,7 +80,7 @@ fun MainViewController(): UIViewController = ComposeUIViewController {
     // One engine: the library's background routing and the editor's share it, one route at a time.
     val router = remember {
         LegRouter(
-            segmentDir = directory("segments", NSDocumentDirectory),
+            segmentDir = segmentsDirectory().toString(),
             profileDir = NSBundle.mainBundle.resourcePath + "/profiles",
             dispatcher = Dispatchers.IO,
         )
@@ -95,6 +109,7 @@ fun MainViewController(): UIViewController = ComposeUIViewController {
     sensors?.let { shared ->
         val recorder = remember(shared) { Recorder(rides, shared, scope, dateTitle = ::localDate, onSaved = queue::kick) }
         val recording by recorder.state.collectAsState()
+        val offline = remember(shared) { offlineData(shared, offlineDirectory(), segmentsDirectory(), scope, ::freeBytes) }
 
         // Location keeps running with the phone locked only while there is a ride to record, paused or not.
         LaunchedEffect(recording is RecorderState.Recording) {
@@ -119,6 +134,7 @@ fun MainViewController(): UIViewController = ComposeUIViewController {
             platform = IosPlatform,
             recorder = recorder,
             upload = queue,
+            offline = offline,
             links = IncomingLinks.links,
         )
     }

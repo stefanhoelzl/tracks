@@ -30,6 +30,7 @@ import net.stho.tracks.store.PlanEditor
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.StoredPlan
 import net.stho.tracks.ui.harness.MapHarness
+import net.stho.tracks.ui.offline.OfflineData
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.plans.HomeScreen
 import net.stho.tracks.ui.plans.PlanEditorScreen
@@ -85,6 +86,7 @@ fun TracksApp(
     modifier: Modifier = Modifier.fillMaxSize(),
     recorder: Recorder? = null,
     upload: UploadQueue? = null,
+    offline: OfflineData? = null,
     links: Flow<String> = emptyFlow(),
     onIdle: () -> Unit = {},
 ) {
@@ -130,7 +132,7 @@ fun TracksApp(
     when {
         riding && recorder != null -> Box(modifier) {
             // M15's recording screen, as it shipped: record, pause, stop, Save ride?, and the upload queue.
-            MapHarness(sensors = sensors, plan = emptyList(), recorder = recorder, upload = upload, onIdle = onIdle)
+            MapHarness(sensors = sensors, plan = emptyList(), recorder = recorder, upload = upload, offline = offline, onIdle = onIdle)
             Pill(
                 "‹ Plans",
                 onClick = { riding = false },
