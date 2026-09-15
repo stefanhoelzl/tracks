@@ -8,6 +8,8 @@
       "!**/mock",
       "!**/node_modules",
       "!app",
+      "!build",
+      "!artifacts",
       "!packages/web/dist",
       "!packages/edge/dist"
     ]
