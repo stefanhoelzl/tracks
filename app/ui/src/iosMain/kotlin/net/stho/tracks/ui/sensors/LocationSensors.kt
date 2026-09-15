@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOn
 import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.sensors.Fix
+import net.stho.tracks.sensors.Heading
+import net.stho.tracks.sensors.Pressure
 import platform.CoreLocation.CLActivityTypeFitness
 import platform.CoreLocation.CLHeading
 import platform.CoreLocation.CLLocation

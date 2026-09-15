@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.sensors.pressureAt
 
 class ReplayTest {
     private val t0 = 1_783_062_000_000L

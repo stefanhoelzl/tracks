@@ -4,10 +4,8 @@ import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.floor
-import kotlin.math.pow
 import kotlin.math.roundToLong
 import kotlin.math.sin
-import kotlin.math.sqrt
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
@@ -15,18 +13,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import net.stho.tracks.codec.Coordinate
-
-private const val EARTH_RADIUS_M = 6_371_000.0
+import net.stho.tracks.sensors.Fix
+import net.stho.tracks.sensors.Heading
+import net.stho.tracks.sensors.Pressure
+import net.stho.tracks.sensors.distanceM
+import net.stho.tracks.sensors.pressureAt
 
 private fun Double.radians() = this * PI / 180.0
-
-/** Metres between two coordinates, on a sphere. */
-fun distanceM(a: Coordinate, b: Coordinate): Double {
-    val dLat = (b.lat - a.lat).radians()
-    val dLon = (b.lon - a.lon).radians()
-    val h = sin(dLat / 2).pow(2) + cos(a.lat.radians()) * cos(b.lat.radians()) * sin(dLon / 2).pow(2)
-    return 2 * EARTH_RADIUS_M * atan2(sqrt(h), sqrt(1 - h))
-}
 
 /** The initial bearing from [a] to [b], degrees clockwise from true north, in [0, 360). */
 fun bearingDeg(a: Coordinate, b: Coordinate): Double {
@@ -35,9 +28,6 @@ fun bearingDeg(a: Coordinate, b: Coordinate): Double {
         sin(a.lat.radians()) * cos(b.lat.radians()) * cos((b.lon - a.lon).radians())
     return (atan2(y, x) * 180.0 / PI + 360.0) % 360.0
 }
-
-/** What a barometer reads at an altitude in the standard atmosphere, hPa: the fake barometer's whole model. */
-fun pressureAt(altitudeM: Double): Double = 1013.25 * (1 - 2.25577e-5 * altitudeM).pow(5.25588)
 
 /** Below this a replayed rider is standing, and has no course: a GPS reports none either. */
 private const val STANDING_MPS = 0.3

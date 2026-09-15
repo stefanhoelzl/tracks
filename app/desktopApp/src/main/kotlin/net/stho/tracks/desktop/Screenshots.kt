@@ -33,6 +33,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.sensors.Heading
+import net.stho.tracks.sensors.distanceM
 import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.map.DesktopMapHost
 import net.stho.tracks.ui.map.MapCamera
@@ -40,9 +42,7 @@ import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.ui.map.configureDesktopMap
-import net.stho.tracks.ui.sensors.Heading
 import net.stho.tracks.ui.sensors.RideReplay
-import net.stho.tracks.ui.sensors.distanceM
 
 /*
  * The screenshot tests: the real map, drawn by MapLibre through Vulkan, compared with committed pictures of it.
