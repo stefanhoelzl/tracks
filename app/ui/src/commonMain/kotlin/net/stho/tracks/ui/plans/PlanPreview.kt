@@ -116,19 +116,17 @@ fun PlanPreview(
             onExpanded = { expanded = it },
             onHeaderHeight = { covered = it },
             header = {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    BasicText(titleOf(plan), style = Type.title)
-                    val stops = plan.waypoints.count { it.kind == WaypointKind.Poi }
-                    val legs = stored.legs.size
-                    BasicText(
-                        "$stops stops · $legs ${if (legs == 1) "leg" else "legs"} · brouter · ${plan.profile.label.lowercase()}",
-                        style = Type.mono,
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(Icons.Edit, "Edit", onClick = onEdit)
-                    IconButton(Icons.Copy, "Copy", onClick = onCopy)
-                    IconButton(Icons.Share, "Share link", onClick = onShare)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        BasicText(titleOf(plan), style = Type.title)
+                        val stops = plan.waypoints.count { it.kind == WaypointKind.Poi }
+                        val legs = stored.legs.size
+                        BasicText(
+                            "$stops stops · $legs ${if (legs == 1) "leg" else "legs"} · brouter · ${plan.profile.label.lowercase()}",
+                            style = Type.mono,
+                        )
+                    }
+                    PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare)
                 }
             },
             content = {

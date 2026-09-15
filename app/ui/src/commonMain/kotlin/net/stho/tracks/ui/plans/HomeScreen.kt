@@ -219,37 +219,44 @@ private fun PlanRow(
                 statusOf(stored, routing)?.let { BasicText(it, style = Type.note, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
 
-            Box {
-                Box(Modifier.size(48.dp).clickable { menu = true }, contentAlignment = Alignment.Center) {
-                    BasicText("⋯", style = Type.title.copy(color = Tokens.ink2))
-                }
-                if (menu) {
-                    Popup(
-                        alignment = Alignment.TopEnd,
-                        onDismissRequest = { menu = false },
-                        properties = PopupProperties(focusable = true),
-                    ) {
-                        Column(Modifier.padding(end = 8.dp).background(Tokens.surface, Shapes.panel).width(180.dp)) {
-                            MenuItem(Icons.Edit, "Edit") {
-                                menu = false
-                                onEdit()
-                            }
-                            Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
-                            MenuItem(Icons.Copy, "Copy") {
-                                menu = false
-                                onCopy()
-                            }
-                            Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
-                            MenuItem(Icons.Share, "Share link") {
-                                menu = false
-                                onShare()
-                            }
-                        }
+            PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare)
+        }
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Tokens.line))
+    }
+}
+
+/** A plan's ⋯ menu: Edit, Copy and Share link, the same wherever a plan is shown. */
+@Composable
+internal fun PlanMenu(onEdit: () -> Unit, onCopy: () -> Unit, onShare: () -> Unit, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        Box(Modifier.size(48.dp).clickable { open = true }, contentAlignment = Alignment.Center) {
+            BasicText("⋯", style = Type.title.copy(color = Tokens.ink2))
+        }
+        if (open) {
+            Popup(
+                alignment = Alignment.TopEnd,
+                onDismissRequest = { open = false },
+                properties = PopupProperties(focusable = true),
+            ) {
+                Column(Modifier.padding(end = 8.dp).background(Tokens.surface, Shapes.panel).width(180.dp)) {
+                    MenuItem(Icons.Edit, "Edit") {
+                        open = false
+                        onEdit()
+                    }
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
+                    MenuItem(Icons.Copy, "Copy") {
+                        open = false
+                        onCopy()
+                    }
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
+                    MenuItem(Icons.Share, "Share link") {
+                        open = false
+                        onShare()
                     }
                 }
             }
         }
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Tokens.line))
     }
 }
 
