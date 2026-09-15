@@ -110,8 +110,11 @@ fun StopList(
             if (waypoint.kind == WaypointKind.Poi) {
                 val reading = readings.getOrNull(ordinal)
                 Row(
-                    placement
+                    // Measured outside the translation: where the row rests, not where it is drawn while stops move,
+                    // or the list would chase its own animation.
+                    Modifier
                         .onGloballyPositioned { tops[ordinal] = it.positionInParent().y }
+                        .then(placement)
                         .graphicsLayer { shadowElevation = if (lifted) 8.dp.toPx() else 0f }
                         // A long press picks a stop up — a plain drag scrolls the sheet.
                         .pointerInput(ordinal, plan) {
