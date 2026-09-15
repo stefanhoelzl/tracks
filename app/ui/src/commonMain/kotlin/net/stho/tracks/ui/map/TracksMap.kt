@@ -137,11 +137,24 @@ private fun MapLibreMap(
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnIdle by rememberUpdatedState(onIdle)
     val planJson = remember(plan) { lineJson(plan) }
-    val start = fix?.at ?: plan.firstOrNull() ?: Coordinate(47.4917, 11.0950)
+
+    // Start where the camera is going when that is known, rather than flying in: every tile a fly-in passes through is
+    // one more download, on a phone that may be on a hillside's last bar of signal.
+    val initialCamera = remember {
+        val at = fix?.at ?: plan.firstOrNull() ?: Coordinate(47.4917, 11.0950)
+        when (camera) {
+            is MapCamera.Follow -> CameraPosition(
+                target = Position(at.lon, at.lat),
+                zoom = camera.zoom,
+                bearing = mapBearing(camera.orientation, fix, heading, previous = 0.0),
+            )
+            is MapCamera.Overview -> CameraPosition(target = Position(at.lon, at.lat), zoom = 13.0)
+        }
+    }
 
     val state = rememberMapState(
         baseStyle = remember(style) { BaseStyle.Json(style.json) },
-        initialCameraPosition = CameraPosition(target = Position(start.lon, start.lat), zoom = 13.0),
+        initialCameraPosition = initialCamera,
     ) {
         val planSource = rememberGeoJsonSource(GeoJsonData.JsonString(planJson))
         LineLayer(

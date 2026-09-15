@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Mirrors the `test` and `app` jobs in .github/workflows/ci.yml, in the same order, so a
+# Mirrors the `test`, `app` and `ui` jobs in .github/workflows/ci.yml, in the same order, so a
 # gate failure here is the CI failure you would otherwise get a few minutes later.
 #
 # Ship exports SHIP_REPO, SHIP_DEFAULT_BRANCH, SHIP_BRANCH and SHIP_BASE_SHA before
@@ -26,3 +26,8 @@ pnpm build
 # fixtures, and BRouter against brouter.de on every parity route. The first run downloads
 # the 450 MB tile snapshot into ~/.cache/tracks.
 (cd app && ./gradlew --quiet :shared:jvmTest :shared:linuxX64Test :brouter:jvmTest :brouter:linuxX64ReleaseTest)
+
+# The app's UI: its logic tests, then the real map drawn in the screenshots container and
+# compared with the committed pictures. Podman here, docker in CI; the same image either way.
+(cd app && ./gradlew --quiet :ui:jvmTest)
+app/desktopApp/screenshots/run.sh

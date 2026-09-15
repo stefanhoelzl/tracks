@@ -100,6 +100,33 @@ jobs:
           xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug
           -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
 
+  # The iPhone app's UI: its logic tests on the JVM, and the screenshot tests. Those draw the real map — MapLibre on
+  # Mesa's software Vulkan, inside the screenshots container — from tiles committed in
+  # app/desktopApp/screenshots/fixture, with no network, and compare it with the pictures committed beside them.
+  # No secrets, and nothing `deploy` waits for.
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - run: ./gradlew :ui:jvmTest
+      - run: desktopApp/screenshots/run.sh
+        env:
+          CONTAINER_ENGINE: docker
+      # The picture each failing scene took, and where it differs from the reference.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: app/desktopApp/build/screenshots
+
   deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
