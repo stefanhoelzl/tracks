@@ -1,7 +1,7 @@
 package net.stho.tracks.ui.map
 
-import net.stho.tracks.ui.sensors.Fix
-import net.stho.tracks.ui.sensors.Heading
+import net.stho.tracks.sensors.Fix
+import net.stho.tracks.sensors.Heading
 
 /** Below 4 km/h GPS course is noise, and the compass takes over. */
 const val COURSE_MIN_SPEED_MPS = 4.0 / 3.6

@@ -3,8 +3,8 @@ package net.stho.tracks.ui.map
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import net.stho.tracks.codec.Coordinate
-import net.stho.tracks.ui.sensors.Fix
-import net.stho.tracks.ui.sensors.Heading
+import net.stho.tracks.sensors.Fix
+import net.stho.tracks.sensors.Heading
 
 class BearingTest {
     private fun fix(courseDeg: Double?, kmh: Double) =

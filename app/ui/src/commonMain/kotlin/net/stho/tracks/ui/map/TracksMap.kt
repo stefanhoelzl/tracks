@@ -22,9 +22,9 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 import kotlinx.coroutines.flow.collectLatest
 import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.sensors.Fix
+import net.stho.tracks.sensors.Heading
 import net.stho.tracks.ui.resources.Res
-import net.stho.tracks.ui.sensors.Fix
-import net.stho.tracks.ui.sensors.Heading
 import net.stho.tracks.ui.theme.Tokens
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.expressions.dsl.const
