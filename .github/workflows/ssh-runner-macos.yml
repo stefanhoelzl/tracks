@@ -2,7 +2,7 @@
 # Run `ssh-runner init --update` after changing the config, then commit and push:
 # the workflow that runs is the one on GitHub, not the one in your working tree.
 # ssh-runner-template: 7
-# ssh-runner-config: 7311bbd815eab7ea
+# ssh-runner-config: 371580330c113249
 name: ssh-runner macos
 run-name: ssh-runner macos ${{ inputs.session_id }}
 
@@ -50,6 +50,17 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The iOS app: Gradle builds the Kotlin framework inside the Xcode build, Kotlin/Native's toolchain is the
+      # same cache CI's jobs use, and XcodeGen regenerates app/iosApp/iosApp.xcodeproj from project.yml.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
+      - run: brew install xcodegen
 
       - name: Start sshd and the cloudflared tunnel
         env:

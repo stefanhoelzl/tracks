@@ -7,7 +7,19 @@ steps:
       node-version: 24
       cache: pnpm
   - run: pnpm install --frozen-lockfile
+  # The iOS app: Gradle builds the Kotlin framework inside the Xcode build, Kotlin/Native's toolchain is the
+  # same cache CI's jobs use, and XcodeGen regenerates app/iosApp/iosApp.xcodeproj from project.yml.
+  - uses: actions/setup-java@v6
+    with:
+      distribution: temurin
+      java-version: 21
+  - uses: actions/cache@v6
+    with:
+      path: ~/.konan
+      key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
+  - run: brew install xcodegen
 sync:
   delete: true
-  # node_modules holds platform-native binaries (esbuild), so the runner keeps its own.
-  exclude: [.git, node_modules, dist, data, .secrets.yaml]
+  # node_modules holds platform-native binaries (esbuild), so the runner keeps its own. Build output, Gradle's
+  # state and the device flow's archives are the runner's own too: pushing a Linux build/ would be wrong and big.
+  exclude: [.git, node_modules, dist, data, .secrets.yaml, build, .gradle, .kotlin, artifacts, ios-device-out]
