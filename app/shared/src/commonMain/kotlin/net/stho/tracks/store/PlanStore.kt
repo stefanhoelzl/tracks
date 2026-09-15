@@ -8,9 +8,9 @@ import net.stho.tracks.plan.FailedLeg
 import net.stho.tracks.plan.Leg
 import net.stho.tracks.plan.Plan
 import net.stho.tracks.plan.PlanFragment
-import net.stho.tracks.plan.Profile
 import net.stho.tracks.plan.RoutedLeg
 import net.stho.tracks.plan.Waypoint
+import net.stho.tracks.plan.legKey
 import net.stho.tracks.plan.stretches
 import okio.FileSystem
 import okio.IOException
@@ -115,10 +115,6 @@ class PlanStore(private val directory: Path, private val fileSystem: FileSystem)
         fun newId(random: Random = Random.Default): String = List(16) { "0123456789abcdef"[random.nextInt(16)] }.joinToString("")
     }
 }
-
-/** What a leg was routed for: its waypoints' positions and kinds, and the profile. Names do not move a line. */
-private fun legKey(stretch: List<Waypoint>, profile: Profile): String =
-    stretch.joinToString("|", prefix = "${profile.wire}|") { "${it.lat},${it.lon},${it.kind}" }
 
 @Serializable
 private data class PlanFile(
