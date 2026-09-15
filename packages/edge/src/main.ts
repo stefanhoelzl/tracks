@@ -3,6 +3,7 @@ import { createClient } from '@libsql/client/web'
 import { createApi, type Env } from '@tracks/server/api.ts'
 import { connect } from '@tracks/server/connect.ts'
 import { Hono } from 'hono'
+import { serveAppLinks } from './app-links.ts'
 import { assets } from './assets.data.ts'
 import { serveAssets } from './static.ts'
 
@@ -64,6 +65,6 @@ const app: Hono<Env> = url
  * request, for any path, is a 508 Loop Detected with nothing in it about why. A script
  * with no imports at all failed identically, which is what finally ruled out the code.
  */
-const server = serveAssets(app, assets)
+const server = serveAssets(serveAppLinks(app), assets)
 
 BunnySDK.net.http.serve((request: Request) => server.fetch(request))
