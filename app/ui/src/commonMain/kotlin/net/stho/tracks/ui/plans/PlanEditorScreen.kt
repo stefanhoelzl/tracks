@@ -70,6 +70,7 @@ import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.ui.map.WaypointMark
 import net.stho.tracks.ui.sensors.Fix
 import net.stho.tracks.ui.theme.Pill
+import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.SnapSheet
 import net.stho.tracks.ui.theme.StatTile
@@ -203,23 +204,21 @@ fun PlanEditorScreen(
             )
         }
 
-        // Under the map's attribution, which holds the top edge.
-        Row(
-            Modifier.align(Alignment.TopStart).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 16.dp, top = 64.dp, end = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Pill("Cancel", onClick = onCancel, primary = false)
-            Spacer(Modifier.weight(1f))
-            Pill("Copy", onClick = onCopy, primary = false)
-            if (state.changed) Pill("Save", onClick = onSave)
-        }
 
         val stops = plan.waypoints.count { it.kind == WaypointKind.Poi }
         SnapSheet(
             expanded = expanded,
             onExpanded = { expanded = it },
             onHeaderHeight = { covered = it },
-            header = { EditorHeader(plan, legs.size, stops, editor, state) },
+            header = {
+                // Save is offered once there is something to save; Cancel and Copy always are.
+                val actions = listOfNotNull(
+                    MenuEntry(Icons.Save, "Save", onSave).takeIf { state.changed },
+                    MenuEntry(Icons.Copy, "Copy", onCopy),
+                    MenuEntry(Icons.Close, "Cancel", onCancel),
+                )
+                EditorHeader(plan, legs.size, stops, editor, state, actions)
+            },
         ) {
             if (stops < 2) {
                 BasicText(
@@ -287,8 +286,16 @@ fun PlanEditorScreen(
  * doing — the thing to glance at while the map is being edited.
  */
 @Composable
-private fun EditorHeader(plan: net.stho.tracks.plan.Plan, legCount: Int, stops: Int, editor: PlanEditor, state: PlanEditor.State) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+private fun EditorHeader(
+    plan: net.stho.tracks.plan.Plan,
+    legCount: Int,
+    stops: Int,
+    editor: PlanEditor,
+    state: PlanEditor.State,
+    actions: List<MenuEntry>,
+) {
+    Row(verticalAlignment = Alignment.Top) {
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         BasicTextField(
             value = plan.name,
             onValueChange = { editor.update(plan.copy(name = it)) },
@@ -307,6 +314,8 @@ private fun EditorHeader(plan: net.stho.tracks.plan.Plan, legCount: Int, stops: 
             style = Type.mono,
         )
         editorNote(state)?.let { BasicText(it, style = Type.note, modifier = Modifier.padding(top = 4.dp)) }
+    }
+    ActionMenu(actions)
     }
 }
 
