@@ -82,7 +82,8 @@ sealed interface MapCamera {
 }
 
 /**
- * The map: the basemap, the [plan] line, the rider at [fix], and a camera that does what [camera] says.
+ * The map: the basemap, the [plan] line, the [ridden] track over it, the rider at [fix], and a camera that does what
+ * [camera] says.
  *
  * [onTap] reports where on the map a tap landed. [onIdle] is called whenever the map has finished drawing what it was
  * asked for — what a screenshot waits for.
@@ -93,6 +94,7 @@ fun TracksMap(
     camera: MapCamera,
     modifier: Modifier = Modifier,
     plan: List<Coordinate> = emptyList(),
+    ridden: List<Coordinate> = emptyList(),
     fix: Fix? = null,
     heading: Heading? = null,
     onTap: (Coordinate) -> Unit = {},
@@ -101,7 +103,7 @@ fun TracksMap(
     // A Metal or Vulkan surface created at 0×0 never recovers (the KRAIL pitfalls): wait for a size, once.
     var sized by remember { mutableStateOf(false) }
     Box(modifier.onSizeChanged { if (it.width > 0 && it.height > 0) sized = true }) {
-        if (sized) MapLibreMap(style, camera, plan, fix, heading, onTap, onIdle)
+        if (sized) MapLibreMap(style, camera, plan, ridden, fix, heading, onTap, onIdle)
     }
 }
 
@@ -110,14 +112,25 @@ private val PLAN_WIDTH = listOf(6 to 2.0, 10 to 2.8, 14 to 3.6)
 private val PLAN_CASING_WIDTH = listOf(6 to 3.6, 10 to 4.8, 14 to 6.0)
 private const val PLAN_CASING_OPACITY = 0.55f
 
+/**
+ * The track being recorded: the web palette's second hue (lib/colour.ts), not the accent. The plan is the accent because
+ * it is the thing you edit; a ride is data, which the accent never is — and a green over the green plan would not show.
+ */
+private val RIDDEN_COLOUR = Color(0xFFCE7A0C)
+
 private fun widthByZoom(stops: List<Pair<Int, Double>>) =
     interpolate(linear(), zoom(), *stops.map { (z, width) -> z to const(width.toFloat().dp) }.toTypedArray())
 
-private fun lineJson(points: List<Coordinate>): String = points.joinToString(
-    separator = ",",
-    prefix = """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[""",
-    postfix = "]}}",
-) { "[${it.lon},${it.lat}]" }
+/** A line through [points], or nothing: a LineString needs two points, and MapLibre refuses the whole source otherwise. */
+private fun lineJson(points: List<Coordinate>): String = if (points.size < 2) {
+    """{"type":"FeatureCollection","features":[]}"""
+} else {
+    points.joinToString(
+        separator = ",",
+        prefix = """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[""",
+        postfix = "]}}",
+    ) { "[${it.lon},${it.lat}]" }
+}
 
 private fun Fix.measurement() = LocationMeasurement(
     position = Position(longitude = at.lon, latitude = at.lat),
@@ -154,6 +167,7 @@ private fun MapLibreMap(
     style: MapStyle,
     camera: MapCamera,
     plan: List<Coordinate>,
+    ridden: List<Coordinate>,
     fix: Fix?,
     heading: Heading?,
     onTap: (Coordinate) -> Unit,
@@ -165,6 +179,7 @@ private fun MapLibreMap(
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnIdle by rememberUpdatedState(onIdle)
     val planJson = remember(plan) { lineJson(plan) }
+    val riddenJson = remember(ridden) { lineJson(ridden) }
 
     // Start where the camera is going when that is known, rather than flying in: every tile a fly-in passes through is
     // one more download, on a phone that may be on a hillside's last bar of signal.
@@ -198,6 +213,16 @@ private fun MapLibreMap(
             id = "plan",
             source = planSource,
             color = const(Tokens.accent),
+            width = widthByZoom(PLAN_WIDTH),
+            cap = const(LineCap.Round),
+            join = const(LineJoin.Round),
+        )
+        // Over the plan, at the plan's weight: where you went, drawn on where you meant to.
+        val riddenSource = rememberGeoJsonSource(GeoJsonData.JsonString(riddenJson))
+        LineLayer(
+            id = "ridden",
+            source = riddenSource,
+            color = const(RIDDEN_COLOUR),
             width = widthByZoom(PLAN_WIDTH),
             cap = const(LineCap.Round),
             join = const(LineJoin.Round),

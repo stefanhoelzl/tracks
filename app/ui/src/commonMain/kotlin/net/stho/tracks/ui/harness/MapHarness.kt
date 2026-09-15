@@ -22,6 +22,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.flowOf
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.MapStyle
@@ -58,6 +59,7 @@ fun MapHarness(
     val fix by remember(sensors) { sensors.fixes }.collectAsState(null)
     val heading by remember(sensors) { sensors.headings }.collectAsState(null)
     val pressure by remember(sensors) { sensors.pressures }.collectAsState(null)
+    val ridden by remember(recorder) { recorder?.track ?: flowOf(emptyList()) }.collectAsState(emptyList())
     var orientation by remember { mutableStateOf(Orientation.HeadingUp) }
     var following by remember { mutableStateOf(true) }
     var tapped by remember { mutableStateOf<Coordinate?>(null) }
@@ -69,6 +71,7 @@ fun MapHarness(
                 camera = if (following) MapCamera.Follow(orientation) else MapCamera.Overview(plan),
                 modifier = Modifier.fillMaxSize(),
                 plan = plan,
+                ridden = ridden,
                 fix = fix,
                 heading = heading,
                 onTap = { at -> tapped = at },
