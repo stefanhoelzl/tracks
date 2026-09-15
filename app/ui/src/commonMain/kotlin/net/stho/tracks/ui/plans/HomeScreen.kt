@@ -52,6 +52,10 @@ import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.ui.sensors.Fix
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.vector.ImageVector
+import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.Tokens
@@ -226,17 +230,17 @@ private fun PlanRow(
                         properties = PopupProperties(focusable = true),
                     ) {
                         Column(Modifier.padding(end = 8.dp).background(Tokens.surface, Shapes.panel).width(180.dp)) {
-                            MenuItem("Edit") {
+                            MenuItem(Icons.Edit, "Edit") {
                                 menu = false
                                 onEdit()
                             }
                             Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
-                            MenuItem("Copy") {
+                            MenuItem(Icons.Copy, "Copy") {
                                 menu = false
                                 onCopy()
                             }
                             Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
-                            MenuItem("Share link") {
+                            MenuItem(Icons.Share, "Share link") {
                                 menu = false
                                 onShare()
                             }
@@ -250,10 +254,13 @@ private fun PlanRow(
 }
 
 @Composable
-private fun MenuItem(label: String, onClick: () -> Unit) {
-    BasicText(
-        label,
-        style = Type.body,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
-    )
+private fun MenuItem(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Image(icon, contentDescription = null, modifier = Modifier.size(18.dp), colorFilter = ColorFilter.tint(Tokens.ink))
+        BasicText(label, style = Type.body)
+    }
 }
