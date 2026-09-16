@@ -42,6 +42,10 @@ class OfflineMapsTest {
             log += "invalidate ${pack.area?.key}"
         }
 
+        override fun pause(pack: StoredPack) {
+            log += "pause ${pack.area?.key}"
+        }
+
         override suspend fun delete(pack: StoredPack) {
             stored -= pack as Pack
             log += "delete ${pack.area?.key} ${pack.area?.bounds?.south}"
@@ -108,6 +112,36 @@ class OfflineMapsTest {
 
         assertEquals(listOf("delete plan:a 47.0"), store.log)
         assertEquals(AreaState.Ready(40), store.stored.single().state)
+    }
+
+    @Test
+    fun aDownloadThatMakesNoProgressForAMinuteIsPausedAndResumed() = runTest {
+        val pack = Pack(plan, AreaState.Downloading(120, 1000, 5))
+        val store = FakeStore(pack)
+        var now = 0L
+        val maps = OfflineMaps(store) { now }
+
+        maps.reconcile(listOf(plan))
+        now += 30_000
+        // A request failed as the app came back from the background, and MapLibre reports that, not progress.
+        pack.progress = AreaState.Failing("The network connection was lost.")
+        maps.reconcile(listOf(plan))
+        assertEquals(listOf("resume plan:a", "resume plan:a"), store.log)
+
+        now += PACK_STALL_MS
+        store.log.clear()
+        maps.reconcile(listOf(plan))
+        assertEquals(listOf("pause plan:a", "resume plan:a"), store.log, "a minute with nothing: paused and resumed")
+
+        // Moving again, it is left alone; a minute later still moving, still left alone.
+        pack.progress = AreaState.Downloading(300, 1000, 50)
+        store.log.clear()
+        now += 10_000
+        maps.reconcile(listOf(plan))
+        pack.progress = AreaState.Downloading(600, 1000, 90)
+        now += PACK_STALL_MS
+        maps.reconcile(listOf(plan))
+        assertEquals(listOf("resume plan:a", "resume plan:a"), store.log)
     }
 
     @Test
