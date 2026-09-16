@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlin.random.Random
@@ -42,24 +43,24 @@ class SegmentSyncTest {
     private val engine = MockEngine { request ->
         val headers = request.headers
         requests += listOfNotNull(
+            request.method.value,
             request.url.encodedPath,
             headers[HttpHeaders.Range]?.let { "range=$it" },
-            headers[HttpHeaders.IfNoneMatch]?.let { "if-none-match=$it" },
         ).joinToString(" ")
         if (offline) error("no route to host")
         val tile = tiles[request.url.encodedPath.substringAfterLast('/')]
             ?: return@MockEngine respond(ByteArray(0), HttpStatusCode.NotFound)
-        fun answer(body: ByteArray, status: HttpStatusCode, vararg extra: Pair<String, String>) = respond(
+        fun answer(body: ByteArray, status: HttpStatusCode, vararg extra: Pair<String, String>, length: Int = body.size) = respond(
             body, status,
             headersOf(
                 *(listOf(
                     HttpHeaders.ETag to tile.etag,
                     HttpHeaders.LastModified to tile.lastModified,
-                    HttpHeaders.ContentLength to body.size.toString(),
+                    HttpHeaders.ContentLength to length.toString(),
                 ) + extra).map { (k, v) -> k to listOf(v) }.toTypedArray(),
             ),
         )
-        if (headers[HttpHeaders.IfNoneMatch] == tile.etag) return@MockEngine answer(ByteArray(0), HttpStatusCode.NotModified)
+        if (request.method == HttpMethod.Head) return@MockEngine answer(ByteArray(0), HttpStatusCode.OK, length = tile.bytes.size)
         val from = headers[HttpHeaders.Range]?.removePrefix("bytes=")?.removeSuffix("-")?.toInt()
         if (from != null && headers[HttpHeaders.IfRange] == tile.etag) {
             answer(
@@ -101,7 +102,7 @@ class SegmentSyncTest {
 
         val result = sync.sync(setOf(garmisch), Network.Metered)
 
-        assertEquals(listOf("/segments4/E10_N45.rd5 range=bytes=120000-"), requests)
+        assertEquals(listOf("HEAD /segments4/E10_N45.rd5", "GET /segments4/E10_N45.rd5 range=bytes=120000-"), requests)
         assertEquals(listOf(garmisch), result.downloaded)
         assertContentEquals(bytes, bytesOf(garmisch))
     }
@@ -138,7 +139,7 @@ class SegmentSyncTest {
         assertEquals(emptyList(), requests)
 
         val result = sync.sync(setOf(garmisch), Network.Unmetered)
-        assertEquals(listOf("/segments4/E10_N45.rd5 if-none-match=\"a1\""), requests)
+        assertEquals(listOf("HEAD /segments4/E10_N45.rd5"), requests)
         assertEquals(emptyList(), result.refreshed)
         assertEquals(now, store.record(garmisch)?.checkedAtMillis)
     }

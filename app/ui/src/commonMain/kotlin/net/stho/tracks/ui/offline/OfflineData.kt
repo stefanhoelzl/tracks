@@ -32,6 +32,8 @@ import net.stho.tracks.offline.SegmentProgress
 import net.stho.tracks.offline.SegmentStore
 import net.stho.tracks.offline.SegmentSync
 import net.stho.tracks.offline.SegmentTile
+import net.stho.tracks.offline.SegmentTransfer
+import net.stho.tracks.offline.InProcessSegmentTransfer
 import net.stho.tracks.plan.legGeometries
 import net.stho.tracks.store.StoredPlan
 import net.stho.tracks.ui.map.AreaState
@@ -53,17 +55,24 @@ fun offlineData(
     scope: CoroutineScope,
     freeBytes: () -> Long?,
     onTilesLanded: () -> Unit,
+    /** How tile bytes are moved: in the process by default; on the phone, by iOS in the background. */
+    transfer: ((SegmentStore) -> SegmentTransfer)? = null,
 ): OfflineData = OfflineData(
     sensors = sensors,
     plans = plans.map { stored -> stored.map(::planLine) },
     network = networkState(scope),
     maps = OfflineMaps(),
-    segments = SegmentSync(
-        SegmentStore(segmentDirectory),
-        downloadHttpClient(),
-        clock = { Clock.System.now().toEpochMilliseconds() },
-        freeBytes = freeBytes,
-    ),
+    segments = SegmentStore(segmentDirectory).let { store ->
+        val client = downloadHttpClient()
+        val clock = { Clock.System.now().toEpochMilliseconds() }
+        SegmentSync(
+            store,
+            client,
+            clock = clock,
+            freeBytes = freeBytes,
+            transfer = transfer?.invoke(store) ?: InProcessSegmentTransfer(store, client, clock),
+        )
+    },
     centreFile = directory / "around",
     scope = scope,
     planet = PlanetWatch(downloadHttpClient(), directory / "planet", clock = { Clock.System.now().toEpochMilliseconds() }),
@@ -239,8 +248,11 @@ class OfflineData(
             val result = withContext(io) {
                 segments.sync(tiles, network) { progress -> mutableState.update { it.copy(downloading = progress) } }
             }
+            val before = mutableState.value.segmentsWaiting
             mutableState.update { it.copy(segmentsWaiting = result.waiting, downloading = null, segmentProblem = result.problem) }
-            if (result.downloaded.isNotEmpty() || result.refreshed.isNotEmpty()) onTilesLanded()
+            // Landed by this sync, or by iOS in the background since the last one: either way legs can route now.
+            val landedMeanwhile = before?.any { it !in result.waiting && segments.store.has(it) } == true
+            if (result.downloaded.isNotEmpty() || result.refreshed.isNotEmpty() || landedMeanwhile) onTilesLanded()
             val wait = if (result.problem is SegmentProblem.Unreachable) {
                 retry.also { retry = min(retry * 2, SEGMENT_RECHECK_MS) }
             } else {

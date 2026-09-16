@@ -21,6 +21,7 @@ import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.map.configureMaps
 import net.stho.tracks.ui.net.IosHttp
+import net.stho.tracks.ui.offline.backgroundSegments
 import net.stho.tracks.ui.offline.freeBytes
 import net.stho.tracks.ui.offline.mapsCacheFile
 import net.stho.tracks.ui.offline.networkState
@@ -71,6 +72,8 @@ import platform.UIKit.UIViewController
 fun MainViewController(): UIViewController {
     // MapLibre's setup belongs to the process, and comes before the first map.
     configureMaps(cacheFile = mapsCacheFile())
+    // Before anything else asks: iOS may have relaunched the app to hand over tiles it finished downloading.
+    backgroundSegments()
     return ComposeUIViewController { TracksScreen() }
 }
 
@@ -119,7 +122,11 @@ private fun TracksScreen() {
         val recorder = remember(shared) { Recorder(rides, shared, scope, dateTitle = ::localDate, onSaved = queue::kick) }
         val recording by recorder.state.collectAsState()
         val offline = remember(shared) {
-            offlineData(shared, library.plans, offlineDirectory(), segmentsDirectory(), scope, ::freeBytes, onTilesLanded = library::routeWhatIsMissing)
+            offlineData(
+                shared, library.plans, offlineDirectory(), segmentsDirectory(), scope, ::freeBytes,
+                onTilesLanded = library::routeWhatIsMissing,
+                transfer = { backgroundSegments() },
+            )
         }
 
         // Location keeps running with the phone locked only while there is a ride to record, paused or not.
