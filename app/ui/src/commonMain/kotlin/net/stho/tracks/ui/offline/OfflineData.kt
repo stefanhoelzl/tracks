@@ -204,7 +204,11 @@ class OfflineData(
     private suspend fun keepMaps(needs: OfflineNeeds) {
         while (true) {
             val states = try {
-                maps.reconcile(needs.areas).also { states -> mutableState.update { it.copy(areas = states, mapProblem = null) } }
+                maps.reconcile(needs.areas).also { states ->
+                    mutableState.update { state ->
+                        state.copy(areas = states.mapValues { (key, now) -> steady(state.areas[key], now) }, mapProblem = null)
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -215,6 +219,14 @@ class OfflineData(
             delay(if (states == null || states.values.any { it !is AreaState.Ready }) PACK_POLL_MS else PACK_RECHECK_MS)
         }
     }
+
+    /**
+     * A download under way stays one through a failed request or a moment with no progress reported: MapLibre reports
+     * each failed request — a Wi-Fi blip, a 404 — as the pack's state until the next status, and retries by itself, so a
+     * row flicking between Downloading and not would be saying something that is not so.
+     */
+    private fun steady(before: AreaState?, now: AreaState): AreaState =
+        if (before is AreaState.Downloading && (now is AreaState.Failing || now is AreaState.Waiting)) before else now
 
     private suspend fun keepSegments(tiles: Set<SegmentTile>, network: Network?) {
         if (network == null) {

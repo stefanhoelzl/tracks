@@ -141,6 +141,14 @@ class OfflineDataTest {
         pack.state = AreaState.Downloading(30, 100, 1)
         assertEquals(PlanOffline.Downloading(0.3), offline.state.first { it.areas["plan:a"] is AreaState.Downloading }.plan("a"))
 
+        // A request fails mid-download — a Wi-Fi blip — and MapLibre reports that until its next status: still downloading.
+        pack.state = AreaState.Failing("The Internet connection appears to be offline.")
+        advanceTimeBy(PACK_POLL_MS * 2)
+        assertEquals(PlanOffline.Downloading(0.3), offline.state.value.plan("a"))
+        pack.state = AreaState.Waiting
+        advanceTimeBy(PACK_POLL_MS * 2)
+        assertEquals(PlanOffline.Downloading(0.3), offline.state.value.plan("a"))
+
         pack.state = AreaState.Ready(40)
         assertEquals(PlanOffline.Ready, offline.state.first { it.areas["plan:a"] is AreaState.Ready }.plan("a"))
     }
