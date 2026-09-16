@@ -72,6 +72,21 @@ class AreasTest {
     }
 
     @Test
+    fun aPlanThatRoutesOrMovesAStopALittleKeepsItsArea() {
+        val straight = PlanLine("a", listOf(garmisch, innsbruck))
+        // The same plan once its leg routed: the road bends a few hundred metres off the straight line.
+        val routed = PlanLine("a", listOf(garmisch, Coordinate(47.40, 11.25), Coordinate(47.33, 11.33), innsbruck))
+        val nudged = PlanLine("a", listOf(Coordinate(47.4940, 11.0990), innsbruck))
+
+        val area = OfflineNeeds.of(listOf(straight), around = null).areas.single()
+        assertEquals(area, OfflineNeeds.of(listOf(routed), around = null).areas.single())
+        assertEquals(area, OfflineNeeds.of(listOf(nudged), around = null).areas.single())
+        for (edge in listOf(area.bounds.south, area.bounds.west, area.bounds.north, area.bounds.east)) {
+            assertEquals(edge, kotlin.math.round(edge * 10) / 10, "$edge is on the 0.1° grid")
+        }
+    }
+
+    @Test
     fun aPlanNearATilesEdgeBringsTheNextTileForADetour() {
         // ~15 km east of the E5/E10 edge: the line never crosses it, a detour around a closed pass might.
         val nearTheEdge = PlanLine("edge", listOf(Coordinate(47.5, 10.2), Coordinate(47.3, 10.25)))
@@ -101,7 +116,9 @@ class AreasTest {
         assertEquals(listOf("plan:a", "plan:b", "around"), needs.areas.map { it.key })
         assertEquals(setOf(SegmentTile(5, 45), SegmentTile(10, 45)), needs.segments)
         val a = needs.areas.first().bounds
-        assertEquals(OfflineNeeds.PLAN_BUFFER_M, distanceM(Coordinate(a.north, garmisch.lon), garmisch), 1.0)
+        // At least the buffer, and at most one grid step more.
+        val north = distanceM(Coordinate(a.north, garmisch.lon), garmisch)
+        assertTrue(north >= OfflineNeeds.PLAN_BUFFER_M && north <= OfflineNeeds.PLAN_BUFFER_M + 11_200.0, "$north m north")
 
         val withoutPlanB = OfflineNeeds.of(listOf(toInnsbruck), around = null)
         assertEquals(listOf("plan:a"), withoutPlanB.areas.map { it.key })

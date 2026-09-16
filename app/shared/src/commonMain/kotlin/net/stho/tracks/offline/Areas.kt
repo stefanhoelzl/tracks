@@ -6,6 +6,7 @@ import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.sensors.distanceM
 
@@ -22,6 +23,15 @@ private const val METRES_PER_DEGREE = 6_371_000.0 * PI / 180
 data class Bounds(val south: Double, val west: Double, val north: Double, val east: Double) {
     init {
         require(south <= north && west <= east) { "bounds must not be inverted: $this" }
+    }
+
+    /** This box, grown to the next multiples of [step] degrees on every side; [step] divides a degree evenly. */
+    fun outward(step: Double): Bounds {
+        // Counted in whole steps and divided, never multiplied back by the step: 107 / 10.0 is 10.7, 107 * 0.1 is not.
+        val perDegree = (1 / step).roundToInt()
+        fun down(v: Double) = floor(v * perDegree + 1e-9) / perDegree
+        fun up(v: Double) = -floor(-v * perDegree + 1e-9) / perDegree
+        return Bounds(max(-89.0, down(south)), max(-180.0, down(west)), min(89.0, up(north)), min(180.0, up(east)))
     }
 }
 
@@ -126,8 +136,14 @@ data class OfflineNeeds(val areas: List<MapArea>, val segments: Set<SegmentTile>
 
         fun planKey(id: String) = "plan:$id"
 
+        /**
+         * A plan's box is rounded outward to this many degrees: a leg that routes, or an edit that moves a stop by a
+         * few hundred metres, leaves the area as it was, and its pack is not made again.
+         */
+        const val PLAN_GRID_DEG = 0.1
+
         fun of(plans: List<PlanLine>, around: Coordinate?): OfflineNeeds {
-            val areas = plans.filter { it.points.isNotEmpty() }.map { MapArea(planKey(it.id), boundsOf(it.points, PLAN_BUFFER_M)) } +
+            val areas = plans.filter { it.points.isNotEmpty() }.map { MapArea(planKey(it.id), boundsOf(it.points, PLAN_BUFFER_M).outward(PLAN_GRID_DEG)) } +
                 listOfNotNull(around?.let { MapArea(AROUND_KEY, boundsAround(it, AroundYou.RADIUS_M)) })
             return OfflineNeeds(areas, areas.flatMap { SegmentTile.covering(it.bounds) }.toSet())
         }

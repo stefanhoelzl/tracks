@@ -24,6 +24,7 @@ import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.offline.AroundYou
 import net.stho.tracks.offline.MapArea
 import net.stho.tracks.offline.Network
+import net.stho.tracks.offline.PlanLine
 import net.stho.tracks.offline.SegmentStore
 import net.stho.tracks.offline.SegmentSync
 import net.stho.tracks.offline.SegmentTile
@@ -87,9 +88,13 @@ class OfflineDataTest {
     private val store = Store()
     private val segmentStore = SegmentStore(dir / "segments", fs)
 
+    private val plans = MutableStateFlow<List<PlanLine>>(emptyList())
+    private var landed = 0
+
     private fun TestScope.start() = OfflineData(
         sensors = sensors,
-        plans = MutableStateFlow(emptyList()),
+        plans = plans,
+        onTilesLanded = { landed++ },
         network = network,
         maps = OfflineMaps(store),
         segments = SegmentSync(segmentStore, HttpClient(engine), clock = { 0L }, base = "https://brouter.test/segments4"),
@@ -113,6 +118,43 @@ class OfflineDataTest {
     }
 
     @Test
+    fun aStoredPlanIsOfflineOnceItsMapAndTilesAreOnThePhone() = runTest {
+        val toInnsbruck = PlanLine("a", listOf(garmisch, Coordinate(47.2692, 11.4041)))
+        plans.value = listOf(toInnsbruck)
+        val offline = start()
+
+        // Before the directory has been looked at, nothing is claimed.
+        val first = offline.state.first { "plan:a" in it.areas }
+        if (first.segmentsWaiting == null) assertEquals(PlanOffline.Pending, first.plan("a"))
+        assertNull(first.plan("b"))
+
+        offline.state.first { segmentStore.has(east) && it.segmentsWaiting?.isEmpty() == true && it.downloading == null }
+        assertEquals(1, landed, "tiles that landed are said once")
+        val pack = store.stored.single { it.area?.key == "plan:a" }
+        pack.state = AreaState.Downloading(30, 100, 1)
+        assertEquals(PlanOffline.Downloading(0.3), offline.state.first { it.areas["plan:a"] is AreaState.Downloading }.plan("a"))
+
+        pack.state = AreaState.Ready(40)
+        assertEquals(PlanOffline.Ready, offline.state.first { it.areas["plan:a"] is AreaState.Ready }.plan("a"))
+    }
+
+    @Test
+    fun deletingAPlanDeletesItsPackAndTheTilesOnlyItNeeded() = runTest {
+        // A plan in the west, and none around you: its tile is E5_N45 alone.
+        plans.value = listOf(PlanLine("w", listOf(Coordinate(47.5, 7.5), Coordinate(47.6, 7.6))))
+        val offline = start()
+        offline.state.first { segmentStore.has(west) && it.downloading == null && "plan:w" in it.areas }
+
+        plans.value = emptyList()
+        // Deleting a tile changes nothing the state says, so wait by the clock rather than for a state.
+        advanceTimeBy(10_000)
+
+        assertEquals(emptyMap(), offline.state.value.areas)
+        assertEquals(emptyList(), store.stored)
+        assertTrue(!segmentStore.has(west))
+    }
+
+    @Test
     fun aSmallMoveLeavesTheAreaWhereItIs() = runTest {
         val offline = start()
         fixes.emit(fix(garmisch))
@@ -131,11 +173,11 @@ class OfflineDataTest {
         val offline = start()
         fixes.emit(fix(garmisch))
 
-        assertEquals(listOf(west, east), offline.state.first { it.segmentsWaiting.size == 2 }.segmentsWaiting)
+        assertEquals(listOf(west, east), offline.state.first { it.segmentsWaiting?.size == 2 }.segmentsWaiting)
         assertEquals(emptyList(), requests)
 
         network.value = Network.Metered
-        offline.state.first { it.segmentsWaiting.isEmpty() && it.downloading == null }
+        offline.state.first { it.segmentsWaiting?.isEmpty() == true && it.downloading == null }
         assertEquals(2, requests.size)
     }
 
