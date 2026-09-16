@@ -174,6 +174,10 @@ fun TracksApp(
             onEdit = { edit(opened.id) },
             onCopy = { scope.launch { open = library.copy(opened.id)?.id ?: open } },
             onShare = { share(opened.id) },
+            onDelete = {
+                open = null
+                scope.launch { library.delete(opened.id) }
+            },
             modifier = modifier,
             onIdle = onIdle,
         )
