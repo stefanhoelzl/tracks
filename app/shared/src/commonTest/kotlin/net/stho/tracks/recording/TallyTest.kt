@@ -110,4 +110,32 @@ class TallyTest {
         (60..70).forEach { climb.add(it.toDouble()) }
         assertEquals(30.0, climb.gainM)
     }
+
+    @Test
+    fun theRidesProfileIsTheBarometerAnchoredToGps() {
+        val tally = Tally()
+        // 2 km north, climbing 100 m; GPS reads 40 m higher than the standard atmosphere does, and wanders.
+        val random = Random(11)
+        (0..400).forEach { second ->
+            val altitude = 600 + second * 0.25
+            tally.add(Entry.Pressured(net.stho.tracks.sensors.Pressure(net.stho.tracks.sensors.pressureAt(altitude), t0 + second * 1000L)))
+            tally.add(Entry.Located(fix(second, second * 5.0, 5.0).copy(altitudeM = altitude + 40 + random.nextDouble(-8.0, 8.0))))
+        }
+
+        // A height once 25 m further on: every 25 to 30 m at 5 m a second.
+        assertTrue(tally.elevation.size in 67..81, "a height every 25 m: ${tally.elevation.size}")
+        val terrain = tally.elevation.terrain()!!
+        near(2000.0, terrain.totalM, 30.0)
+        near(640.0, terrain.altitudeM.first()!!, 3.0)
+        near(740.0, terrain.altitudeM.last()!!, 3.0)
+    }
+
+    @Test
+    fun withoutABarometerTheProfileIsGps() {
+        val tally = Tally()
+        (0..100).forEach { tally.add(Entry.Located(fix(it, it * 5.0, 5.0).copy(altitudeM = 500.0 + it))) }
+        val terrain = tally.elevation.terrain()!!
+        near(500.0, terrain.altitudeM.first()!!, 0.01)
+        near(600.0, terrain.altitudeM.last()!!, 5.0)
+    }
 }

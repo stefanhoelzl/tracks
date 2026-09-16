@@ -1,5 +1,7 @@
 package net.stho.tracks.recording
 
+import net.stho.tracks.plan.Terrain
+import net.stho.tracks.plan.terrainAlong
 import net.stho.tracks.sensors.Fix
 import net.stho.tracks.sensors.altitudeAt
 import net.stho.tracks.sensors.distanceM
@@ -109,10 +111,51 @@ class Climb(private val threshold: Double = CLIMB_HYSTERESIS_M) {
     }
 }
 
-/** The ride so far: [Odometer] and [Climb] over a journal's entries, as they are appended or as they are read back. */
+/** How far apart along the ride its profile takes a height: a hundred kilometres is four thousand of them. */
+const val ELEVATION_STEP_M = 25.0
+
+/**
+ * The ride's height against the distance ridden, for the profile a ride with no plan shows.
+ *
+ * The barometer where there is one, anchored to GPS as [RideFrame] anchors it — by the median of how far GPS altitude
+ * sat from it — and GPS's own altitude without one. A height every [ELEVATION_STEP_M] ridden.
+ */
+class Elevation {
+    private val distances = ArrayList<Double>()
+    private val barometric = ArrayList<Double?>()
+    private val gps = ArrayList<Double?>()
+    private var pressureAltitude: Double? = null
+
+    /** How many heights there are: what changes when the profile does. */
+    val size: Int get() = distances.size
+
+    fun pressure(altitudeM: Double) {
+        pressureAltitude = altitudeM
+    }
+
+    fun add(fix: Fix, distanceM: Double) {
+        if (distances.isNotEmpty() && distanceM - distances.last() < ELEVATION_STEP_M) return
+        if (fix.altitudeM == null && pressureAltitude == null) return
+        distances += distanceM
+        barometric += pressureAltitude
+        gps += fix.altitudeM
+    }
+
+    fun terrain(): Terrain? {
+        val offsets = distances.indices.mapNotNull { i -> gps[i]?.let { g -> barometric[i]?.let { g - it } } }.sorted()
+        val offset = if (offsets.isEmpty()) 0.0 else offsets[offsets.size / 2]
+        return terrainAlong(distances.toList(), distances.indices.map { i -> barometric[i]?.plus(offset) ?: gps[i] })
+    }
+}
+
+/**
+ * The ride so far: [Odometer], [Climb] and [Elevation] over a journal's entries, as they are appended or as they are
+ * read back.
+ */
 class Tally(climbThreshold: Double = CLIMB_HYSTERESIS_M) {
     val odometer = Odometer()
     val climb = Climb(climbThreshold)
+    val elevation = Elevation()
 
     /** Whether any pressure was read: without a barometer there is no ascent to claim. */
     var barometric = false
@@ -120,10 +163,15 @@ class Tally(climbThreshold: Double = CLIMB_HYSTERESIS_M) {
 
     fun add(entry: Entry) {
         when (entry) {
-            is Entry.Located -> odometer.add(entry.fix)
+            is Entry.Located -> {
+                odometer.add(entry.fix)
+                elevation.add(entry.fix, odometer.distanceM)
+            }
             is Entry.Pressured -> {
                 barometric = true
-                climb.add(altitudeAt(entry.pressure.hPa))
+                val altitude = altitudeAt(entry.pressure.hPa)
+                climb.add(altitude)
+                elevation.pressure(altitude)
             }
             is Entry.Paused -> {
                 odometer.pause()

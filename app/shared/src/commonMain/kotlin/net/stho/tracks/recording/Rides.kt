@@ -12,7 +12,7 @@ class Ride(val entries: List<Entry>) {
 
     val id: String get() = started.id
 
-    val state: State = when (val last = entries.lastOrNull { it !is Entry.Located && it !is Entry.Pressured && it !is Entry.Started }) {
+    val state: State = when (val last = entries.lastOrNull { it is Entry.Paused || it is Entry.Resumed || it is Entry.Stopped || it is Entry.Saved }) {
         null, is Entry.Resumed -> State.Recording
         is Entry.Paused -> State.Paused
         is Entry.Stopped -> State.Stopped
@@ -23,6 +23,9 @@ class Ride(val entries: List<Entry>) {
     val saved: Entry.Saved? get() = entries.lastOrNull() as? Entry.Saved
 
     val fixes: List<Entry.Located> get() = entries.filterIsInstance<Entry.Located>()
+
+    /** The id of the plan the ride follows, as last journaled; null for a ride with no plan. */
+    val following: String? get() = entries.filterIsInstance<Entry.Follows>().lastOrNull()?.planId
 
     enum class State {
         /** Being recorded — or, read back when nothing is recording, a ride the app died during. */
