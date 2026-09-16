@@ -21,24 +21,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.plan.Placement
 import net.stho.tracks.plan.Waypoint
 import net.stho.tracks.plan.WaypointKind
-import net.stho.tracks.ui.theme.Pill
+import net.stho.tracks.ui.theme.IconButton
+import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
 
 /** What the dialog is about: a place not yet in the plan, or a waypoint that is. */
 sealed interface PinTarget {
-    /**
-     * [leg] is the leg the place is nearest, if the plan has one; [between] says which, so a choice names its
-     * consequence. [name] is known when the place came from a search or a map label.
-     */
-    data class New(val at: Coordinate, val leg: Int?, val between: String?, val name: String?) : PinTarget
+    /** [leg] is the leg the place is nearest, if the plan has one. [name] is known when the place came from a search or a map label. */
+    data class New(val at: Coordinate, val leg: Int?, val name: String?) : PinTarget
 
     data class Edit(val index: Int, val waypoint: Waypoint) : PinTarget
 }
@@ -46,6 +46,9 @@ sealed interface PinTarget {
 /**
  * The one thing that commits a waypoint and the one thing that edits one, as on the web: however a place was found —
  * a tap on the map, a search result — adding it is this; and a waypoint's name, kind and removal are here.
+ *
+ * Its choices are one row of icons without words, each named for a screen reader: placing a stop in accent, the rest
+ * quiet.
  */
 @Composable
 fun WaypointDialog(
@@ -69,27 +72,19 @@ fun WaypointDialog(
                     BasicText(target.name ?: "Waypoint", style = Type.title, modifier = Modifier.weight(1f))
                     Close(onClose)
                 }
-                BasicText(
-                    if (target.leg != null && target.between != null) "Add to ${target.between}" else "Add as stop",
-                    style = Type.label,
-                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // Splitting a leg is on offer as soon as there is a leg to split.
-                    if (target.leg != null) Pill("Insert", onClick = { onAdd(WaypointKind.Poi, Placement.Nearest) })
+                    if (target.leg != null) IconButton(Icons.Insert, "Insert", onClick = { onAdd(WaypointKind.Poi, Placement.Nearest) })
                     if (count == 0) {
-                        Pill("Add", onClick = { onAdd(WaypointKind.Poi, Placement.End) })
+                        IconButton(Icons.Add, "Add", onClick = { onAdd(WaypointKind.Poi, Placement.End) })
                     } else {
-                        Pill("Start", onClick = { onAdd(WaypointKind.Poi, Placement.Start) })
-                        Pill("End", onClick = { onAdd(WaypointKind.Poi, Placement.End) })
+                        IconButton(Icons.Start, "Start", onClick = { onAdd(WaypointKind.Poi, Placement.Start) })
+                        IconButton(Icons.End, "End", onClick = { onAdd(WaypointKind.Poi, Placement.End) })
                     }
-                }
-                // A shaping hint with no leg to shape has nowhere to go.
-                if (kindIsAChoice && target.leg != null) {
-                    Pill("Shaping point", onClick = { onAdd(WaypointKind.Routing, Placement.Nearest) }, primary = false)
-                    BasicText(
-                        target.between?.let { "Bends $it without stopping there" } ?: "Bends this leg without stopping there",
-                        style = Type.note,
-                    )
+                    // A shaping hint with no leg to shape has nowhere to go.
+                    if (kindIsAChoice && target.leg != null) {
+                        IconButton(Icons.Shaping, "Shaping point", onClick = { onAdd(WaypointKind.Routing, Placement.Nearest) }, primary = false)
+                    }
                 }
             }
 
@@ -123,18 +118,18 @@ fun WaypointDialog(
                     Close(done)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // POI is a break and ROUTING a pass-through, so flipping the kind merges or splits a leg.
                     if (kindIsAChoice) {
                         val poi = target.waypoint.kind == WaypointKind.Poi
-                        Pill(
+                        IconButton(
+                            if (poi) Icons.Shaping else Icons.Stop,
                             if (poi) "Make shaping" else "Make a stop",
                             onClick = { onKind(if (poi) WaypointKind.Routing else WaypointKind.Poi) },
                             primary = false,
                         )
                     }
-                    Pill("Remove", onClick = onRemove, primary = false)
+                    IconButton(Icons.Delete, "Remove", onClick = onRemove, primary = false)
                 }
-                // POI is a break and ROUTING a pass-through, so flipping the kind merges or splits a leg.
-                if (kindIsAChoice) BasicText("Changing the kind redraws this part of the route", style = Type.note)
             }
         }
     }
@@ -142,7 +137,7 @@ fun WaypointDialog(
 
 @Composable
 private fun Close(onClick: () -> Unit) {
-    Box(Modifier.size(40.dp).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(40.dp).clickable(onClick = onClick).semantics { contentDescription = "Close" }, contentAlignment = Alignment.Center) {
         BasicText("×", style = Type.title.copy(color = Tokens.muted))
     }
 }

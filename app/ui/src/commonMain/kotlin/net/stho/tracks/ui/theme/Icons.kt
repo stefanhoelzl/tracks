@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -56,6 +57,32 @@ object Icons {
         "M17 10l4 4-4 4",
     )
 
+    val Delete: ImageVector = lucide(
+        "trash-2",
+        "M3 6h18",
+        "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6",
+        "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2",
+        "M10 11v6",
+        "M14 11v6",
+    )
+
+    // The waypoint dialog's: where a stop goes, and what a waypoint is.
+    val Add: ImageVector = lucide("plus", "M5 12h14", "M12 5v14")
+    val Start: ImageVector = lucide("arrow-left-to-line", "M3 19V5", "M13 6l-6 6 6 6", "M7 12h14")
+    val End: ImageVector = lucide("arrow-right-to-line", "M17 12H3", "M11 18l6-6-6-6", "M21 5v14")
+    val Insert: ImageVector = lucide("git-commit-horizontal", "M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0z", "M3 12h6", "M15 12h6")
+    val Shaping: ImageVector = lucide(
+        "spline",
+        "M21 5a2 2 0 1 1-4 0a2 2 0 1 1 4 0z",
+        "M7 19a2 2 0 1 1-4 0a2 2 0 1 1 4 0z",
+        "M5 17A12 12 0 0 1 17 5",
+    )
+    val Stop: ImageVector = lucide(
+        "map-pin",
+        "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0",
+        "M15 10a3 3 0 1 1-6 0a3 3 0 1 1 6 0z",
+    )
+
     private fun lucide(name: String, vararg paths: String): ImageVector =
         ImageVector.Builder(name = name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
             .apply {
@@ -73,17 +100,20 @@ object Icons {
             .build()
 }
 
-/** A round button with an icon on it: accent for the thing to do. [label] is what a screen reader says. */
+/**
+ * A round button with an icon on it and no word: accent for the thing to do, a grey disc for the rest. [label] is what
+ * a screen reader says.
+ */
 @Composable
-fun IconButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun IconButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true) {
     Box(
         modifier
             .size(44.dp)
-            .background(Tokens.accent, CircleShape)
+            .background(if (primary) Tokens.accent else Tokens.sunk, CircleShape)
             .clickable(onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        Image(icon, contentDescription = null, modifier = Modifier.size(20.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Tokens.surface))
+        Image(icon, contentDescription = null, modifier = Modifier.size(20.dp), colorFilter = ColorFilter.tint(if (primary) Tokens.surface else Tokens.ink))
     }
 }

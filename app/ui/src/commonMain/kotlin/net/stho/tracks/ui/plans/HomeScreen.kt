@@ -30,15 +30,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -70,8 +71,8 @@ private val SHEET_PEEK = 150.dp
 /**
  * Home: the map centred on you, under a sheet of the plans on this phone, newest first.
  *
- * A tap on a plan opens it. Its ⋯ menu edits it, copies it or shares its link; a swipe to the left deletes it. Nothing here starts
- * a ride — riding is M14, and a control that does nothing yet is not drawn.
+ * A tap on a plan opens it. Its ⋯ menu edits it, copies it, shares its link or deletes it. Nothing here starts a ride
+ * — riding is M14, and a control that does nothing yet is not drawn.
  */
 @Composable
 fun HomeScreen(
@@ -89,6 +90,8 @@ fun HomeScreen(
     onShare: (String) -> Unit,
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** The plan whose ⋯ menu is open as the screen appears: for the screenshots. */
+    menuOpen: String? = null,
     onIdle: () -> Unit = {},
 ) {
     BoxWithConstraints(modifier.fillMaxSize().background(Tokens.ground)) {
@@ -164,6 +167,7 @@ fun HomeScreen(
                         PlanRow(
                             stored = stored,
                             routing = routing[stored.id],
+                            menuOpen = stored.id == menuOpen,
                             onOpen = { onOpen(stored.id) },
                             onEdit = { onEdit(stored.id) },
                             onCopy = { onCopy(stored.id) },
@@ -181,42 +185,18 @@ fun HomeScreen(
 private fun PlanRow(
     stored: StoredPlan,
     routing: PlanRouting?,
+    menuOpen: Boolean,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
     onCopy: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val offset = remember { Animatable(0f) }
-    var width by remember { mutableIntStateOf(1) }
-    var menu by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    Box(Modifier.fillMaxWidth().onSizeChanged { width = it.width }) {
-        // What a swipe uncovers.
-        Box(Modifier.matchParentSize().background(Tokens.ink), contentAlignment = Alignment.CenterEnd) {
-            BasicText("Delete", style = Type.control, modifier = Modifier.padding(end = 20.dp))
-        }
-
+    Box(Modifier.fillMaxWidth()) {
         Row(
             Modifier
-                .offset { IntOffset(offset.value.roundToInt(), 0) }
                 .fillMaxWidth()
                 .background(Tokens.surface)
-                .draggable(
-                    state = rememberDraggableState { delta ->
-                        scope.launch { offset.snapTo((offset.value + delta).coerceIn(-width.toFloat(), 0f)) }
-                    },
-                    orientation = DragOrientation.Horizontal,
-                    onDragStopped = { velocity ->
-                        if (offset.value < -width * 0.4f || velocity < -1500f) {
-                            offset.animateTo(-width.toFloat())
-                            onDelete()
-                        } else {
-                            offset.animateTo(0f)
-                        }
-                    },
-                )
                 .clickable(onClick = onOpen)
                 .padding(start = 16.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -227,42 +207,63 @@ private fun PlanRow(
                 statusOf(stored, routing)?.let { BasicText(it, style = Type.note, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
 
-            PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare)
+            PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare, onDelete = onDelete, initiallyOpen = menuOpen)
         }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Tokens.line))
     }
 }
 
-/** One thing a ⋯ menu offers. */
+/** One thing a ⋯ menu offers: its icon, and the word a screen reader says for it. */
 internal class MenuEntry(val icon: ImageVector, val label: String, val onClick: () -> Unit)
 
-/** A plan's ⋯ menu: Edit, Copy and Share link, the same wherever a plan is shown. */
+/** A plan's ⋯ menu: Edit, Copy, Share link and Delete, the same wherever a plan is shown. Delete does not ask. */
 @Composable
-internal fun PlanMenu(onEdit: () -> Unit, onCopy: () -> Unit, onShare: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PlanMenu(
+    onEdit: () -> Unit,
+    onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    initiallyOpen: Boolean = false,
+) {
     ActionMenu(
-        listOf(MenuEntry(Icons.Edit, "Edit", onEdit), MenuEntry(Icons.Copy, "Copy", onCopy), MenuEntry(Icons.Share, "Share link", onShare)),
+        listOf(
+            MenuEntry(Icons.Edit, "Edit", onEdit),
+            MenuEntry(Icons.Copy, "Copy", onCopy),
+            MenuEntry(Icons.Share, "Share link", onShare),
+            MenuEntry(Icons.Delete, "Delete", onDelete),
+        ),
         modifier,
+        initiallyOpen,
     )
 }
 
-/** A ⋯ button that opens [entries], each an icon and its word. */
+/** A ⋯ button that opens [entries] below it as one row of icons, all alike and without words. */
 @Composable
-internal fun ActionMenu(entries: List<MenuEntry>, modifier: Modifier = Modifier) {
-    var open by remember { mutableStateOf(false) }
+internal fun ActionMenu(entries: List<MenuEntry>, modifier: Modifier = Modifier, initiallyOpen: Boolean = false) {
+    var open by remember { mutableStateOf(initiallyOpen) }
     Box(modifier) {
-        Box(Modifier.size(48.dp).clickable { open = true }, contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(48.dp).clickable { open = true }.semantics { contentDescription = "Actions" },
+            contentAlignment = Alignment.Center,
+        ) {
             BasicText("⋯", style = Type.title.copy(color = Tokens.ink2))
         }
         if (open) {
+            // Below the ⋯, not over it: a second tap on ⋯ is outside the menu, and closes it.
             Popup(
                 alignment = Alignment.TopEnd,
+                offset = with(LocalDensity.current) { IntOffset(0, 48.dp.roundToPx()) },
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true),
             ) {
-                Column(Modifier.padding(end = 8.dp).background(Tokens.surface, Shapes.panel).width(180.dp)) {
-                    entries.forEachIndexed { index, entry ->
-                        if (index > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
-                        MenuItem(entry.icon, entry.label) {
+                Row(
+                    // Lifted off the white it opens over.
+                    Modifier.padding(end = 8.dp, bottom = 8.dp).shadow(8.dp, Shapes.panel).background(Tokens.surface, Shapes.panel).padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    entries.forEach { entry ->
+                        MenuIcon(entry) {
                             open = false
                             entry.onClick()
                         }
@@ -274,13 +275,11 @@ internal fun ActionMenu(entries: List<MenuEntry>, modifier: Modifier = Modifier)
 }
 
 @Composable
-private fun MenuItem(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+private fun MenuIcon(entry: MenuEntry, onClick: () -> Unit) {
+    Box(
+        Modifier.size(44.dp).clickable(onClick = onClick).semantics { contentDescription = entry.label },
+        contentAlignment = Alignment.Center,
     ) {
-        Image(icon, contentDescription = null, modifier = Modifier.size(18.dp), colorFilter = ColorFilter.tint(Tokens.ink))
-        BasicText(label, style = Type.body)
+        Image(entry.icon, contentDescription = null, modifier = Modifier.size(20.dp), colorFilter = ColorFilter.tint(Tokens.ink))
     }
 }

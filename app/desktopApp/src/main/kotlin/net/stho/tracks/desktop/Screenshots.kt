@@ -43,6 +43,7 @@ import net.stho.tracks.store.PlanEditor
 import net.stho.tracks.store.PlanStore
 import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.plans.HomeScreen
+import net.stho.tracks.ui.plans.PinTarget
 import net.stho.tracks.ui.plans.PlanEditorScreen
 import net.stho.tracks.ui.plans.PlanPreview
 import net.stho.tracks.ui.plans.StopDrag
@@ -89,7 +90,7 @@ private const val PIXEL_TOLERANCE = 0.0003
 private const val TAP_TOLERANCE_PX = 2.0
 
 /** What a scene draws: the map on its own, or one of the app's screens over it. */
-private enum class Screen { Map, Home, Preview, Editor, EditorRouting, StopCarried }
+private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, StopCarried }
 
 private class Scene(
     val name: String,
@@ -106,9 +107,11 @@ private val PLANS = DIRECTORY.resolve("fixture/plans")
 
 private val SCENES = listOf(
     Scene("home", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Home),
+    Scene("home-menu", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.HomeMenu),
     Scene("preview", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Preview),
     Scene("editor", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Editor),
     Scene("editor-routing", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorRouting),
+    Scene("editor-dialog", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorDialog),
     Scene("stop-carried", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.StopCarried),
     Scene("follow", second = 185, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("stop-compass", second = 950, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
@@ -222,7 +225,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             onIdle = onIdle,
                         )
                     }
-                    Screen.Home -> HomeScreen(
+                    Screen.Home, Screen.HomeMenu -> HomeScreen(
                         style = style,
                         fix = fix,
                         plans = plans,
@@ -234,6 +237,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         onCopy = {},
                         onShare = {},
                         onDelete = {},
+                        menuOpen = plans.first().id.takeIf { scene.screen == Screen.HomeMenu },
                         onIdle = onIdle,
                     )
                     Screen.Preview -> PlanPreview(
@@ -245,9 +249,10 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         onEdit = {},
                         onCopy = {},
                         onShare = {},
+                        onDelete = {},
                         onIdle = onIdle,
                     )
-                    Screen.Editor, Screen.EditorRouting -> {
+                    Screen.Editor, Screen.EditorRouting, Screen.EditorDialog -> {
                         val scope = rememberCoroutineScope()
                         val editor = remember {
                             // An engine that never answers: whatever an edit touches stays routing, drawn still.
@@ -269,7 +274,14 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             onSave = {},
                             onCopy = {},
                             pulse = false,
-                            initiallyExpanded = true,
+                            // The dialog sits over the map, so that scene keeps the sheet minimised.
+                            initiallyExpanded = scene.screen != Screen.EditorDialog,
+                            initialDialog = remember {
+                                // A place halfway along the first leg: every choice a new place near a leg offers.
+                                val (a, b) = editor.state.value.plan.waypoints
+                                PinTarget.New(Coordinate((a.lat + b.lat) / 2, (a.lon + b.lon) / 2), leg = 0, name = "Kochelberg")
+                                    .takeIf { scene.screen == Screen.EditorDialog }
+                            },
                             onIdle = onIdle,
                         )
                     }

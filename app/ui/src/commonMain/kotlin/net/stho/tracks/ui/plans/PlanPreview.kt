@@ -61,6 +61,7 @@ fun PlanPreview(
     onEdit: () -> Unit,
     onCopy: () -> Unit,
     onShare: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     initiallyExpanded: Boolean = false,
     onIdle: () -> Unit = {},
@@ -126,7 +127,7 @@ fun PlanPreview(
                             style = Type.mono,
                         )
                     }
-                    PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare)
+                    PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare, onDelete = onDelete)
                 }
             },
             content = {

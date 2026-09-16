@@ -48,7 +48,6 @@ import net.stho.tracks.plan.derivedName
 import net.stho.tracks.plan.insertionAt
 import net.stho.tracks.plan.kindIsAChoice
 import net.stho.tracks.plan.legGeometries
-import net.stho.tracks.plan.legLabel
 import net.stho.tracks.plan.moveStop
 import net.stho.tracks.plan.moveWaypoint
 import net.stho.tracks.plan.nearestLeg
@@ -104,6 +103,8 @@ fun PlanEditorScreen(
     modifier: Modifier = Modifier,
     pulse: Boolean = true,
     initiallyExpanded: Boolean = false,
+    /** The dialog open as the screen appears: for the screenshots. */
+    initialDialog: PinTarget? = null,
     onIdle: () -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
@@ -111,7 +112,7 @@ fun PlanEditorScreen(
     val state by editor.state.collectAsState()
     val plan = state.plan
     val legs = state.legs
-    var dialog by remember { mutableStateOf<PinTarget?>(null) }
+    var dialog by remember { mutableStateOf(initialDialog) }
     var base by remember { mutableIntStateOf(0) }
     var dragging by remember { mutableStateOf<Pair<Int, Coordinate>?>(null) }
     val scope = rememberCoroutineScope()
@@ -151,7 +152,7 @@ fun PlanEditorScreen(
 
     fun pin(at: Coordinate, name: String?) {
         val leg = nearestLeg(plan, legs, at)
-        dialog = PinTarget.New(at, leg, leg?.let { legLabel(plan, it) }, name)
+        dialog = PinTarget.New(at, leg, name)
     }
 
     fun add(target: PinTarget.New, kind: WaypointKind, placement: Placement) {
