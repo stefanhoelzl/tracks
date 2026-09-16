@@ -46,6 +46,7 @@ object Icons {
     )
     val Undo: ImageVector = lucide("undo-2", "M9 14L4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11")
     val Redo: ImageVector = lucide("redo-2", "M15 14l5-5-5-5", "M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13")
+    val New: ImageVector = lucide("plus", "M5 12h14", "M12 5v14")
     val Close: ImageVector = lucide("x", "M18 6L6 18", "M6 6l12 12")
     val Save: ImageVector = lucide("check", "M20 6L9 17l-5-5")
     val Paste: ImageVector = lucide(

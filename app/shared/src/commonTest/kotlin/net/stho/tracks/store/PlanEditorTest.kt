@@ -263,4 +263,49 @@ class PlanEditorTest {
         assertEquals(Profile.Gravel, saved.plan.profile)
         assertTrue(saved.legs.all { it is RoutedLeg }, "a changed profile re-routes every leg, in the library once saved")
     }
+
+    @Test
+    fun aNewPlanIsSaveableOnceItHasAStartAndAnEndAndIsKeptOnlyThen() = runTest {
+        val fileSystem = FakeFileSystem()
+        val library = PlanLibrary(
+            store = PlanStore("/plans".toPath(), fileSystem),
+            router = Router(::routed),
+            scope = this,
+            io = StandardTestDispatcher(testScheduler),
+            now = { 5_000L },
+        )
+        val editor = PlanEditor.blank(Router(::routed), this, id = "fresh")
+        assertTrue(editor.new)
+        assertEquals(Plan(), editor.state.value.plan)
+
+        editor.update(editor.state.value.plan.copy(name = "Somewhere"))
+        assertTrue(editor.state.value.changed)
+        assertFalse(editor.state.value.saveable, "a name alone is not a plan")
+
+        editor.update(addWaypoint(editor.state.value.plan, plan.waypoints[0], 0))
+        assertFalse(editor.state.value.saveable, "one point is not a plan")
+
+        editor.update(addWaypoint(editor.state.value.plan, plan.waypoints[1], 1))
+        advanceUntilIdle()
+        assertTrue(editor.state.value.saveable)
+        assertEquals(emptyList(), library.plans.value, "nothing is kept before Save")
+
+        editor.save(library)
+        advanceUntilIdle()
+
+        val saved = library.find("fresh")!!
+        assertEquals("Somewhere", saved.plan.name)
+        assertIs<RoutedLeg>(saved.legs.single())
+        assertEquals(listOf(saved), PlanStore("/plans".toPath(), fileSystem).list())
+    }
+
+    @Test
+    fun anOpenedPlanIsSaveableOnceChanged() = runTest {
+        val editor = PlanEditor(opened, Router(::routed), this)
+        assertFalse(editor.new)
+        assertFalse(editor.state.value.saveable)
+
+        editor.update(editor.state.value.plan.copy(name = "Renamed"))
+        assertTrue(editor.state.value.saveable)
+    }
 }

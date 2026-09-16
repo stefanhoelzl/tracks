@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -90,6 +91,8 @@ private const val SHEET_SHARE = 0.5f
  * Only the legs an edit touches route again, on the phone, drawn meanwhile as the dashed, pulsing beeline. Undo and Redo
  * float over the map's corner while there is a step to take. Save overwrites the plan; Copy keeps it and saves this as
  * a new one.
+ *
+ * A new plan opens on you, as home does, with nothing but Save and Cancel — and Save only once it has a start and an end.
  */
 @Composable
 fun PlanEditorScreen(
@@ -109,6 +112,8 @@ fun PlanEditorScreen(
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
     var covered by remember { mutableStateOf(0.dp) }
+    // The first height the header was measured at: a header that grows while editing must not move the map.
+    var firstCovered by remember { mutableStateOf<Dp?>(null) }
     val state by editor.state.collectAsState()
     val plan = state.plan
     val legs = state.legs
@@ -181,8 +186,12 @@ fun PlanEditorScreen(
         style?.let {
             TracksMap(
                 style = it,
-                // Framed clear of the minimised sheet: the map is where a plan is edited.
-                camera = MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = 112.dp, end = 32.dp, bottom = covered + 32.dp)),
+                // Framed clear of the minimised sheet: the map is where a plan is edited. With nothing to frame, on you.
+                camera = if (frame.isEmpty()) {
+                    MapCamera.Centre(zoom = 13.0, inset = PaddingValues(bottom = firstCovered ?: 0.dp))
+                } else {
+                    MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = 112.dp, end = 32.dp, bottom = covered + 32.dp))
+                },
                 modifier = Modifier.fillMaxSize(),
                 fix = fix,
                 drawing = drawing,
@@ -221,12 +230,15 @@ fun PlanEditorScreen(
         SnapSheet(
             expanded = expanded,
             onExpanded = { expanded = it },
-            onHeaderHeight = { covered = it },
+            onHeaderHeight = {
+                covered = it
+                if (firstCovered == null && it > 0.dp) firstCovered = it
+            },
             header = {
-                // Save is offered once there is something to save; Cancel and Copy always are.
+                // Save is offered once there is something to save; Cancel always is, and Copy whenever there is a plan to keep.
                 val actions = listOfNotNull(
-                    MenuEntry(Icons.Save, "Save", onSave).takeIf { state.changed },
-                    MenuEntry(Icons.Copy, "Copy", onCopy),
+                    MenuEntry(Icons.Save, "Save", onSave).takeIf { state.saveable },
+                    MenuEntry(Icons.Copy, "Copy", onCopy).takeUnless { editor.new },
                     MenuEntry(Icons.Close, "Cancel", onCancel),
                 )
                 EditorHeader(plan, legs.size, stops, editor, state, actions)

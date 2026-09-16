@@ -71,8 +71,8 @@ private val SHEET_PEEK = 150.dp
 /**
  * Home: the map centred on you, under a sheet of the plans on this phone, newest first.
  *
- * A tap on a plan opens it. Its ⋯ menu edits it, copies it, shares its link or deletes it. Nothing here starts a ride
- * — riding is M14, and a control that does nothing yet is not drawn.
+ * + starts a plan from nothing, in the editor. A tap on a plan opens it. Its ⋯ menu edits it, copies it, shares its link
+ * or deletes it. Nothing here starts a ride — riding is M14, and a control that does nothing yet is not drawn.
  */
 @Composable
 fun HomeScreen(
@@ -81,6 +81,7 @@ fun HomeScreen(
     plans: List<StoredPlan>,
     routing: Map<String, PlanRouting>,
     notice: String?,
+    onNew: () -> Unit,
     onPaste: () -> Unit,
     /** Opens recording (M15); without one, there is no Ride button. */
     onRide: (() -> Unit)? = null,
@@ -148,6 +149,8 @@ fun HomeScreen(
                         IconButton(Icons.Ride, "Ride", onClick = onRide)
                         Spacer(Modifier.width(8.dp))
                     }
+                    IconButton(Icons.New, "New plan", onClick = onNew)
+                    Spacer(Modifier.width(8.dp))
                     IconButton(Icons.Paste, "Paste link", onClick = onPaste)
                 }
                 notice?.let { BasicText(it, style = Type.note, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) }
@@ -155,7 +158,7 @@ fun HomeScreen(
 
             if (plans.isEmpty()) {
                 BasicText(
-                    "No plans yet. Share a plan from tracks.stho.net to the phone, or copy its link and paste it here.",
+                    "No plans yet. Tap + to plan one, or paste a link from tracks.stho.net.",
                     style = Type.note,
                     modifier = Modifier.padding(16.dp),
                 )
