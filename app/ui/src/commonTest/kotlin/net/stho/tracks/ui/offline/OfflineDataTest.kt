@@ -67,6 +67,8 @@ class OfflineDataTest {
 
         override fun resume(pack: StoredPack) = Unit
 
+        override fun pause(pack: StoredPack) = Unit
+
         override suspend fun invalidate(pack: StoredPack) {
             invalidated += pack.area?.key
         }

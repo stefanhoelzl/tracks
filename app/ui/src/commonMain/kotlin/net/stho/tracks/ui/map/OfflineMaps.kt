@@ -1,5 +1,6 @@
 package net.stho.tracks.ui.map
 
+import kotlin.time.Clock
 import net.stho.tracks.offline.Bounds
 import net.stho.tracks.offline.MapArea
 import org.maplibre.compose.map.DefaultMapRuntime
@@ -33,10 +34,16 @@ sealed interface AreaState {
  *
  * Create it after [configureMaps].
  */
-class OfflineMaps internal constructor(private val store: PackStore) {
+class OfflineMaps internal constructor(
+    private val store: PackStore,
+    private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+) {
     constructor() : this(MapLibrePackStore(DefaultMapRuntime.instance.offlineManager))
 
     private var settled = false
+
+    /** Per area: how far its download had come, and since when it has not moved. */
+    private val lastMoved = HashMap<String, Pair<Long, Long>>()
 
     /**
      * Brings the packs to [areas]: creates what is missing and resumes what is not whole, deletes what nothing needs.
@@ -68,9 +75,40 @@ class OfflineMaps internal constructor(private val store: PackStore) {
 
         for (area in areas) {
             val pack = current.getOrPut(area.key) { store.create(area) }
-            if (pack.state !is AreaState.Ready) store.resume(pack)
+            if (pack.state !is AreaState.Ready) {
+                if (stalled(area.key, pack.state)) store.pause(pack)
+                store.resume(pack)
+            }
         }
+        lastMoved.keys.retainAll(wanted.keys)
         return states(areas)
+    }
+
+    /**
+     * Whether a download has made no progress for [PACK_STALL_MS]. On the phone, a pack whose requests failed as the app
+     * came back from the background — `-1005`, the connection lost — made no progress again until the app was restarted:
+     * MapLibre waits for a change in the network that never comes, and a resume is nothing to a pack already on. Paused and
+     * resumed, it starts over from what it has.
+     */
+    private fun stalled(key: String, state: AreaState): Boolean {
+        val done = when (state) {
+            is AreaState.Downloading -> state.completedResources
+            // Failing is MapLibre reporting a failed request, and says nothing of progress: as far as it had come.
+            is AreaState.Failing -> lastMoved[key]?.first ?: -1L
+            else -> {
+                lastMoved.remove(key)
+                return false
+            }
+        }
+        val now = clock()
+        val (before, since) = lastMoved[key] ?: (-1L to now)
+        if (done != before) {
+            lastMoved[key] = done to now
+            return false
+        }
+        if (now - since < PACK_STALL_MS) return false
+        lastMoved[key] = done to now
+        return true
     }
 
     /**
@@ -107,6 +145,8 @@ internal interface PackStore {
 
     fun resume(pack: StoredPack)
 
+    fun pause(pack: StoredPack)
+
     /** Marks everything in [pack] to be checked against the server again. */
     suspend fun invalidate(pack: StoredPack)
 
@@ -119,6 +159,9 @@ internal interface StoredPack {
 
     val state: AreaState
 }
+
+/** How long a download may make no progress before it is paused and resumed. */
+internal const val PACK_STALL_MS = 60_000L
 
 /** Vector tiles end at z14; elevation at z12, which the style says itself. */
 private const val PACK_MAX_ZOOM = 14
@@ -162,6 +205,8 @@ internal class MapLibrePackStore(private val manager: OfflineManager) : PackStor
     }
 
     override fun resume(pack: StoredPack) = manager.resume((pack as Pack).pack)
+
+    override fun pause(pack: StoredPack) = manager.pause((pack as Pack).pack)
 
     override suspend fun invalidate(pack: StoredPack) = manager.invalidate((pack as Pack).pack)
 
