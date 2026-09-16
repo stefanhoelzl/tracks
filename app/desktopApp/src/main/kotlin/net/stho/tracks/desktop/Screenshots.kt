@@ -29,6 +29,7 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sinh
 import kotlin.system.exitProcess
+import kotlin.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -55,6 +56,7 @@ import androidx.compose.foundation.layout.padding
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import net.stho.tracks.ui.map.DesktopMapHost
+import net.stho.tracks.ui.map.MapCredit
 import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
@@ -145,6 +147,9 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
     // A cache of its own, so nothing a live run downloaded can stand in for a missing fixture.
     val cache = Files.createTempDirectory("tracks-screenshots").resolve("cache.db").toString()
     configureDesktopMap(cacheFile = cache, rewriteUrl = server::rewrite)
+
+    // The map's credit, held still: open on home, the first map of a launch, and the ⓘ it collapses to everywhere else.
+    if (scene.screen == Screen.Home) MapCredit.openFor = Duration.INFINITE else MapCredit.shown = true
 
     val ride = runBlocking { bundledRide() }
     val fix = ride.fixes[scene.second].copy(epochMillis = System.currentTimeMillis())

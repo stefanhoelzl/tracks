@@ -68,6 +68,7 @@ import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.PlanDrawing
 import net.stho.tracks.ui.map.TracksMap
+import net.stho.tracks.ui.map.UNDER_MAP_CREDIT
 import net.stho.tracks.ui.map.WaypointMark
 import net.stho.tracks.sensors.Fix
 import net.stho.tracks.ui.theme.IconButton
@@ -190,7 +191,7 @@ fun PlanEditorScreen(
                 camera = if (frame.isEmpty()) {
                     MapCamera.Centre(zoom = 13.0, inset = PaddingValues(bottom = firstCovered ?: 0.dp))
                 } else {
-                    MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = 112.dp, end = 32.dp, bottom = covered + 32.dp))
+                    MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = UNDER_MAP_CREDIT + 48.dp, end = 32.dp, bottom = covered + 32.dp))
                 },
                 modifier = Modifier.fillMaxSize(),
                 fix = fix,
@@ -218,7 +219,7 @@ fun PlanEditorScreen(
         // its index, they wait for it to close.
         if (dialog == null) {
             Row(
-                Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, top = 64.dp),
+                Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, top = UNDER_MAP_CREDIT),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box(Modifier.size(44.dp)) { if (state.canUndo) IconButton(Icons.Undo, "Undo", editor::undo) }

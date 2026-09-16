@@ -42,9 +42,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import net.stho.tracks.ui.map.UNDER_MAP_CREDIT
 
 /** What the open sheet leaves above it: the map's attribution and the screen's own buttons. */
-private val TOP_CLEARANCE = 120.dp
+private val TOP_CLEARANCE = UNDER_MAP_CREDIT + 56.dp
 
 /**
  * A sheet with two states and nothing between them: minimised to its [header], or open to the top of the screen with

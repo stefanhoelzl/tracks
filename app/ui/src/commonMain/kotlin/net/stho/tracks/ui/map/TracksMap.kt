@@ -71,7 +71,6 @@ import org.maplibre.compose.map.MapEvent
 import org.maplibre.compose.map.MapState
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
-import org.maplibre.compose.overlay.ExpandingAttributionButton
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
@@ -541,9 +540,9 @@ private fun MapLibreMap(
                 }
             },
         ) {
-            // Only the attribution OpenStreetMap's licence asks for. The default overlay's logo and compass collide with
-            // the app's own controls, and its scale bar is in feet.
-            ExpandingAttributionButton()
+            // Only the credit OpenStreetMap's licence asks for. The default overlay's logo and compass collide with the
+            // app's own controls, and its scale bar is in feet.
+            MapCreditButton()
         }
 
         drawing?.takeIf { it.editable }?.let { WaypointHandles(state, it.waypoints, onWaypointTap, onWaypointDrag) }

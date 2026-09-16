@@ -34,6 +34,7 @@ import net.stho.tracks.ui.map.LegLine
 import net.stho.tracks.ui.map.LegState
 import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.PlanDrawing
+import net.stho.tracks.ui.map.UNDER_MAP_CREDIT
 import net.stho.tracks.ui.map.WaypointMark
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.TracksMap
@@ -96,7 +97,7 @@ fun PlanPreview(
             TracksMap(
                 style = it,
                 // Framed clear of the minimised sheet: open, the sheet is the thing being looked at.
-                camera = MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = 128.dp, end = 32.dp, bottom = covered + 32.dp)),
+                camera = MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = UNDER_MAP_CREDIT + 64.dp, end = 32.dp, bottom = covered + 32.dp)),
                 modifier = Modifier.fillMaxSize(),
                 drawing = drawing,
                 fix = fix,
@@ -109,7 +110,7 @@ fun PlanPreview(
             onClick = onBack,
             primary = false,
             // Under the map's attribution, which holds the top edge.
-            modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 16.dp, top = 64.dp),
+            modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 16.dp, top = UNDER_MAP_CREDIT),
         )
 
         SnapSheet(
