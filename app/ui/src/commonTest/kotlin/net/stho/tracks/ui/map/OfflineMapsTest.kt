@@ -38,6 +38,10 @@ class OfflineMapsTest {
             log += "resume ${pack.area?.key}"
         }
 
+        override suspend fun invalidate(pack: StoredPack) {
+            log += "invalidate ${pack.area?.key}"
+        }
+
         override suspend fun delete(pack: StoredPack) {
             stored -= pack as Pack
             log += "delete ${pack.area?.key} ${pack.area?.bounds?.south}"
@@ -104,6 +108,15 @@ class OfflineMapsTest {
 
         assertEquals(listOf("delete plan:a 47.0"), store.log)
         assertEquals(AreaState.Ready(40), store.stored.single().state)
+    }
+
+    @Test
+    fun aNewPlanetDownloadsTheAppsPacksAgainAndLeavesOthersAlone() = runTest {
+        val store = FakeStore(Pack(garmisch, AreaState.Ready(500)), Pack(plan, AreaState.Ready(40)), Pack(null, AreaState.Ready(1)))
+
+        OfflineMaps(store).refresh()
+
+        assertEquals(listOf("invalidate around", "resume around", "invalidate plan:a", "resume plan:a"), store.log)
     }
 
     @Test
