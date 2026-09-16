@@ -213,10 +213,10 @@ private fun PlanRow(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 BasicText(titleOf(stored.plan), style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 BasicText(numbersOf(stored), style = Type.mono, maxLines = 1)
-                offlineOf(offline)?.let { BasicText(it, style = Type.note, maxLines = 1) }
                 statusOf(stored, routing)?.let { BasicText(it, style = Type.note, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
 
+            OfflineBadge(offline, Modifier.padding(start = 12.dp))
             PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare, onDelete = onDelete, initiallyOpen = menuOpen)
         }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Tokens.line))
