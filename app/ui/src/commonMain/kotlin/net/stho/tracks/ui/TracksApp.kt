@@ -32,6 +32,7 @@ import net.stho.tracks.store.StoredPlan
 import net.stho.tracks.ui.harness.MapHarness
 import net.stho.tracks.ui.offline.OfflineData
 import net.stho.tracks.ui.map.MapStyle
+import net.stho.tracks.ui.map.UNDER_MAP_CREDIT
 import net.stho.tracks.ui.plans.HomeScreen
 import net.stho.tracks.ui.plans.PlanEditorScreen
 import net.stho.tracks.ui.plans.PlanPreview
@@ -140,7 +141,7 @@ fun TracksApp(
                 onClick = { riding = false },
                 primary = false,
                 // Under the map's attribution, which holds the top edge.
-                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 16.dp, top = 64.dp),
+                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 16.dp, top = UNDER_MAP_CREDIT),
             )
         }
 
