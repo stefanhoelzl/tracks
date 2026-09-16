@@ -1,7 +1,9 @@
 import type { FacetsResponse, Filter, Mode, TagType } from '@tracks/core'
-import { Activity, ChartColumn, List, LogOut, Route } from 'lucide-react'
+import { ChartColumn, List, LogOut, Route } from 'lucide-react'
+import { useId } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, km, metres } from '../lib/format.ts'
+import { ON_ACCENT, PANELS, ROUTE, ROUTE_WIDTH } from '../lib/mark.ts'
 import { FilterChips } from './FilterChips.tsx'
 import { ImportButton } from './ImportButton.tsx'
 import type { ImportSource } from './ImportDialog.tsx'
@@ -65,7 +67,7 @@ export function TopBar({
     <Panel className={styles.bar}>
       <div className={styles.brand}>
         <span className={styles.mark}>
-          <Activity size={15} color="#fff" strokeWidth={2.2} />
+          <Mark />
         </span>
         <span className={styles.name}>Tracks</span>
       </div>
@@ -116,5 +118,23 @@ export function TopBar({
         <IconButton icon={LogOut} label="Sign out" onClick={onSignOut} />
       </div>
     </Panel>
+  )
+}
+
+/** The folded map, white on the accent tile, as the favicon and the phone's icon draw it. */
+function Mark() {
+  const mask = useId()
+  return (
+    <svg viewBox="0 0 100 100" width={26} height={26} aria-hidden="true">
+      <mask id={mask} maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+        <rect width="100" height="100" fill="#fff" />
+        <path d={ROUTE} fill="none" stroke="#000" strokeWidth={ROUTE_WIDTH} strokeLinecap="round" />
+      </mask>
+      <g mask={`url(#${mask})`} fill={ON_ACCENT.ink}>
+        {PANELS.map((d, i) => (
+          <path key={d} d={d} fillOpacity={i === 1 ? ON_ACCENT.fold : 1} />
+        ))}
+      </g>
+    </svg>
   )
 }

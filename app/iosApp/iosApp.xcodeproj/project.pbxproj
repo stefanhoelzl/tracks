@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F543015C899423D4B01CEB2E /* Assets.xcassets */; };
 		3308FD214D827EB10E66C23E /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = 54AD6916D4C7BB5DB3C602E5 /* profiles */; };
 		5C8214899000396D5E33DD3B /* routes.tsv in Resources */ = {isa = PBXBuildFile; fileRef = E619FA8BC80508DC88BE7392 /* routes.tsv */; };
 		973A83F500B6D08405C43BAB /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74122FC534AD28BEC3774AD0 /* main.swift */; };
@@ -19,12 +20,14 @@
 		C117AD187833E2513BD2F553 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iosApp.entitlements; sourceTree = "<group>"; };
 		E619FA8BC80508DC88BE7392 /* routes.tsv */ = {isa = PBXFileReference; path = routes.tsv; sourceTree = "<group>"; };
+		F543015C899423D4B01CEB2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		1DB4B685CAEE8BEFEBBAEF94 /* iosApp */ = {
 			isa = PBXGroup;
 			children = (
+				F543015C899423D4B01CEB2E /* Assets.xcassets */,
 				C117AD187833E2513BD2F553 /* Info.plist */,
 				C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */,
 				74122FC534AD28BEC3774AD0 /* main.swift */,
@@ -132,6 +135,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */,
 				3308FD214D827EB10E66C23E /* profiles in Resources */,
 				5C8214899000396D5E33DD3B /* routes.tsv in Resources */,
 			);

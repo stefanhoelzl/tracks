@@ -8,23 +8,13 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { build } from 'esbuild'
+import { contentType } from '../src/content-types.ts'
 
 const here = resolve(import.meta.dirname, '..')
 const dist = resolve(here, '../web/dist')
 
 /** Bunny's cap. The build refuses rather than deploys something that cannot run. */
 const LIMIT = 10 * 1024 * 1024
-
-const TYPES: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.woff2': 'font/woff2',
-  '.ico': 'image/x-icon',
-}
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -37,12 +27,11 @@ function inlineAssets() {
   const files = walk(dist)
   const entries = files.map((path) => {
     const url = `/${relative(dist, path).replaceAll('\\', '/')}`
-    const extension = url.slice(url.lastIndexOf('.'))
     return [
       url,
       {
         body: readFileSync(path).toString('base64'),
-        type: TYPES[extension] ?? 'application/octet-stream',
+        type: contentType(url),
         // Vite hashes everything it emits except index.html, and the hash is what
         // makes a year-long cache safe. Anything unhashed is served no-store.
         immutable: /-[A-Za-z0-9_-]{8,}\./.test(url),
