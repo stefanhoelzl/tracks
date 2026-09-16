@@ -11,8 +11,10 @@ import kotlinx.coroutines.launch
 import net.stho.tracks.plan.Leg
 import net.stho.tracks.plan.Plan
 import net.stho.tracks.plan.PlanFragment
+import net.stho.tracks.plan.Waypoint
 import net.stho.tracks.plan.legKey
 import net.stho.tracks.plan.stretches
+import net.stho.tracks.plan.updateWaypoint
 import net.stho.tracks.plan.withEnds
 import net.stho.tracks.routing.LegRouting
 import net.stho.tracks.routing.NoRoutingData
@@ -28,6 +30,9 @@ import net.stho.tracks.routing.NoRoutingData
  * Every plan it holds is the plan its link carries: an edit is passed through the fragment, so a point dropped on the
  * phone sits where the web will route it from.
  *
+ * **Every edit can be undone**, for as long as the editor is open. The history holds plans, not legs: an undo is one more
+ * edit, so the legs it changes route again and the rest are kept. A run of typing into one name is one step.
+ *
  * Nothing is kept until [save] or [saveAsNew]. Call it from one thread — the UI's.
  */
 class PlanEditor(start: StoredPlan, private val router: LegRouting, private val scope: CoroutineScope) {
@@ -41,8 +46,13 @@ class PlanEditor(start: StoredPlan, private val router: LegRouting, private val 
         val noData: Set<Int> = emptySet(),
         /** Legs the engine refused for a reason that is not the two points. */
         val errors: Map<Int, String> = emptyMap(),
-        /** Whether anything differs from the plan the editor opened. */
+        /**
+         * Whether there is anything worth saving: a plan that differs from the one the editor opened, or legs it opened
+         * without and has routed since. Undone back to the opened plan, legs routed again on the phone are not.
+         */
         val changed: Boolean = false,
+        val canUndo: Boolean = false,
+        val canRedo: Boolean = false,
     )
 
     val id: String = start.id
@@ -56,6 +66,12 @@ class PlanEditor(start: StoredPlan, private val router: LegRouting, private val 
     private val noData = HashSet<String>()
     private val errors = HashMap<String, String>()
 
+    private val undone = ArrayDeque<Plan>()
+    private val redone = ArrayDeque<Plan>()
+
+    /** The name the last edit typed into, while typing into it is still the step on top of [undone]. */
+    private var typing: Int? = null
+
     private val _state = MutableStateFlow(snapshot())
     val state: StateFlow<State> = _state.asStateFlow()
 
@@ -66,6 +82,49 @@ class PlanEditor(start: StoredPlan, private val router: LegRouting, private val 
     /** The plan after an edit — any of `PlanOps`, applied to [State.plan] and [State.legs]. */
     fun update(next: Plan) {
         val linked = PlanFragment.parse(PlanFragment.format(next))
+        if (linked == plan) return
+
+        val renaming = renamed(plan, linked)
+        if (renaming == null || renaming != typing) {
+            undone.addLast(plan)
+            if (undone.size > HISTORY) undone.removeFirst()
+        }
+        typing = renaming
+        redone.clear()
+        apply(linked)
+    }
+
+    /** Back to the plan before the last edit. */
+    fun undo() {
+        val previous = undone.removeLastOrNull() ?: return
+        redone.addLast(plan)
+        typing = null
+        apply(previous)
+    }
+
+    /** Forward again to the plan the last [undo] left. */
+    fun redo() {
+        val next = redone.removeLastOrNull() ?: return
+        undone.addLast(plan)
+        typing = null
+        apply(next)
+    }
+
+    /**
+     * A name found for [stop] after it was placed, by a lookup that answers late. It is part of adding the stop rather
+     * than an edit of its own, so every step of the history that holds the stop has it: undoing what came after keeps it.
+     */
+    fun nameFound(stop: Waypoint, name: String) {
+        fun named(plan: Plan): Plan {
+            val at = plan.waypoints.indexOf(stop)
+            return if (at < 0) plan else updateWaypoint(plan, at) { it.copy(name = name) }
+        }
+        for (history in listOf(undone, redone)) history.indices.forEach { history[it] = named(history[it]) }
+        val next = PlanFragment.parse(PlanFragment.format(named(plan)))
+        if (next != plan) apply(next)
+    }
+
+    private fun apply(linked: Plan) {
         val nextStretches = stretches(linked.waypoints)
         val nextKeys = nextStretches.map { legKey(it, linked.profile) }
 
@@ -98,6 +157,15 @@ class PlanEditor(start: StoredPlan, private val router: LegRouting, private val 
     suspend fun saveAsNew(library: PlanLibrary): StoredPlan {
         close()
         return library.saveAsNew(plan, legs)
+    }
+
+    /** Which name [to] only retypes from [from]: [PLAN_NAME], a waypoint's index, or null when the edit is more than that. */
+    private fun renamed(from: Plan, to: Plan): Int? {
+        if (from.copy(name = to.name) == to) return PLAN_NAME
+        if (from.name != to.name || from.profile != to.profile || from.waypoints.size != to.waypoints.size) return null
+        val differing = from.waypoints.indices.filter { from.waypoints[it] != to.waypoints[it] }
+        val at = differing.singleOrNull() ?: return null
+        return at.takeIf { from.waypoints[at].copy(name = to.waypoints[at].name) == to.waypoints[at] }
     }
 
     private fun keysOf(plan: Plan) = stretches(plan.waypoints).map { legKey(it, plan.profile) }
@@ -142,6 +210,14 @@ class PlanEditor(start: StoredPlan, private val router: LegRouting, private val 
         routing = keys.indices.filter { keys[it] in jobs }.toSet(),
         noData = keys.indices.filter { keys[it] in noData }.toSet(),
         errors = keys.indices.mapNotNull { index -> errors[keys[index]]?.let { index to it } }.toMap(),
-        changed = plan != opened.plan || legs != opened.legs,
+        changed = plan != opened.plan || legs.indices.any { opened.legs[it] == null && legs[it] != null },
+        canUndo = undone.isNotEmpty(),
+        canRedo = redone.isNotEmpty(),
     )
+
+    private companion object {
+        /** Steps an undo can go back; the oldest drop off. */
+        const val HISTORY = 100
+        const val PLAN_NAME = -1
+    }
 }
