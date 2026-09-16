@@ -24,10 +24,15 @@ import okio.Path.Companion.toPath
  *
  * Around Garmisch, inside the map tiles the scenes have: one plan routed, one unnamed, one with a leg the engine
  * cannot connect, and one somewhere this device has no routing data for.
+ *
+ * Beside them, in `riding`, the plan the riding scenes follow: the bundled ride's own 6 km out of Garmisch, with a stop
+ * where it stops. Kept apart so the plan list the other scenes draw stays as it is.
  */
 fun main(args: Array<String>) {
     val (out, segments, profiles) = args
+    val ridingOut = File(out).resolveSibling("riding").path
     File(out).deleteRecursively()
+    File(ridingOut).deleteRecursively()
 
     fun stop(lat: Double, lon: Double, name: String?) = Waypoint(lat, lon, WaypointKind.Poi, name)
     fun hint(lat: Double, lon: Double) = Waypoint(lat, lon, WaypointKind.Routing, null)
@@ -41,6 +46,13 @@ fun main(args: Array<String>) {
         Plan(name = "Over the glacier", waypoints = listOf(stop(47.6546, 9.4797, "Friedrichshafen"), stop(46.5, 8.03, null))),
         Plan(name = "Somewhere new", profile = Profile.Road, waypoints = listOf(stop(41.3275, 19.8187, "Tirana"), stop(41.0, 20.0, null))),
     ).map(PlanLink::format)
+    val riding = PlanLink.format(
+        Plan(
+            name = "Out of Garmisch",
+            profile = Profile.Trekking,
+            waypoints = listOf(stop(47.491684, 11.094945, "Garmisch"), stop(47.488206, 11.122374, null), stop(47.488902, 11.166775, "Kaltenbrunn")),
+        ),
+    )
 
     var ids = 0
     var clock = 1_758_000_000_000L
@@ -57,6 +69,16 @@ fun main(args: Array<String>) {
             check(library.receiveLink(link) is Intake.Kept) { "not kept: $link" }
             println("received $link")
         }
+        val ridingLibrary = PlanLibrary(
+            store = PlanStore(ridingOut.toPath(), FileSystem.SYSTEM),
+            router = LegRouter(segments, profiles, Dispatchers.IO),
+            scope = this,
+            io = Dispatchers.IO,
+            now = { 1_758_000_000_000L },
+            newId = { "riding" },
+        )
+        check(ridingLibrary.receiveLink(riding) is Intake.Kept) { "not kept: $riding" }
+        println("received $riding")
     }
     println("wrote $out")
 }

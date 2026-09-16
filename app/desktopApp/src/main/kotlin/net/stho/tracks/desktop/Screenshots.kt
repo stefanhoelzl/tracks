@@ -7,6 +7,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
@@ -35,6 +36,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.recording.Entry
+import net.stho.tracks.recording.Tally
+import net.stho.tracks.riding.Follower
+import net.stho.tracks.riding.Progress
+import net.stho.tracks.riding.Route
+import net.stho.tracks.sensors.Pressure
+import net.stho.tracks.sensors.pressureAt
+import net.stho.tracks.ui.riding.Navigation
+import net.stho.tracks.ui.riding.RideStats
+import net.stho.tracks.ui.riding.RidingScreen
 import net.stho.tracks.sensors.Heading
 import net.stho.tracks.sensors.distanceM
 import kotlinx.coroutines.awaitCancellation
@@ -92,7 +103,10 @@ private const val PIXEL_TOLERANCE = 0.0003
 private const val TAP_TOLERANCE_PX = 2.0
 
 /** What a scene draws: the map on its own, or one of the app's screens over it. */
-private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried }
+private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried, Riding, FreeRide }
+
+/** The iPhone SE2's 4.7″ screen, the phone every device check runs on: what riding has to fit. */
+private val SE2 = DpSize(375.dp, 667.dp)
 
 private class Scene(
     val name: String,
@@ -102,10 +116,14 @@ private class Scene(
     /** Where to click, from the map's centre, in pixels; a tap scene checks the coordinate instead of a picture. */
     val tap: Pair<Int, Int>? = null,
     val screen: Screen = Screen.Map,
+    val size: DpSize = PHONE,
 )
 
 /** The plans the app's screens are drawn with, recorded by `./gradlew :desktopApp:recordPlans`. */
 private val PLANS = DIRECTORY.resolve("fixture/plans")
+
+/** The plan the riding scenes follow — the bundled ride's own way out of Garmisch — recorded beside them. */
+private val RIDING = DIRECTORY.resolve("fixture/riding")
 
 private val SCENES = listOf(
     Scene("home", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Home),
@@ -116,6 +134,9 @@ private val SCENES = listOf(
     Scene("editor-dialog", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorDialog),
     Scene("editor-new", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorNew),
     Scene("stop-carried", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.StopCarried),
+    // 2.2 km in, 400 m before the ride's stop: the camera the riding screen sets, on the phone it has to fit.
+    Scene("riding", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.Riding, size = SE2),
+    Scene("free-ride", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.FreeRide, size = SE2),
     Scene("follow", second = 185, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("stop-compass", second = 950, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("north-up", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp, FOLLOW_ZOOM) }),
@@ -180,7 +201,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
         Window(
             onCloseRequest = ::exitApplication,
             title = "Tracks — ${scene.name}",
-            state = rememberWindowState(position = WindowPosition(0.dp, 0.dp), size = PHONE),
+            state = rememberWindowState(position = WindowPosition(0.dp, 0.dp), size = scene.size),
             resizable = false,
             undecorated = true,
         ) {
@@ -240,6 +261,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         onNew = {},
                         onPaste = {},
                         onOpen = {},
+                        onNavigate = {},
                         onEdit = {},
                         onCopy = {},
                         onShare = {},
@@ -290,6 +312,42 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                                 val (a, b) = editor.state.value.plan.waypoints
                                 PinTarget.New(Coordinate((a.lat + b.lat) / 2, (a.lon + b.lon) / 2), leg = 0, name = "Kochelberg")
                             },
+                            onIdle = onIdle,
+                        )
+                    }
+                    Screen.Riding, Screen.FreeRide -> {
+                        // The ride up to this second, recorded and followed as the phone would have, fix by fix.
+                        val ridden = remember { ride.fixes.take(scene.second + 1) }
+                        val tally = remember {
+                            Tally().apply {
+                                ridden.forEach { f ->
+                                    f.altitudeM?.let { add(Entry.Pressured(Pressure(pressureAt(it), f.epochMillis))) }
+                                    add(Entry.Located(f))
+                                }
+                            }
+                        }
+                        val navigation = remember {
+                            if (scene.screen != Screen.Riding) return@remember null
+                            val stored = PlanStore(RIDING.absolutePath.toPath(), FileSystem.SYSTEM).list().single()
+                            val route = Route(stored.plan.waypoints, stored.legs)
+                            val follower = Follower(route)
+                            var progress: Progress? = null
+                            ridden.forEach { progress = follower.follow(it.at) }
+                            Navigation(stored, route, progress)
+                        }
+                        RidingScreen(
+                            style = style,
+                            fix = fix,
+                            heading = heading,
+                            ridden = ridden.map { it.at },
+                            navigation = navigation,
+                            routing = null,
+                            elevation = remember { tally.elevation.terrain() },
+                            stats = RideStats(paused = false, distanceM = tally.odometer.distanceM, climbedM = tally.climb.gainM),
+                            onPause = {},
+                            onResume = {},
+                            onStop = {},
+                            pulse = false,
                             onIdle = onIdle,
                         )
                     }
