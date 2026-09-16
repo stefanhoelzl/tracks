@@ -58,7 +58,7 @@ import platform.UIKit.UIPasteboard
 import platform.UIKit.UIViewController
 
 /**
- * The app's screen, for the Swift shell to put in its window: the plans, their editor, and recording with its upload
+ * The app's screen, for the Swift shell to put in its window: the plans, their editor, and riding with its upload
  * queue.
  *
  * It follows the phone's own location, compass and barometer, and uploads to tracks.stho.net. Two launch variables
@@ -179,5 +179,9 @@ private object IosPlatform : AppPlatform {
         val link = NSURL.URLWithString(url) ?: return
         val sheet = UIActivityViewController(activityItems = listOf(link), applicationActivities = null)
         UIApplication.sharedApplication.keyWindow?.rootViewController?.presentViewController(sheet, animated = true, completion = null)
+    }
+
+    override fun keepScreenOn(on: Boolean) {
+        UIApplication.sharedApplication.idleTimerDisabled = on
     }
 }

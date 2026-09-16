@@ -1,11 +1,6 @@
 package net.stho.tracks.ui
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -15,9 +10,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -25,20 +18,21 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import net.stho.tracks.places.PhotonGeocoder
 import net.stho.tracks.plan.PlanLink
+import net.stho.tracks.plan.derivedName
 import net.stho.tracks.routing.LegRouting
 import net.stho.tracks.store.PlanEditor
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.StoredPlan
-import net.stho.tracks.ui.harness.MapHarness
 import net.stho.tracks.ui.offline.OfflineData
 import net.stho.tracks.ui.map.MapStyle
-import net.stho.tracks.ui.map.UNDER_MAP_CREDIT
 import net.stho.tracks.ui.plans.HomeScreen
 import net.stho.tracks.ui.plans.PlanEditorScreen
 import net.stho.tracks.ui.plans.PlanPreview
 import net.stho.tracks.ui.recording.Recorder
+import net.stho.tracks.ui.recording.RecorderState
+import net.stho.tracks.ui.riding.Navigator
+import net.stho.tracks.ui.riding.Riding
 import net.stho.tracks.ui.sensors.Sensors
-import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.upload.UploadQueue
 import kotlinx.coroutines.flow.flowOf
 
@@ -49,6 +43,9 @@ interface AppPlatform {
 
     /** Hands [url] to whatever the platform shares with: the share sheet on the phone. */
     fun share(url: String)
+
+    /** Keeps the screen from locking itself while [on]: for as long as a ride is recording. The rider locks it. */
+    fun keepScreenOn(on: Boolean) {}
 }
 
 /** What became of some text that may have held a plan link. */
@@ -71,7 +68,12 @@ suspend fun PlanLibrary.receiveLink(text: String?): Intake {
 }
 
 /**
- * The app: home, the plan a tap opened, the editor — on a stored plan or a new one — and recording, which home's Ride button opens.
+ * The app: home, the plan a tap opened, the editor — on a stored plan or a new one — and riding.
+ *
+ * Riding is everything for as long as the [recorder] has a ride — recording, stopped and waiting for *Save ride?*, or
+ * found interrupted as the app started — and nothing else is reachable meanwhile. Navigate in a plan's ⋯ menu starts a
+ * ride that follows it; home's Ride button starts one with no plan. The screen stays on while a ride records or waits to
+ * be saved.
  *
  * [router] must be the one the [library] routes with — there is one engine, and one route runs at a time. [sensors]
  * must be shared when there is a [recorder]: the map and the recorder read one stream, or a replay would be two rides.
@@ -99,9 +101,11 @@ fun TracksApp(
     val offlineState by remember(offline) { offline?.state ?: flowOf(null) }.collectAsState(null)
     var open by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<PlanEditor?>(null) }
-    var riding by remember { mutableStateOf(false) }
+    val recorded by remember(recorder) { recorder?.state ?: flowOf(RecorderState.Idle) }.collectAsState(RecorderState.Idle)
     var notice by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val navigator = remember(sensors, library) { Navigator(sensors, library.plans, scope) }
+    val riding = recorder != null && recorded != RecorderState.Idle
 
     fun intake(text: String?) {
         scope.launch {
@@ -114,6 +118,9 @@ fun TracksApp(
     }
 
     LaunchedEffect(library) { library.start() }
+    LaunchedEffect((recorded as? RecorderState.Recording)?.planId) { navigator.follow((recorded as? RecorderState.Recording)?.planId) }
+    val screenOn = recorded is RecorderState.Recording || recorded is RecorderState.Stopped
+    LaunchedEffect(screenOn) { platform.keepScreenOn(screenOn) }
     LaunchedEffect(links) { links.collect { intake(it) } }
     LaunchedEffect(notice) {
         if (notice != null) {
@@ -126,6 +133,13 @@ fun TracksApp(
         library.find(id)?.let { platform.share(PlanLink.format(it.plan)) }
     }
 
+    /** Starts a ride that follows the plan [id], titled with its name, and sets off from wherever the list or view was. */
+    fun navigate(id: String) {
+        val stored = library.find(id) ?: return
+        open = null
+        recorder?.start(plan = stored.plan.name.ifEmpty { derivedName(stored.plan) }.ifEmpty { null }, profile = stored.plan.profile.wire, planId = id)
+    }
+
     fun edit(id: String) {
         library.find(id)?.let { editing = PlanEditor(it, router, scope) }
     }
@@ -133,17 +147,15 @@ fun TracksApp(
     val editor = editing
     val opened = open?.let { id -> plans.firstOrNull { it.id == id } }
     when {
-        riding && recorder != null -> Box(modifier) {
-            // M15's recording screen, as it shipped: record, pause, stop, Save ride?, and the upload queue.
-            MapHarness(sensors = sensors, plan = emptyList(), recorder = recorder, upload = upload, offline = offline, onIdle = onIdle)
-            Pill(
-                "‹ Plans",
-                onClick = { riding = false },
-                primary = false,
-                // Under the map's attribution, which holds the top edge.
-                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 16.dp, top = UNDER_MAP_CREDIT),
-            )
-        }
+        riding && recorder != null -> Riding(
+            style = style,
+            recorder = recorder,
+            navigator = navigator,
+            sensors = sensors,
+            routing = routing,
+            modifier = modifier,
+            onIdle = onIdle,
+        )
 
         editor != null -> PlanEditorScreen(
             style = style,
@@ -179,6 +191,7 @@ fun TracksApp(
             onEdit = { edit(opened.id) },
             onCopy = { scope.launch { open = library.copy(opened.id)?.id ?: open } },
             onShare = { share(opened.id) },
+            onNavigate = recorder?.let { { navigate(opened.id) } },
             onDelete = {
                 open = null
                 scope.launch { library.delete(opened.id) }
@@ -195,7 +208,8 @@ fun TracksApp(
             notice = notice,
             onNew = { editing = PlanEditor.blank(router, scope) },
             onPaste = { intake(platform.clipboardText()) },
-            onRide = recorder?.let { { riding = true } },
+            onRide = recorder?.let { ride -> { ride.start() } },
+            onNavigate = recorder?.let { ::navigate },
             onOpen = { open = it },
             onEdit = ::edit,
             onCopy = { id -> scope.launch { library.copy(id) } },
@@ -203,6 +217,7 @@ fun TracksApp(
             onDelete = { id -> scope.launch { library.delete(id) } },
             modifier = modifier,
             offline = offlineState,
+            upload = upload,
             onIdle = onIdle,
         )
     }

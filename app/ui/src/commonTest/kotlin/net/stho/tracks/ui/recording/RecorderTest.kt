@@ -134,6 +134,48 @@ class RecorderTest {
     }
 
     @Test
+    fun aRideThatFollowsAPlanStillFollowsItWhenContinued() = runTest {
+        val sensors = FakeSensors()
+        val dying = CoroutineScope(backgroundScope.coroutineContext + kotlinx.coroutines.Job())
+        val first = recorder(sensors, dying)
+        first.start(plan = "Partnachklamm", profile = "hiking", planId = "plan-1")
+        runCurrent()
+        assertEquals("plan-1", assertIs<RecorderState.Recording>(first.state.value).planId)
+        (0..12).forEach { ride(sensors, it) }
+        dying.cancel()
+
+        val second = recorder(sensors)
+        second.continueRide()
+        runCurrent()
+        assertEquals("plan-1", assertIs<RecorderState.Recording>(second.state.value).planId)
+
+        // A ride with no plan follows none, continued or not.
+        second.stop()
+        second.discard()
+        second.start()
+        runCurrent()
+        assertNull(assertIs<RecorderState.Recording>(second.state.value).planId)
+    }
+
+    @Test
+    fun theRideSoFarHasAProfileUntilItIsSaved() = runTest {
+        val sensors = FakeSensors()
+        val recorder = recorder(sensors)
+        recorder.start()
+        runCurrent()
+        assertNull(recorder.elevation.value)
+        (0..60).forEach { ride(sensors, it) }
+
+        val terrain = recorder.elevation.value!!
+        assertEquals(300.0, terrain.totalM, 30.0)
+        assertTrue(terrain.altitudeM.last()!! - terrain.altitudeM.first()!! in 25.0..31.0, "climbed ${terrain.altitudeM}")
+
+        recorder.stop()
+        recorder.save("Evening", "bike")
+        assertNull(recorder.elevation.value)
+    }
+
+    @Test
     fun stoppedBeforeTheFirstFixThereIsNothingToSave() = runTest {
         val recorder = recorder(FakeSensors())
         recorder.start()

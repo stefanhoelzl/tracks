@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import net.stho.tracks.codec.Coordinate
+import net.stho.tracks.plan.Terrain
 import net.stho.tracks.recording.Entry
 import net.stho.tracks.recording.JournalWriter
 import net.stho.tracks.recording.MAX_ACCURACY_M
@@ -32,6 +33,8 @@ sealed interface RecorderState {
         val distanceM: Double,
         /** Null without a barometer. */
         val climbedM: Double?,
+        /** The id of the plan the ride follows; null for a ride with no plan. */
+        val planId: String? = null,
     ) : RecorderState
 
     /** A ride the app died during, found when it started again: continue it, or stop it here. */
@@ -69,6 +72,10 @@ class Recorder(
     val state: StateFlow<RecorderState> = mutableState.asStateFlow()
 
     private val mutableTrack = MutableStateFlow<List<Coordinate>>(emptyList())
+    private val mutableElevation = MutableStateFlow<Terrain?>(null)
+
+    /** The ride's height against distance ridden, so far: what a ride with no plan draws as its profile. */
+    val elevation: StateFlow<Terrain?> = mutableElevation.asStateFlow()
 
     /** Where the ride has been: every fix kept, from the start — or the journal, when continued — until it is saved or discarded. */
     val track: StateFlow<List<Coordinate>> = mutableTrack.asStateFlow()
@@ -78,14 +85,24 @@ class Recorder(
     private var collecting: Job? = null
     private var tally = Tally()
     private var paused = false
+    private var following: String? = null
+    private var heights = 0
     private var flushedAt = 0L
 
-    /** Starts a ride; [plan] and [profile] are the plan's name and routing profile, when it has one. */
-    fun start(plan: String? = null, profile: String? = null) {
+    /**
+     * Starts a ride; [plan] and [profile] are the plan's name and routing profile, and [planId] the stored plan it
+     * follows, when it has one.
+     */
+    fun start(plan: String? = null, profile: String? = null, planId: String? = null) {
         check(state.value == RecorderState.Idle) { "already recording" }
         val started = Entry.Started(newId(), clock(), plan, profile)
-        writer = rides.start(started)
-        record(started.id, Tally(), emptyList(), paused = false)
+        writer = rides.start(started).apply {
+            if (planId != null) {
+                append(Entry.Follows(planId, started.epochMillis))
+                flush()
+            }
+        }
+        record(started.id, Tally(), emptyList(), paused = false, planId = planId)
     }
 
     fun pause() = mark(Entry.Paused(clock()), paused = true)
@@ -109,7 +126,7 @@ class Recorder(
         if (ride.fixes.isEmpty()) {
             // Stopped before the first fix: there is no ride to ask about.
             rides.delete(ride.id)
-            mutableTrack.value = emptyList()
+            clear()
             mutableState.value = next()
         } else {
             mutableState.value = draft(ride)
@@ -121,14 +138,14 @@ class Recorder(
         val interrupted = state.value as? RecorderState.Interrupted ?: error("nothing to continue")
         val ride = rides.get(interrupted.id)
         writer = rides.reopen(ride.id)
-        record(ride.id, Tally.of(ride.entries), ride.fixes.map { it.fix.at }, paused = ride.state == Ride.State.Paused)
+        record(ride.id, Tally.of(ride.entries), ride.fixes.map { it.fix.at }, paused = ride.state == Ride.State.Paused, planId = ride.following)
     }
 
     /** Queues the stopped ride for upload. */
     fun save(title: String, sport: String) {
         val stopped = state.value as? RecorderState.Stopped ?: error("nothing to save")
         rides.append(stopped.id, Entry.Saved(title.trim().ifEmpty { stopped.title }, sport))
-        mutableTrack.value = emptyList()
+        clear()
         mutableState.value = next()
         onSaved()
     }
@@ -137,7 +154,7 @@ class Recorder(
     fun discard() {
         val stopped = state.value as? RecorderState.Stopped ?: error("nothing to discard")
         rides.delete(stopped.id)
-        mutableTrack.value = emptyList()
+        clear()
         mutableState.value = next()
     }
 
@@ -147,11 +164,13 @@ class Recorder(
         flushedAt = clock()
     }
 
-    private fun record(rideId: String, from: Tally, track: List<Coordinate>, paused: Boolean) {
+    private fun record(rideId: String, from: Tally, track: List<Coordinate>, paused: Boolean, planId: String?) {
         id = rideId
         tally = from
         mutableTrack.value = track
+        heights = -1
         this.paused = paused
+        following = planId
         flushedAt = clock()
         publish()
         collecting = scope.launch {
@@ -191,7 +210,18 @@ class Recorder(
             paused = paused,
             distanceM = tally.odometer.distanceM,
             climbedM = tally.climb.gainM.takeIf { tally.barometric },
+            planId = following,
         )
+        // Measured again only when there is a new height: every 25 m, not every second.
+        if (tally.elevation.size != heights) {
+            heights = tally.elevation.size
+            mutableElevation.value = tally.elevation.terrain()
+        }
+    }
+
+    private fun clear() {
+        mutableTrack.value = emptyList()
+        mutableElevation.value = null
     }
 
     /** What the screen should offer when nothing is being recorded: the oldest ride still waiting for an answer. */
