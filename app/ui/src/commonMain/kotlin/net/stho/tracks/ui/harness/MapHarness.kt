@@ -128,6 +128,7 @@ internal fun offlineLines(state: OfflineState): List<String> = buildList {
             is AreaState.Downloading -> add("$key: map ${(area.fraction * 100).roundToInt()}%")
             is AreaState.Ready -> add("$key: map offline, ${area.bytes / 1_000_000} MB")
             is AreaState.Failing -> add("$key: map retrying — ${area.message}")
+            AreaState.StorageFull -> add("$key: map paused, the phone is nearly full")
         }
     }
     val downloading = state.downloading
@@ -139,6 +140,7 @@ internal fun offlineLines(state: OfflineState): List<String> = buildList {
         !state.segmentsWaiting.isNullOrEmpty() -> add("routing: ${state.segmentsWaiting.joinToString { it.name }} waiting")
     }
     state.mapProblem?.let { add("map: $it") }
+    state.profileProblem?.let { add("profiles: $it") }
     when (val problem = state.segmentProblem) {
         null -> Unit
         is SegmentProblem.Unreachable -> add("routing: ${problem.message}")

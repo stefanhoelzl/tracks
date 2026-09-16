@@ -3,6 +3,7 @@ package net.stho.tracks.ui.map
 import kotlin.time.Clock
 import net.stho.tracks.offline.Bounds
 import net.stho.tracks.offline.MapArea
+import net.stho.tracks.offline.STORAGE_RESERVE_BYTES
 import org.maplibre.compose.map.DefaultMapRuntime
 import org.maplibre.compose.offline.DownloadProgress
 import org.maplibre.compose.offline.DownloadStatus
@@ -25,6 +26,9 @@ sealed interface AreaState {
 
     /** The last request failed. MapLibre keeps retrying while the pack is resumed; [message] is what it said. */
     data class Failing(val message: String) : AreaState
+
+    /** Paused: the phone has less room than [STORAGE_RESERVE_BYTES] would leave. It resumes once there is room. */
+    data object StorageFull : AreaState
 }
 
 /**
@@ -37,8 +41,10 @@ sealed interface AreaState {
 class OfflineMaps internal constructor(
     private val store: PackStore,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    /** Free bytes on the volume the packs are on, or null where that is not known. */
+    private val freeBytes: () -> Long? = { null },
 ) {
-    constructor() : this(MapLibrePackStore(DefaultMapRuntime.instance.offlineManager))
+    constructor(freeBytes: () -> Long? = { null }) : this(MapLibrePackStore(DefaultMapRuntime.instance.offlineManager), freeBytes = freeBytes)
 
     private var settled = false
 
@@ -50,6 +56,10 @@ class OfflineMaps internal constructor(
      *
      * A pack whose area moved — the area around you, recentred — stays until the pack for where it is now is whole, so
      * what the two share is not deleted while it is still being downloaded again.
+     *
+     * With less room on the phone than [STORAGE_RESERVE_BYTES], no pack downloads: how big a pack will be is not known
+     * until it is whole, so the reserve is kept by stopping before it is reached rather than by adding up in advance.
+     * Unfinished packs are paused and say [AreaState.StorageFull]; whole ones stay, and deleting what nothing needs goes on.
      */
     suspend fun reconcile(areas: List<MapArea>): Map<String, AreaState> {
         if (!settled) {
@@ -73,15 +83,21 @@ class OfflineMaps internal constructor(
             if (!keep) store.delete(pack)
         }
 
+        val full = freeBytes()?.let { it < STORAGE_RESERVE_BYTES } == true
         for (area in areas) {
             val pack = current.getOrPut(area.key) { store.create(area) }
-            if (pack.state !is AreaState.Ready) {
-                if (stalled(area.key, pack.state)) store.pause(pack)
-                store.resume(pack)
+            if (pack.state is AreaState.Ready) continue
+            if (full) {
+                store.pause(pack)
+                lastMoved.remove(area.key)
+                continue
             }
+            if (stalled(area.key, pack.state)) store.pause(pack)
+            store.resume(pack)
         }
         lastMoved.keys.retainAll(wanted.keys)
-        return states(areas)
+        val states = states(areas)
+        return if (full) states.mapValues { (_, state) -> if (state is AreaState.Ready) state else AreaState.StorageFull } else states
     }
 
     /**

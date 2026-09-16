@@ -27,6 +27,7 @@ import net.stho.tracks.offline.OfflineNeeds
 import net.stho.tracks.offline.PlanLine
 import net.stho.tracks.offline.PlanetCheck
 import net.stho.tracks.offline.PlanetWatch
+import net.stho.tracks.offline.ProfileSync
 import net.stho.tracks.offline.SegmentProblem
 import net.stho.tracks.offline.SegmentProgress
 import net.stho.tracks.offline.SegmentStore
@@ -57,11 +58,13 @@ fun offlineData(
     onTilesLanded: () -> Unit,
     /** How tile bytes are moved: in the process by default; on the phone, by iOS in the background. */
     transfer: ((SegmentStore) -> SegmentTransfer)? = null,
+    /** The engine's profiles, kept as brouter.de has them; null keeps whatever the engine is given. */
+    profiles: ProfileSync? = null,
 ): OfflineData = OfflineData(
     sensors = sensors,
     plans = plans.map { stored -> stored.map(::planLine) },
     network = networkState(scope),
-    maps = OfflineMaps(),
+    maps = OfflineMaps(freeBytes),
     segments = SegmentStore(segmentDirectory).let { store ->
         val client = downloadHttpClient()
         val clock = { Clock.System.now().toEpochMilliseconds() }
@@ -77,6 +80,7 @@ fun offlineData(
     scope = scope,
     planet = PlanetWatch(downloadHttpClient(), directory / "planet", clock = { Clock.System.now().toEpochMilliseconds() }),
     onTilesLanded = onTilesLanded,
+    profiles = profiles,
 )
 
 /** A stored plan, as offline data sees it: its stops, and its legs as routed — or as straight stretches until they are. */
@@ -97,6 +101,9 @@ const val SEGMENT_RECHECK_MS = 60 * 60_000L
 /** The first retry after brouter.de could not be reached; each one after waits twice as long, up to [SEGMENT_RECHECK_MS]. */
 const val SEGMENT_FIRST_RETRY_MS = 30_000L
 
+/** How often the profiles are looked at: each file is asked about at most once a week, so this only bounds how late. */
+const val PROFILE_RECHECK_MS = 60 * 60_000L
+
 /** How often the planet watch is asked: it asks VersaTiles only once a week itself, so this only bounds how late it notices. */
 const val PLANET_RECHECK_MS = 60 * 60_000L
 
@@ -111,6 +118,8 @@ data class OfflineState(
     val downloading: SegmentProgress? = null,
     val mapProblem: String? = null,
     val segmentProblem: SegmentProblem? = null,
+    /** Why brouter.de's profiles could not be checked or taken; the phone routes with the ones it has. */
+    val profileProblem: String? = null,
 ) {
     /** Where the stored plan [id] stands offline, or null for a plan offline data does not know yet. */
     fun plan(id: String): PlanOffline? {
@@ -122,6 +131,7 @@ data class OfflineState(
         val tile = downloading?.takeIf { it.tile in tiles }
         return when {
             map is AreaState.Ready && missing.isEmpty() -> PlanOffline.Ready
+            map is AreaState.StorageFull -> PlanOffline.PhoneFull
             (segmentProblem as? SegmentProblem.StorageFull)?.tile?.let { it in tiles } == true -> PlanOffline.PhoneFull
             map is AreaState.Downloading -> PlanOffline.Downloading(map.fraction)
             tile != null -> PlanOffline.Downloading(tile.totalBytes?.let { tile.receivedBytes.toDouble() / it } ?: 0.0)
@@ -169,6 +179,7 @@ class OfflineData(
     private val fileSystem: FileSystem = FileSystem.SYSTEM,
     private val planet: PlanetWatch? = null,
     private val onTilesLanded: () -> Unit = {},
+    private val profiles: ProfileSync? = null,
 ) {
     private val centre = MutableStateFlow(readCentre())
     private val mutableState = MutableStateFlow(OfflineState())
@@ -204,6 +215,17 @@ class OfflineData(
                             withContext(io) { watch.refreshed() }
                         }
                         delay(PLANET_RECHECK_MS)
+                    }
+                }
+            }
+        }
+        profiles?.let { sync ->
+            scope.launch {
+                network.collectLatest { on ->
+                    while (true) {
+                        val result = withContext(io) { sync.sync(on) }
+                        mutableState.update { it.copy(profileProblem = result.problem) }
+                        delay(PROFILE_RECHECK_MS)
                     }
                 }
             }
