@@ -78,6 +78,7 @@ val PHONE = DpSize(393.dp, 852.dp)
  * to continue.
  */
 fun main(args: Array<String>) {
+    matchDesktopScale()
     fun option(name: String) = args.indexOf(name).takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
     val gpx = option("--gpx")?.let { File(it).readText() }
     val from = option("--from")?.toInt() ?: 0
@@ -150,6 +151,24 @@ fun main(args: Array<String>) {
             }
         }
     }
+}
+
+/**
+ * Draws at the scale the desktop asks X11 apps for. A GNOME Wayland session with fractional scaling gives Xwayland apps
+ * the screen's real pixels and says how to scale in `Xft.dpi` (192 is 2×), which Java does not read: left alone, the
+ * harness is drawn at 1× and its text is tiny. Java takes only a whole scale on Linux, so it is rounded.
+ *
+ * Must run before anything touches AWT. `-Dsun.java2d.uiScale` or `GDK_SCALE` still override it; without `xrdb`, or
+ * under the screenshots container's Xvfb, which sets no `Xft.dpi`, nothing changes.
+ */
+private fun matchDesktopScale() {
+    if (System.getProperty("sun.java2d.uiScale") != null || System.getenv("GDK_SCALE") != null) return
+    val dpi = runCatching {
+        ProcessBuilder("xrdb", "-query").redirectErrorStream(true).start().inputReader().readLines()
+            .firstNotNullOfOrNull { Regex("""^Xft\.dpi:\s*(\d+(\.\d+)?)""").find(it)?.groupValues?.get(1)?.toDouble() }
+    }.getOrNull() ?: return
+    val scale = Math.round(dpi / 96).coerceAtLeast(1)
+    if (scale > 1) System.setProperty("sun.java2d.uiScale", scale.toString())
 }
 
 /** A ride with no plan is titled with its date, as this machine writes one. */
