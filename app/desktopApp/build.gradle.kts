@@ -16,6 +16,9 @@ kotlin {
     jvmToolchain(25)
 }
 
+/** The JDK the harness is compiled for, and so the one it runs on: `run` and the screenshot container alike. */
+val jdk = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+
 dependencies {
     implementation(project(":ui"))
     implementation(libs.okio)
@@ -29,6 +32,8 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "net.stho.tracks.desktop.MainKt"
+        // Not the JDK Gradle itself runs on, which Compose would otherwise start it with.
+        javaHome = jdk.get().metadata.installationPath.asFile.absolutePath
         // MapLibre Native is reached through Java's foreign function API.
         jvmArgs += listOf("--enable-native-access=ALL-UNNAMED", "-Xmx1g")
     }
@@ -56,12 +61,10 @@ tasks.register<JavaExec>("recordPlans") {
  * what the container needs to start it: the runtime classpath as absolute paths — the container mounts the Gradle home
  * read-only at the same path — and the JDK 25 to run it with, which it mounts the same way.
  */
-val screenshotJdk = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
-
 tasks.register("screenshotClasspath") {
     val jar = tasks.named<Jar>("jar")
     val runtime = configurations.named("runtimeClasspath")
-    val javaHome = screenshotJdk.map { it.metadata.installationPath.asFile.absolutePath }
+    val javaHome = jdk.map { it.metadata.installationPath.asFile.absolutePath }
     val out = layout.buildDirectory.dir("screenshot-run")
     dependsOn(jar)
     inputs.files(runtime)
