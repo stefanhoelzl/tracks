@@ -47,10 +47,30 @@ import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
 
 /**
+ * A stored plan as the editor draws it — its stops, named, and each leg by its state — with nothing to drag: in its view,
+ * and under a ride that follows it.
+ */
+fun planDrawing(stored: StoredPlan, routing: PlanRouting?, pulse: Boolean = true): PlanDrawing = PlanDrawing(
+    legs = legGeometries(stored.plan.waypoints, stored.legs).mapIndexed { index, line ->
+        LegLine(
+            line,
+            when {
+                stored.legs.getOrNull(index) is RoutedLeg -> LegState.Routed
+                routing?.routing == index -> LegState.Routing
+                else -> LegState.Unroutable
+            },
+        )
+    },
+    waypoints = stored.plan.waypoints.map { WaypointMark(Coordinate(it.lat, it.lon), it.kind == WaypointKind.Poi, it.name ?: "") },
+    pulse = pulse,
+    editable = false,
+)
+
+/**
  * A stored plan, read-only: the whole of it on the map, and a sheet that is either its name and what can be done with
  * it, or all of it — the numbers and the terrain.
  *
- * What a tap in the list opens until riding exists (M14), when that tap starts a ride instead.
+ * What a tap in the list opens. Its ⋯ menu is the list's, and Navigate there starts riding it.
  */
 @Composable
 fun PlanPreview(
@@ -64,27 +84,13 @@ fun PlanPreview(
     onShare: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Starts a ride that follows the plan; without one, the menu has no Navigate. */
+    onNavigate: (() -> Unit)? = null,
     initiallyExpanded: Boolean = false,
     onIdle: () -> Unit = {},
 ) {
     val plan = stored.plan
-    // The plan as the editor draws it — its stops, named, and each leg by its state — with nothing to drag.
-    val drawing = remember(stored, routing) {
-        PlanDrawing(
-            legs = legGeometries(plan.waypoints, stored.legs).mapIndexed { index, line ->
-                LegLine(
-                    line,
-                    when {
-                        stored.legs[index] is RoutedLeg -> LegState.Routed
-                        routing?.routing == index -> LegState.Routing
-                        else -> LegState.Unroutable
-                    },
-                )
-            },
-            waypoints = plan.waypoints.map { WaypointMark(Coordinate(it.lat, it.lon), it.kind == WaypointKind.Poi, it.name ?: "") },
-            editable = false,
-        )
-    }
+    val drawing = remember(stored, routing) { planDrawing(stored, routing) }
     val frame = remember(stored) {
         planBounds(plan.waypoints, stored.legs)?.let { listOf(Coordinate(it.south, it.west), Coordinate(it.north, it.east)) }
             ?: emptyList()
@@ -128,7 +134,7 @@ fun PlanPreview(
                             style = Type.mono,
                         )
                     }
-                    PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare, onDelete = onDelete)
+                    PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare, onDelete = onDelete, onNavigate = onNavigate)
                 }
             },
             content = {

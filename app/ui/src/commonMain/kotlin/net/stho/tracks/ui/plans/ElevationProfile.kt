@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
@@ -34,10 +36,11 @@ private const val AREA_OPACITY = 0.16f
  * tall so a flat valley loop never draws like a col. Two labels on it — the lowest height and the top — and the two
  * ends of the track under it.
  *
- * Here for the plan editor, and for M14's riding panel, which draws the same thing with you on it.
+ * The plan editor draws it, and the riding panel draws the same thing with you on it: [youM] metres along, a dot on the
+ * line and a dashed rule down to the axis.
  */
 @Composable
-fun ElevationProfile(terrain: Terrain, modifier: Modifier = Modifier, height: Dp = 96.dp) {
+fun ElevationProfile(terrain: Terrain, modifier: Modifier = Modifier, height: Dp = 96.dp, youM: Double? = null) {
     val stops = remember(terrain) { terrain.rampStops() }
     val floorM = terrain.floorM
     val topM = terrain.topM
@@ -94,6 +97,21 @@ fun ElevationProfile(terrain: Terrain, modifier: Modifier = Modifier, height: Dp
                     drawPath(line, brush, style = Stroke(width = 1.2.dp.toPx()))
                     start = end + 1
                 }
+
+                youM?.let { along ->
+                    val px = x(along.coerceIn(0.0, terrain.totalM))
+                    drawLine(
+                        Tokens.ink,
+                        Offset(px, 0f),
+                        Offset(px, plot),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 2.dp.toPx())),
+                    )
+                    altitudeAlong(terrain, along)?.let { altitude ->
+                        drawCircle(Color.White, radius = 5.5.dp.toPx(), center = Offset(px, y(altitude)))
+                        drawCircle(Tokens.ink, radius = 4.dp.toPx(), center = Offset(px, y(altitude)))
+                    }
+                }
             }
             BasicText(Format.metres(topM), style = Type.axis, modifier = Modifier.align(Alignment.TopStart))
             BasicText(Format.metres(floorM), style = Type.axis, modifier = Modifier.align(Alignment.BottomStart))
@@ -103,4 +121,15 @@ fun ElevationProfile(terrain: Terrain, modifier: Modifier = Modifier, height: Dp
             BasicText("${Format.km(terrain.totalM)} km", style = Type.axis)
         }
     }
+}
+
+/** The height [alongM] metres along, between the drawn points either side; null in a dropout. */
+private fun altitudeAlong(terrain: Terrain, alongM: Double): Double? {
+    val after = terrain.distances.indexOfFirst { it >= alongM }
+    if (after < 0) return terrain.altitudeM.lastOrNull()
+    if (after == 0) return terrain.altitudeM.first()
+    val a = terrain.altitudeM[after - 1] ?: return null
+    val b = terrain.altitudeM[after] ?: return null
+    val span = terrain.distances[after] - terrain.distances[after - 1]
+    return if (span <= 0) b else a + (alongM - terrain.distances[after - 1]) / span * (b - a)
 }

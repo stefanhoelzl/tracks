@@ -44,6 +44,8 @@ object Icons {
         "M16 5a1 1 0 1 1-2 0a1 1 0 1 1 2 0z",
         "M12 17.5V14l-3-3 4-3 2 3h2",
     )
+    val Navigate: ImageVector = lucide("navigation", "M3 11l19-9-9 19-2-8-8-2z")
+    val NorthUp: ImageVector = lucide("compass", "M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0z", "M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z")
     val Undo: ImageVector = lucide("undo-2", "M9 14L4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11")
     val Redo: ImageVector = lucide("redo-2", "M15 14l5-5-5-5", "M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13")
     val New: ImageVector = lucide("plus", "M5 12h14", "M12 5v14")

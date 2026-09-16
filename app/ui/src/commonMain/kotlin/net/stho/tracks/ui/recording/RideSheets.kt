@@ -1,11 +1,9 @@
 package net.stho.tracks.ui.recording
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,43 +16,18 @@ import net.stho.tracks.recording.SPORTS
 import net.stho.tracks.ui.harness.Button
 import net.stho.tracks.ui.harness.Field
 import net.stho.tracks.ui.harness.Label
-import net.stho.tracks.ui.harness.Pill
 import net.stho.tracks.ui.harness.Sheet
 import net.stho.tracks.ui.harness.Title
 
-/**
- * Recording's own controls: record, pause and stop, the offer to continue an interrupted ride, and the Save sheet.
- *
- * A stand-in for how a ride starts until riding (M14) exists — there, starting a plan or *Ride* starts the recorder, and
- * this is what is left of it: the Save sheet, and the readouts' distance and metres climbed.
- */
+/** A ride the app died during, found as it started again: continue it where the journal left it, or stop it there. */
 @Composable
-fun RecordingControls(recorder: Recorder) {
-    val state by recorder.state.collectAsState()
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        when (val s = state) {
-            RecorderState.Idle -> Button("Record") { recorder.start() }
-
-            is RecorderState.Recording -> {
-                Pill {
-                    val climbed = s.climbedM?.let { "${it.roundToInt()} m climbed" } ?: "no barometer"
-                    Label((if (s.paused) "Paused · " else "Recording · ") + "${kilometres(s.distanceM)} · $climbed")
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (s.paused) Button("Resume") { recorder.resume() } else Button("Pause", quiet = true) { recorder.pause() }
-                    Button("Stop") { recorder.stop() }
-                }
-            }
-
-            is RecorderState.Interrupted -> {
-                Pill { Label("A ride was interrupted at ${kilometres(s.distanceM)}") }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button("Stop", quiet = true) { recorder.stop() }
-                    Button("Continue") { recorder.continueRide() }
-                }
-            }
-
-            is RecorderState.Stopped -> SaveRideSheet(s, onSave = recorder::save, onDiscard = recorder::discard)
+fun InterruptedSheet(interrupted: RecorderState.Interrupted, onContinue: () -> Unit, onStop: () -> Unit) {
+    Sheet {
+        Title("A ride was interrupted")
+        Label("It had ${kilometres(interrupted.distanceM)} when the app was ended.")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+            Button("Stop", quiet = true, onClick = onStop)
+            Button("Continue", onClick = onContinue)
         }
     }
 }

@@ -65,6 +65,8 @@ import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
+import net.stho.tracks.ui.upload.UploadQueue
+import net.stho.tracks.ui.upload.UploadStatus
 
 /** How much of the screen the open sheet takes, and how much of it stays when it is pulled down. */
 private const val SHEET_SHARE = 0.55f
@@ -73,8 +75,9 @@ private val SHEET_PEEK = 150.dp
 /**
  * Home: the map centred on you, under a sheet of the plans on this phone, newest first.
  *
- * + starts a plan from nothing, in the editor. A tap on a plan opens it. Its ⋯ menu edits it, copies it, shares its link
- * or deletes it. Nothing here starts a ride — riding is M14, and a control that does nothing yet is not drawn.
+ * + starts a plan from nothing, in the editor. A tap on a plan opens it. Its ⋯ menu navigates it — a ride that follows
+ * it — edits it, copies it, shares its link or deletes it. Ride starts a ride with no plan. What the upload queue has to
+ * say, and signing in, sit under the buttons.
  */
 @Composable
 fun HomeScreen(
@@ -85,8 +88,10 @@ fun HomeScreen(
     notice: String?,
     onNew: () -> Unit,
     onPaste: () -> Unit,
-    /** Opens recording (M15); without one, there is no Ride button. */
+    /** Starts a ride with no plan; without one, there is no Ride button. */
     onRide: (() -> Unit)? = null,
+    /** Starts a ride that follows a plan; without one, no menu has Navigate. */
+    onNavigate: ((String) -> Unit)? = null,
     onOpen: (String) -> Unit,
     onEdit: (String) -> Unit,
     onCopy: (String) -> Unit,
@@ -97,6 +102,7 @@ fun HomeScreen(
     menuOpen: String? = null,
     /** Where each plan stands offline (M13); without it, the rows say nothing about it. */
     offline: OfflineState? = null,
+    upload: UploadQueue? = null,
     onIdle: () -> Unit = {},
 ) {
     BoxWithConstraints(modifier.fillMaxSize().background(Tokens.ground)) {
@@ -158,6 +164,7 @@ fun HomeScreen(
                     IconButton(Icons.Paste, "Paste link", onClick = onPaste)
                 }
                 notice?.let { BasicText(it, style = Type.note, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) }
+                upload?.let { Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) { UploadStatus(it) } }
             }
 
             if (plans.isEmpty()) {
@@ -177,6 +184,7 @@ fun HomeScreen(
                             menuOpen = stored.id == menuOpen,
                             offline = offline?.plan(stored.id),
                             onOpen = { onOpen(stored.id) },
+                            onNavigate = onNavigate?.let { navigate -> { navigate(stored.id) } },
                             onEdit = { onEdit(stored.id) },
                             onCopy = { onCopy(stored.id) },
                             onShare = { onShare(stored.id) },
@@ -196,6 +204,7 @@ private fun PlanRow(
     menuOpen: Boolean,
     offline: PlanOffline?,
     onOpen: () -> Unit,
+    onNavigate: (() -> Unit)?,
     onEdit: () -> Unit,
     onCopy: () -> Unit,
     onShare: () -> Unit,
@@ -217,7 +226,7 @@ private fun PlanRow(
             }
 
             OfflineBadge(offline, Modifier.padding(start = 12.dp))
-            PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare, onDelete = onDelete, initiallyOpen = menuOpen)
+            PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare, onDelete = onDelete, onNavigate = onNavigate, initiallyOpen = menuOpen)
         }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Tokens.line))
     }
@@ -226,7 +235,10 @@ private fun PlanRow(
 /** One thing a ⋯ menu offers: its icon, and the word a screen reader says for it. */
 internal class MenuEntry(val icon: ImageVector, val label: String, val onClick: () -> Unit)
 
-/** A plan's ⋯ menu: Edit, Copy, Share link and Delete, the same wherever a plan is shown. Delete does not ask. */
+/**
+ * A plan's ⋯ menu: Navigate, Edit, Copy, Share link and Delete, the same wherever a plan is shown. Navigate is there when
+ * there is a way to ride; Delete does not ask.
+ */
 @Composable
 internal fun PlanMenu(
     onEdit: () -> Unit,
@@ -234,10 +246,12 @@ internal fun PlanMenu(
     onShare: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (() -> Unit)? = null,
     initiallyOpen: Boolean = false,
 ) {
     ActionMenu(
-        listOf(
+        listOfNotNull(
+            onNavigate?.let { MenuEntry(Icons.Navigate, "Navigate", it) },
             MenuEntry(Icons.Edit, "Edit", onEdit),
             MenuEntry(Icons.Copy, "Copy", onCopy),
             MenuEntry(Icons.Share, "Share link", onShare),
