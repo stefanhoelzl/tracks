@@ -1,7 +1,7 @@
 package net.stho.tracks.ui.map
 
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -17,12 +18,17 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
@@ -149,9 +155,9 @@ data class PlanDrawing(
  *
  * [onTap] reports where a tap landed. With [onPlace] set, a tap instead reports where it landed together with the name
  * of the place labelled under it on the map — how a stop is named with no signal. [onLongPress] reports a long press.
- * A [drawing]'s waypoints can be tapped ([onWaypointTap]) and dragged ([onWaypointDrag], reported as they move and once
- * more, `done`, where they are let go). [onIdle] is called whenever the map has finished drawing what it was asked for —
- * what a screenshot waits for.
+ * A [drawing]'s waypoints can be tapped ([onWaypointTap]) and, once a long press picks one up, dragged ([onWaypointDrag],
+ * reported as they move and once more, `done`, where they are let go). [onIdle] is called whenever the map has finished
+ * drawing what it was asked for — what a screenshot waits for.
  */
 @Composable
 fun TracksMap(
@@ -203,6 +209,11 @@ private const val SHAPING_MIN_ZOOM = 10f
 
 /** How big a waypoint's handle is under a finger: bigger than the marker, which is drawn for the eye. */
 private val HANDLE_SIZE = 44.dp
+
+/** A stop's marker, and a waypoint's once a long press has picked it up. */
+private val STOP_RADIUS = 7.dp
+private val HELD_STOP_RADIUS = 11.dp
+private val HELD_SHAPING_RADIUS = 6.dp
 
 /** The map's labels a stop may take its name from, most specific first: things, then stations, then places. */
 private val NAMED_LAYERS = setOf(
@@ -299,8 +310,17 @@ private fun MapLibreMap(
     }
     val routingJson = remember(drawing) { linesJson(drawing?.legs?.filter { it.state == LegState.Routing }?.map { it.coordinates } ?: emptyList()) }
     val unroutableJson = remember(drawing) { linesJson(drawing?.legs?.filter { it.state == LegState.Unroutable }?.map { it.coordinates } ?: emptyList()) }
-    val stopsJson = remember(drawing) { pointsJson(drawing?.waypoints?.filter { it.stop } ?: emptyList()) }
-    val shapingJson = remember(drawing) { pointsJson(drawing?.waypoints?.filterNot { it.stop } ?: emptyList()) }
+    // The waypoint a finger holds is drawn larger, by layers of its own, so it shows it has been picked up.
+    var held by remember { mutableStateOf<Int?>(null) }
+    val marks = drawing?.waypoints ?: emptyList()
+    val heldMark = held?.let(marks::getOrNull)
+    val stopsJson = remember(drawing) { pointsJson(marks.filter { it.stop }) }
+    val restingStopsJson = remember(drawing, held) { pointsJson(marks.filterIndexed { i, it -> it.stop && i != held }) }
+    val shapingJson = remember(drawing, held) { pointsJson(marks.filterIndexed { i, it -> !it.stop && i != held }) }
+    val heldStopJson = remember(drawing, held) { pointsJson(listOfNotNull(heldMark?.takeIf { it.stop })) }
+    val heldShapingJson = remember(drawing, held) { pointsJson(listOfNotNull(heldMark?.takeUnless { it.stop })) }
+    // How many fingers are on the map, handles included: a second one ends a pick-up or a drag.
+    var fingers by remember { mutableIntStateOf(0) }
 
     // The one thing on the map that moves on its own, because it is the one thing waiting on somebody else.
     val waiting = drawing != null && drawing.pulse && drawing.legs.any { it.state == LegState.Routing }
@@ -400,19 +420,34 @@ private fun MapLibreMap(
             strokeWidth = const(1.5.dp),
             strokeColor = const(Tokens.accent),
         )
+        CircleLayer(
+            id = "plan-shaping-held",
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(heldShapingJson)),
+            color = const(Color.White),
+            radius = const(HELD_SHAPING_RADIUS),
+            strokeWidth = const(2.dp),
+            strokeColor = const(Tokens.accent),
+        )
         // A stop is the plan, so it is the plan's colour, ringed in white to hold against the terrain.
-        val stopsSource = rememberGeoJsonSource(GeoJsonData.JsonString(stopsJson))
         CircleLayer(
             id = "plan-stops",
-            source = stopsSource,
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(restingStopsJson)),
             color = const(Tokens.accent),
-            radius = const(7.dp),
+            radius = const(STOP_RADIUS),
             strokeWidth = const(2.5.dp),
+            strokeColor = const(Color.White),
+        )
+        CircleLayer(
+            id = "plan-stops-held",
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(heldStopJson)),
+            color = const(Tokens.accent),
+            radius = const(HELD_STOP_RADIUS),
+            strokeWidth = const(3.dp),
             strokeColor = const(Color.White),
         )
         SymbolLayer(
             id = "plan-stop-labels",
-            source = stopsSource,
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(stopsJson)),
             textField = format(span(feature.get("label").asString())),
             textFont = const(listOf("noto_sans_bold")),
             textSize = const(12.sp),
@@ -508,7 +543,14 @@ private fun MapLibreMap(
         }
     }
 
-    Box {
+    Box(
+        Modifier.pointerInput(Unit) {
+            // Watched before anything below takes the touch, and never consumed: the map and the handles still get it.
+            awaitPointerEventScope {
+                while (true) fingers = awaitPointerEvent(PointerEventPass.Initial).changes.count { it.pressed }
+            }
+        },
+    ) {
         MaplibreMap(
             state = state,
             interactions = remember {
@@ -545,7 +587,9 @@ private fun MapLibreMap(
             MapCreditButton()
         }
 
-        drawing?.takeIf { it.editable }?.let { WaypointHandles(state, it.waypoints, onWaypointTap, onWaypointDrag) }
+        drawing?.takeIf { it.editable }?.let {
+            WaypointHandles(state, it.waypoints, { fingers }, { index -> held = index }, onWaypointTap, onWaypointDrag)
+        }
     }
 }
 
@@ -575,38 +619,49 @@ private suspend fun nameAt(state: MapState, at: DpOffset): String? {
     return null
 }
 
+
 /**
- * Touch targets over each waypoint, placed where the map draws it and moved with the camera: a tap edits one, a drag
- * moves it. They are Compose over the map rather than map layers, so a drag on one never pans the map beneath it.
+ * Touch targets over each waypoint, placed where the map draws it and moved with the camera: a tap edits one, and a long
+ * press picks it up to be dragged. They are Compose over the map rather than map layers, so a drag on one never pans the
+ * map beneath it. [fingers] counts the fingers on the whole map; [onHeld] reports which waypoint is picked up, if any.
  */
 @Composable
 private fun WaypointHandles(
     state: MapState,
     waypoints: List<WaypointMark>,
+    fingers: () -> Int,
+    onHeld: (Int?) -> Unit,
     onTap: (Int) -> Unit,
     onDrag: (Int, Coordinate, Boolean) -> Unit,
 ) {
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnHeld by rememberUpdatedState(onHeld)
     // Read so the handles follow the camera: the position is Compose state.
     state.cameraPosition
 
     waypoints.forEachIndexed { index, mark ->
         key(index) {
             val screen = runCatching { state.screenLocationFromPosition(Position(mark.at.lon, mark.at.lat)) }.getOrNull()
-            if (screen != null) WaypointHandle(state, index, mark, screen, currentOnTap, currentOnDrag)
+            if (screen != null) WaypointHandle(state, index, mark, screen, fingers, currentOnHeld, currentOnTap, currentOnDrag)
         }
     }
 }
 
+/** How a finger resting on a waypoint's handle ended before it was held long enough to pick the waypoint up. */
+private enum class Press { Tapped, Abandoned }
+
 /**
  * One waypoint's touch target.
  *
- * Its gestures are keyed on the waypoint's index alone. Every step of a drag moves the waypoint, and a gesture keyed on
- * where it is would be torn down after the first step — cancelled without `onDragEnd` or `onDragCancel`, leaving the
- * editor sure a drag is still on: every leg drawn as a still straight dash, routed or not. While a drag is on, the
- * target stays where the drag began, so the finger's movement is measured against a target that does not move under
- * it; the map draws the waypoint where the finger is.
+ * A waypoint moves only after a long press, so a pinch whose finger lands on one zooms rather than drags it. Picking it up
+ * is felt and seen: a haptic tick, and the marker grows. Let go without moving, nothing changes. A second finger before
+ * the press is long enough abandons it; a second finger mid-drag puts the waypoint back where it was picked up.
+ *
+ * Its gesture is keyed on the waypoint's index alone. Every step of a drag moves the waypoint, and a gesture keyed on
+ * where it is would be torn down after the first step, leaving the editor sure a drag is still on: every leg drawn as a
+ * still straight dash, routed or not. While a drag is on, the target stays where the drag began, so the finger's movement
+ * is measured against a target that does not move under it; the map draws the waypoint where the finger is.
  */
 @Composable
 private fun WaypointHandle(
@@ -614,48 +669,84 @@ private fun WaypointHandle(
     index: Int,
     mark: WaypointMark,
     screen: DpOffset,
+    fingers: () -> Int,
+    onHeld: (Int?) -> Unit,
     onTap: (Int) -> Unit,
     onDrag: (Int, Coordinate, Boolean) -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
     val currentMark by rememberUpdatedState(mark)
     val currentScreen by rememberUpdatedState(screen)
-    var dragged by remember { mutableStateOf(screen) }
     var anchor by remember { mutableStateOf<DpOffset?>(null) }
-
-    fun finish() {
-        if (anchor == null) return
-        anchor = null
-        val at = state.positionFromScreenLocation(dragged) ?: currentMark.at.let { Position(it.lon, it.lat) }
-        onDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), true)
-    }
 
     val place = anchor ?: screen
     Box(
         Modifier
             .offset(place.x - HANDLE_SIZE / 2, place.y - HANDLE_SIZE / 2)
             .size(HANDLE_SIZE)
-            .pointerInput(index) { detectTapGestures(onTap = { onTap(index) }) }
             .pointerInput(index) {
-                try {
-                    detectDragGestures(
-                        onDragStart = {
-                            dragged = currentScreen
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val press = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (fingers() > 1 || event.changes.count { it.pressed } > 1) return@withTimeoutOrNull Press.Abandoned
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+                            if (change.isConsumed) return@withTimeoutOrNull Press.Abandoned
+                            if (!change.pressed) {
+                                change.consume()
+                                return@withTimeoutOrNull Press.Tapped
+                            }
+                            if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                                return@withTimeoutOrNull Press.Abandoned
+                            }
+                        }
+                    }
+                    when (press) {
+                        Press.Tapped -> onTap(index)
+                        Press.Abandoned -> Unit
+                        null -> {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val origin = currentMark.at
+                            var dragged = currentScreen
+                            var moved = false
                             anchor = currentScreen
-                        },
-                        onDragEnd = { finish() },
-                        // A drag the platform takes back — the map claiming the gesture, a system swipe — still ends:
-                        // left unfinished, the plan would stay drawn as straight lines and never route again.
-                        onDragCancel = { finish() },
-                        onDrag = { change, amount ->
-                            change.consume()
-                            dragged = DpOffset(dragged.x + amount.x.toDp(), dragged.y + amount.y.toDp())
-                            val at = state.positionFromScreenLocation(dragged) ?: return@detectDragGestures
-                            onDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), false)
-                        },
-                    )
-                } finally {
-                    // Torn down mid-drag — the waypoint removed, the editor left: the drag still ends.
-                    finish()
+                            onHeld(index)
+                            fun draggedAt() = state.positionFromScreenLocation(dragged)
+                                ?.let { Coordinate(lat = it.latitude, lon = it.longitude) } ?: currentMark.at
+                            fun end(at: Coordinate) {
+                                anchor = null
+                                onHeld(null)
+                                // Held and let go without moving: the plan is unchanged, and nothing routes again.
+                                if (moved) onDrag(index, at, true)
+                            }
+                            try {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    if (fingers() > 1 || event.changes.count { it.pressed } > 1) {
+                                        end(origin)
+                                        break
+                                    }
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+                                    val amount = change.positionChange()
+                                    change.consume()
+                                    if (!change.pressed) {
+                                        end(draggedAt())
+                                        break
+                                    }
+                                    if (amount != Offset.Zero) {
+                                        dragged = DpOffset(dragged.x + amount.x.toDp(), dragged.y + amount.y.toDp())
+                                        moved = true
+                                        onDrag(index, draggedAt(), false)
+                                    }
+                                }
+                            } finally {
+                                // Torn down mid-drag — the waypoint removed, the editor left, the platform taking the
+                                // touch back: the drag still ends where it is, or the plan would never route again.
+                                if (anchor != null) end(draggedAt())
+                            }
+                        }
+                    }
                 }
             },
     )

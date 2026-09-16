@@ -86,8 +86,9 @@ private const val SHEET_SHARE = 0.5f
  *
  * A tap on the map raises the one dialog that commits a waypoint — a stop, where to put it, or a shaping point in the
  * nearest leg — and names a stop from the map label under the tap, so it works with no signal. A waypoint's marker
- * drags; a tap on it edits it. A long press on the map drops a shaping point into the nearest leg, the phone's way of
- * dragging the line. While a marker drags the plan draws as straight lines, and it routes once it is let go.
+ * drags once a long press picks it up, so a pinch never moves one; a tap on it edits it. A long press on the map drops a
+ * shaping point into the nearest leg, the phone's way of dragging the line. While a marker drags the plan draws as
+ * straight lines, and it routes once it is let go.
  *
  * Only the legs an edit touches route again, on the phone, drawn meanwhile as the dashed, pulsing beeline. Undo and Redo
  * float over the map's corner while there is a step to take. Save overwrites the plan; Copy keeps it and saves this as
