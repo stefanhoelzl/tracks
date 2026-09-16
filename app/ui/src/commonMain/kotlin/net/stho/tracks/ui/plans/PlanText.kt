@@ -54,11 +54,11 @@ internal fun PlanTiles(legs: List<Leg?>) {
 }
 
 /** The one line to say about a plan's legs, most urgent first; null when every leg is routed. */
-/** Whether the plan is on the phone for a ride with no signal (M13), and how far its download has come. */
+/** Whether the plan is on the phone for a ride with no signal (M13), and how far its download has come: its badge, spoken. */
 internal fun offlineOf(offline: PlanOffline?): String? = when (offline) {
     null -> null
-    PlanOffline.Ready -> "Offline ✓"
-    is PlanOffline.Downloading -> "Downloading ${(offline.fraction * 100).toInt()}%"
+    PlanOffline.Ready -> "Offline"
+    is PlanOffline.Downloading -> "Downloading for offline, ${(offline.fraction * 100).toInt()}%"
     PlanOffline.Pending -> "Not offline yet"
     PlanOffline.PhoneFull -> "Not offline: the phone is nearly full"
 }
