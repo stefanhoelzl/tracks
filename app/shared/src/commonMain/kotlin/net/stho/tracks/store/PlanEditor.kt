@@ -33,9 +33,16 @@ import net.stho.tracks.routing.NoRoutingData
  * **Every edit can be undone**, for as long as the editor is open. The history holds plans, not legs: an undo is one more
  * edit, so the legs it changes route again and the rest are kept. A run of typing into one name is one step.
  *
- * Nothing is kept until [save] or [saveAsNew]. Call it from one thread — the UI's.
+ * Nothing is kept until [save] or [saveAsNew]. A [new] plan is only [State.saveable] once it has a leg to route: a name
+ * alone, or one point, is not yet a plan. Call it from one thread — the UI's.
  */
-class PlanEditor(start: StoredPlan, private val router: LegRouting, private val scope: CoroutineScope) {
+class PlanEditor(
+    start: StoredPlan,
+    private val router: LegRouting,
+    private val scope: CoroutineScope,
+    /** Whether [start] is a plan nobody has saved: there is nothing on disk to overwrite, or to copy from. */
+    val new: Boolean = false,
+) {
     data class State(
         val plan: Plan,
         /** One slot per leg; null while it routes, or while there is no data for it. */
@@ -53,6 +60,8 @@ class PlanEditor(start: StoredPlan, private val router: LegRouting, private val 
         val changed: Boolean = false,
         val canUndo: Boolean = false,
         val canRedo: Boolean = false,
+        /** Whether Save means anything: something changed, and a new plan has a start and an end. */
+        val saveable: Boolean = false,
     )
 
     val id: String = start.id
@@ -204,20 +213,28 @@ class PlanEditor(start: StoredPlan, private val router: LegRouting, private val 
         _state.value = snapshot()
     }
 
-    private fun snapshot() = State(
-        plan = plan,
-        legs = legs,
-        routing = keys.indices.filter { keys[it] in jobs }.toSet(),
-        noData = keys.indices.filter { keys[it] in noData }.toSet(),
-        errors = keys.indices.mapNotNull { index -> errors[keys[index]]?.let { index to it } }.toMap(),
-        changed = plan != opened.plan || legs.indices.any { opened.legs[it] == null && legs[it] != null },
-        canUndo = undone.isNotEmpty(),
-        canRedo = redone.isNotEmpty(),
-    )
+    private fun snapshot(): State {
+        val changed = plan != opened.plan || legs.indices.any { opened.legs[it] == null && legs[it] != null }
+        return State(
+            plan = plan,
+            legs = legs,
+            routing = keys.indices.filter { keys[it] in jobs }.toSet(),
+            noData = keys.indices.filter { keys[it] in noData }.toSet(),
+            errors = keys.indices.mapNotNull { index -> errors[keys[index]]?.let { index to it } }.toMap(),
+            changed = changed,
+            canUndo = undone.isNotEmpty(),
+            canRedo = redone.isNotEmpty(),
+            saveable = changed && (!new || legs.isNotEmpty()),
+        )
+    }
 
-    private companion object {
+    companion object {
         /** Steps an undo can go back; the oldest drop off. */
-        const val HISTORY = 100
-        const val PLAN_NAME = -1
+        private const val HISTORY = 100
+        private const val PLAN_NAME = -1
+
+        /** An empty plan under a fresh id, kept nowhere until it is saved. */
+        fun blank(router: LegRouting, scope: CoroutineScope, id: String = PlanStore.newId()): PlanEditor =
+            PlanEditor(StoredPlan(id, 0, Plan(), emptyList()), router, scope, new = true)
     }
 }

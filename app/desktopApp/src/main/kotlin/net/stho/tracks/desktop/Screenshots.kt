@@ -90,7 +90,7 @@ private const val PIXEL_TOLERANCE = 0.0003
 private const val TAP_TOLERANCE_PX = 2.0
 
 /** What a scene draws: the map on its own, or one of the app's screens over it. */
-private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, StopCarried }
+private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried }
 
 private class Scene(
     val name: String,
@@ -112,6 +112,7 @@ private val SCENES = listOf(
     Scene("editor", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.Editor),
     Scene("editor-routing", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorRouting),
     Scene("editor-dialog", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorDialog),
+    Scene("editor-new", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.EditorNew),
     Scene("stop-carried", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.StopCarried),
     Scene("follow", second = 185, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("stop-compass", second = 950, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
@@ -231,6 +232,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         plans = plans,
                         routing = emptyMap(),
                         notice = null,
+                        onNew = {},
                         onPaste = {},
                         onOpen = {},
                         onEdit = {},
@@ -252,9 +254,10 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         onDelete = {},
                         onIdle = onIdle,
                     )
-                    Screen.Editor, Screen.EditorRouting, Screen.EditorDialog -> {
+                    Screen.Editor, Screen.EditorRouting, Screen.EditorDialog, Screen.EditorNew -> {
                         val scope = rememberCoroutineScope()
                         val editor = remember {
+                            if (scene.screen == Screen.EditorNew) return@remember PlanEditor.blank({ _, _ -> awaitCancellation() }, scope, id = "new")
                             // An engine that never answers: whatever an edit touches stays routing, drawn still.
                             val stored = plans.first { it.plan.name == "Partnachklamm" }
                             PlanEditor(stored, { _, _ -> awaitCancellation() }, scope).also { editor ->
@@ -274,13 +277,13 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             onSave = {},
                             onCopy = {},
                             pulse = false,
-                            // The dialog sits over the map, so that scene keeps the sheet minimised.
-                            initiallyExpanded = scene.screen != Screen.EditorDialog,
+                            // The dialog sits over the map, and a new plan opens on the rider: both keep the sheet minimised.
+                            initiallyExpanded = scene.screen != Screen.EditorDialog && scene.screen != Screen.EditorNew,
                             initialDialog = remember {
+                                if (scene.screen != Screen.EditorDialog) return@remember null
                                 // A place halfway along the first leg: every choice a new place near a leg offers.
                                 val (a, b) = editor.state.value.plan.waypoints
                                 PinTarget.New(Coordinate((a.lat + b.lat) / 2, (a.lon + b.lon) / 2), leg = 0, name = "Kochelberg")
-                                    .takeIf { scene.screen == Screen.EditorDialog }
                             },
                             onIdle = onIdle,
                         )

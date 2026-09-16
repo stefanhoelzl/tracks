@@ -68,7 +68,7 @@ suspend fun PlanLibrary.receiveLink(text: String?): Intake {
 }
 
 /**
- * The app: home, the plan a tap opened, the editor — and recording, which home's Ride button opens.
+ * The app: home, the plan a tap opened, the editor — on a stored plan or a new one — and recording, which home's Ride button opens.
  *
  * [router] must be the one the [library] routes with — there is one engine, and one route runs at a time. [sensors]
  * must be shared when there is a [recorder]: the map and the recorder read one stream, or a replay would be two rides.
@@ -188,6 +188,7 @@ fun TracksApp(
             plans = plans,
             routing = routing,
             notice = notice,
+            onNew = { editing = PlanEditor.blank(router, scope) },
             onPaste = { intake(platform.clipboardText()) },
             onRide = recorder?.let { { riding = true } },
             onOpen = { open = it },
