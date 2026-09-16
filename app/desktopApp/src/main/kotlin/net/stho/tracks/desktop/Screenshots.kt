@@ -38,7 +38,14 @@ import kotlinx.coroutines.withContext
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.recording.Entry
 import net.stho.tracks.recording.Tally
+import net.stho.tracks.riding.Detour
 import net.stho.tracks.riding.Follower
+import net.stho.tracks.riding.detour
+import net.stho.tracks.store.PlanRouting
+import net.stho.tracks.ui.riding.DetourDialog
+import net.stho.tracks.ui.riding.DetourTarget
+import net.stho.tracks.ui.riding.UndoControls
+import androidx.compose.ui.Alignment
 import net.stho.tracks.riding.Progress
 import net.stho.tracks.riding.Route
 import net.stho.tracks.sensors.Pressure
@@ -103,7 +110,7 @@ private const val PIXEL_TOLERANCE = 0.0003
 private const val TAP_TOLERANCE_PX = 2.0
 
 /** What a scene draws: the map on its own, or one of the app's screens over it. */
-private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried, Riding, FreeRide }
+private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried, Riding, RidingDialog, RidingDetour, FreeRide }
 
 /** The iPhone SE2's 4.7″ screen, the phone every device check runs on: what riding has to fit. */
 private val SE2 = DpSize(375.dp, 667.dp)
@@ -136,6 +143,8 @@ private val SCENES = listOf(
     Scene("stop-carried", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.StopCarried),
     // 2.2 km in, 400 m before the ride's stop: the camera the riding screen sets, on the phone it has to fit.
     Scene("riding", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.Riding, size = SE2),
+    Scene("riding-dialog", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingDialog, size = SE2),
+    Scene("riding-detour", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingDetour, size = SE2),
     Scene("free-ride", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.FreeRide, size = SE2),
     Scene("follow", second = 185, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("stop-compass", second = 950, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
@@ -315,7 +324,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             onIdle = onIdle,
                         )
                     }
-                    Screen.Riding, Screen.FreeRide -> {
+                    Screen.Riding, Screen.RidingDialog, Screen.RidingDetour, Screen.FreeRide -> {
                         // The ride up to this second, recorded and followed as the phone would have, fix by fix.
                         val ridden = remember { ride.fixes.take(scene.second + 1) }
                         val tally = remember {
@@ -326,9 +335,18 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                                 }
                             }
                         }
+                        // Somewhere 300 m off the road ahead: where the dialog was raised, and the detour goes through.
+                        val detourAt = remember { ride.fixes[scene.second + 150].at.let { Coordinate(it.lat + 0.0027, it.lon) } }
                         val navigation = remember {
-                            if (scene.screen != Screen.Riding) return@remember null
-                            val stored = PlanStore(RIDING.absolutePath.toPath(), FileSystem.SYSTEM).list().single()
+                            if (scene.screen == Screen.FreeRide) return@remember null
+                            val recorded = PlanStore(RIDING.absolutePath.toPath(), FileSystem.SYSTEM).list().single()
+                            // Made on the leg the rider is on, and not routed yet: the leg a straight dash, still.
+                            val stored = if (scene.screen != Screen.RidingDetour) {
+                                recorded
+                            } else {
+                                val plan = detour(recorded.plan, recorded.legs, 0, detourAt, Detour.Through, null)
+                                recorded.copy(plan = plan, legs = listOf(null, recorded.legs[1]))
+                            }
                             val route = Route(stored.plan.waypoints, stored.legs)
                             val follower = Follower(route)
                             var progress: Progress? = null
@@ -341,15 +359,26 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             heading = heading,
                             ridden = ridden.map { it.at },
                             navigation = navigation,
-                            routing = null,
+                            routing = PlanRouting(routing = 0).takeIf { scene.screen == Screen.RidingDetour },
                             elevation = remember { tally.elevation.terrain() },
                             stats = RideStats(paused = false, distanceM = tally.odometer.distanceM, climbedM = tally.climb.gainM),
                             onPause = {},
                             onResume = {},
                             onStop = {},
+                            onEditPlan = {},
+                            undo = UndoControls(canUndo = true, canRedo = false, onUndo = {}, onRedo = {}).takeIf { scene.screen == Screen.RidingDetour },
                             pulse = false,
                             onIdle = onIdle,
-                        )
+                        ) {
+                            if (scene.screen == Screen.RidingDialog) {
+                                DetourDialog(
+                                    DetourTarget(detourAt, "Kochelberg"),
+                                    onDetour = {},
+                                    onClose = {},
+                                    modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                                )
+                            }
+                        }
                     }
                     Screen.StopCarried -> {
                         // No map here, so nothing idles on its own: the list is drawn at once.
