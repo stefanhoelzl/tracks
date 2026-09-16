@@ -23,6 +23,9 @@ import net.stho.tracks.ui.map.configureMaps
 import net.stho.tracks.ui.net.IosHttp
 import net.stho.tracks.ui.offline.freeBytes
 import net.stho.tracks.ui.offline.mapsCacheFile
+import net.stho.tracks.ui.offline.networkState
+import net.stho.tracks.routing.BRouterDe
+import net.stho.tracks.routing.OnlineFirstRouter
 import net.stho.tracks.ui.offline.offlineData
 import net.stho.tracks.ui.offline.offlineDirectory
 import net.stho.tracks.ui.offline.segmentsDirectory
@@ -77,12 +80,18 @@ private fun TracksScreen() {
     val replayFrom = (environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
     val server = (environment["TRACKS_SERVER"] as? String) ?: PRODUCTION_SERVER
 
-    // One engine: the library's background routing and the editor's share it, one route at a time.
+    // brouter.de while there is a network, as the web routes; the engine on the phone without one. One engine: the
+    // library's background routing and the editor's share it, one route at a time.
     val router = remember {
-        LegRouter(
-            segmentDir = segmentsDirectory().toString(),
-            profileDir = NSBundle.mainBundle.resourcePath + "/profiles",
-            dispatcher = Dispatchers.IO,
+        val network = networkState(MainScope())
+        OnlineFirstRouter(
+            online = BRouterDe(IosHttp),
+            onDevice = LegRouter(
+                segmentDir = segmentsDirectory().toString(),
+                profileDir = NSBundle.mainBundle.resourcePath + "/profiles",
+                dispatcher = Dispatchers.IO,
+            ),
+            isOnline = { network.value != null },
         )
     }
     val geocoder = remember { PhotonGeocoder(IosHttp) }
