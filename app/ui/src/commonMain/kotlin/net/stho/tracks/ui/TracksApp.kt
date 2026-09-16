@@ -152,7 +152,9 @@ fun TracksApp(
             recorder = recorder,
             navigator = navigator,
             sensors = sensors,
-            routing = routing,
+            library = library,
+            router = router,
+            geocoder = geocoder,
             modifier = modifier,
             onIdle = onIdle,
         )

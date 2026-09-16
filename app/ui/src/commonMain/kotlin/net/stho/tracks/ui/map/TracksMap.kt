@@ -154,7 +154,8 @@ data class PlanDrawing(
  * does what [camera] says.
  *
  * [onTap] reports where a tap landed. With [onPlace] set, a tap instead reports where it landed together with the name
- * of the place labelled under it on the map — how a stop is named with no signal. [onLongPress] reports a long press.
+ * of the place labelled under it on the map — how a stop is named with no signal. [onLongPress] reports a long press;
+ * [onLongPlace], set instead, reports one with the name of the place under it.
  * A [drawing]'s waypoints can be tapped ([onWaypointTap]) and, once a long press picks one up, dragged ([onWaypointDrag],
  * reported as they move and once more, `done`, where they are let go). [onIdle] is called whenever the map has finished
  * drawing what it was asked for — what a screenshot waits for.
@@ -172,6 +173,7 @@ fun TracksMap(
     onTap: (Coordinate) -> Unit = {},
     onPlace: ((Coordinate, String?) -> Unit)? = null,
     onLongPress: ((Coordinate) -> Unit)? = null,
+    onLongPlace: ((Coordinate, String?) -> Unit)? = null,
     onWaypointTap: (Int) -> Unit = {},
     onWaypointDrag: (index: Int, at: Coordinate, done: Boolean) -> Unit = { _, _, _ -> },
     onIdle: () -> Unit = {},
@@ -180,7 +182,7 @@ fun TracksMap(
     var sized by remember { mutableStateOf(false) }
     Box(modifier.onSizeChanged { if (it.width > 0 && it.height > 0) sized = true }) {
         if (sized) {
-            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onWaypointTap, onWaypointDrag, onIdle)
+            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onIdle)
         }
     }
 }
@@ -289,6 +291,7 @@ private fun MapLibreMap(
     onTap: (Coordinate) -> Unit,
     onPlace: ((Coordinate, String?) -> Unit)?,
     onLongPress: ((Coordinate) -> Unit)?,
+    onLongPlace: ((Coordinate, String?) -> Unit)?,
     onWaypointTap: (Int) -> Unit,
     onWaypointDrag: (Int, Coordinate, Boolean) -> Unit,
     onIdle: () -> Unit,
@@ -299,6 +302,7 @@ private fun MapLibreMap(
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnPlace by rememberUpdatedState(onPlace)
     val currentOnLongPress by rememberUpdatedState(onLongPress)
+    val currentOnLongPlace by rememberUpdatedState(onLongPlace)
     val currentOnIdle by rememberUpdatedState(onIdle)
     val layoutDirection = LocalLayoutDirection.current
     val scope = rememberCoroutineScope()
@@ -572,9 +576,18 @@ private fun MapLibreMap(
                         }
                         longClick {
                             onEvent { event ->
-                                val press = currentOnLongPress ?: return@onEvent ClickResult.Pass
                                 val at = event.position ?: return@onEvent ClickResult.Pass
-                                press(Coordinate(lat = at.latitude, lon = at.longitude))
+                                val coordinate = Coordinate(lat = at.latitude, lon = at.longitude)
+                                val place = currentOnLongPlace
+                                val press = currentOnLongPress
+                                when {
+                                    place != null -> {
+                                        val screen = event.screenOffset
+                                        scope.launch { place(coordinate, nameAt(state, screen)) }
+                                    }
+                                    press != null -> press(coordinate)
+                                    else -> return@onEvent ClickResult.Pass
+                                }
                                 ClickResult.Consume
                             }
                         }
