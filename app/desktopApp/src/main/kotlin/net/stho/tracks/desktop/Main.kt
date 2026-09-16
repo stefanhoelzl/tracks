@@ -28,7 +28,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.withContext
 import net.stho.tracks.places.PhotonGeocoder
+import net.stho.tracks.routing.BRouterDe
 import net.stho.tracks.routing.LegRouter
+import net.stho.tracks.routing.OnlineFirstRouter
 import net.stho.tracks.ui.net.JvmHttp
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.store.PlanStore
@@ -63,6 +65,8 @@ val PHONE = DpSize(393.dp, 852.dp)
  *     --paste <link>      receive a plan link at launch, as a paste would; may be given more than once
  *     --data <dir>        where plans are kept (default: ~/.local/share/tracks-harness)
  *     --segments <dir>    the rd5 tiles to route over (default: the newest snapshot in ~/.cache/tracks/segments)
+ *     --route-on-device   route on the engine only, as the phone does with no network (default: brouter.de, and the
+ *                         engine when brouter.de cannot be reached)
  *     --profiles <dir>    brouter.de's profiles (default: app/brouter/profiles)
  *     --tap-at <s>        click the map that many seconds after launch
  *     --shot <png>        capture the window to this file, then exit
@@ -92,6 +96,7 @@ fun main(args: Array<String>) {
     val data = option("--data")?.let(::File) ?: File(System.getProperty("user.home"), ".local/share/tracks-harness")
     val offlineDirectory = option("--offline")?.let(::File)?.also { it.mkdirs() }
     val segments = option("--segments") ?: offlineDirectory?.resolve("segments")?.absolutePath ?: newestSnapshot()
+    val offlineRouting = "--route-on-device" in args
     val profiles = option("--profiles") ?: File("../brouter/profiles").absolutePath
     val tapAt = option("--tap-at")?.toDouble()
     val shot = option("--shot")?.let(::File)
@@ -99,8 +104,13 @@ fun main(args: Array<String>) {
     val rides = option("--rides")?.let(::File) ?: File(System.getProperty("user.home"), ".local/share/tracks-harness/rides")
     val server = option("--server")
 
-    // One engine: the library's background routing and the editor's share it, one route at a time.
-    val router = LegRouter(segments, profiles, Dispatchers.IO)
+    // brouter.de, as the phone routes with a network; the engine when brouter.de cannot be reached. One engine: the
+    // library's background routing and the editor's share it, one route at a time.
+    val router = OnlineFirstRouter(
+        online = BRouterDe(JvmHttp),
+        onDevice = LegRouter(segments, profiles, Dispatchers.IO),
+        isOnline = { !offlineRouting },
+    )
     val library = PlanLibrary(
         store = PlanStore(data.resolve("plans").absolutePath.toPath(), FileSystem.SYSTEM),
         router = router,
