@@ -149,6 +149,11 @@ class RecorderTest {
         runCurrent()
         assertEquals("plan-1", assertIs<RecorderState.Recording>(second.state.value).planId)
 
+        // A copy saved while riding is the plan it follows from then on, and still after a restart.
+        second.follow("plan-2")
+        assertEquals("plan-2", assertIs<RecorderState.Recording>(second.state.value).planId)
+        assertEquals("plan-2", Rides(dir).get(second.state.value.let { (it as RecorderState.Recording).id }).following)
+
         // A ride with no plan follows none, continued or not.
         second.stop()
         second.discard()

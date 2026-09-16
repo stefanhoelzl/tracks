@@ -105,6 +105,16 @@ class Recorder(
         record(started.id, Tally(), emptyList(), paused = false, planId = planId)
     }
 
+    /** From here on the ride follows the plan [planId]: another one, as a copy saved while riding makes it. */
+    fun follow(planId: String?) {
+        val writer = checkNotNull(writer) { "not recording" }
+        if (following == planId) return
+        writer.append(Entry.Follows(planId, clock()))
+        following = planId
+        flush()
+        publish()
+    }
+
     fun pause() = mark(Entry.Paused(clock()), paused = true)
 
     fun resume() = mark(Entry.Resumed(clock()), paused = false)

@@ -75,6 +75,9 @@ private val PROFILE_HEIGHT = 52.dp
 /** One page of the panel, fixed: a page change must not change what the map is inset by. */
 private val PAGE_HEIGHT = 118.dp
 
+/** Undo and Redo over the riding map, while there is a step to take. */
+data class UndoControls(val canUndo: Boolean, val canRedo: Boolean, val onUndo: () -> Unit, val onRedo: () -> Unit)
+
 /** The ride so far, as recorded: what the fixed row reads. */
 data class RideStats(val paused: Boolean, val distanceM: Double, val climbedM: Double?)
 
@@ -94,7 +97,9 @@ data class RideStats(val paused: Boolean, val distanceM: Double, val climbedM: D
  * asks about it.
  *
  * Your dot sits in the lower third of the map the card and the panel leave, heading-up, at [RIDING_ZOOM]; the compass
- * button turns it north-up and back. A tap on the map does nothing here.
+ * button turns it north-up and back. A tap on the map does nothing here: a long press is a detour, [onLongPlace], so a
+ * bump or a glove cannot make one. Undo and Redo sit under the card while there is a step to take, and Edit plan opens
+ * the editor.
  */
 @Composable
 fun RidingScreen(
@@ -110,6 +115,9 @@ fun RidingScreen(
     onResume: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongPlace: ((Coordinate, String?) -> Unit)? = null,
+    onEditPlan: (() -> Unit)? = null,
+    undo: UndoControls? = null,
     pulse: Boolean = true,
     onIdle: () -> Unit = {},
     sheet: @Composable BoxScope.() -> Unit = {},
@@ -140,6 +148,7 @@ fun RidingScreen(
                 fix = fix,
                 heading = heading,
                 drawing = drawing,
+                onLongPlace = onLongPlace,
                 onIdle = onIdle,
             )
         }
@@ -150,7 +159,6 @@ fun RidingScreen(
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 .padding(start = 8.dp, end = 8.dp, top = UNDER_MAP_CREDIT),
-            horizontalAlignment = Alignment.End,
         ) {
             if (showCard && navigation != null) {
                 StopCard(
@@ -158,13 +166,18 @@ fun RidingScreen(
                     Modifier.fillMaxWidth().onGloballyPositioned { cardBottom = with(density) { it.boundsInRoot().bottom.toDp() } },
                 )
             }
-            IconButton(
-                Icons.NorthUp,
-                if (orientation == Orientation.HeadingUp) "North up" else "Heading up",
-                onClick = { orientation = if (orientation == Orientation.HeadingUp) Orientation.NorthUp else Orientation.HeadingUp },
-                modifier = Modifier.padding(top = 8.dp, end = 4.dp),
-                primary = orientation == Orientation.NorthUp,
-            )
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Each in a slot of its own, so neither moves as the other comes and goes.
+                Box(Modifier.size(44.dp)) { if (undo?.canUndo == true) IconButton(Icons.Undo, "Undo", undo.onUndo, primary = false) }
+                Box(Modifier.size(44.dp)) { if (undo?.canRedo == true) IconButton(Icons.Redo, "Redo", undo.onRedo, primary = false) }
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    Icons.NorthUp,
+                    if (orientation == Orientation.HeadingUp) "North up" else "Heading up",
+                    onClick = { orientation = if (orientation == Orientation.HeadingUp) Orientation.NorthUp else Orientation.HeadingUp },
+                    primary = orientation == Orientation.NorthUp,
+                )
+            }
         }
 
         if (stats != null) {
@@ -179,7 +192,7 @@ fun RidingScreen(
             ) {
                 if (navigation != null) PlanPanel(navigation) else RideSoFar(elevation)
                 StatsRow(fix, stats)
-                Controls(stats.paused, onPause, onResume, onStop)
+                Controls(stats.paused, onPause, onResume, onStop, onEditPlan.takeIf { navigation != null })
             }
         }
 
@@ -316,13 +329,14 @@ private fun Stat(value: String, unit: String, modifier: Modifier) {
 }
 
 @Composable
-private fun Controls(paused: Boolean, onPause: () -> Unit, onResume: () -> Unit, onStop: () -> Unit) {
+private fun Controls(paused: Boolean, onPause: () -> Unit, onResume: () -> Unit, onStop: () -> Unit, onEditPlan: (() -> Unit)?) {
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (paused) {
             Control("Resume", Tokens.accent, Tokens.surface, onResume, Modifier.weight(1f))
         } else {
             Control("Pause", Tokens.sunk, Tokens.ink, onPause, Modifier.weight(1f))
         }
+        onEditPlan?.let { Control("Edit plan", Tokens.sunk, Tokens.ink, it, Modifier.weight(1f)) }
         Control("Stop", Tokens.ink, Tokens.surface, onStop, Modifier.weight(1f))
     }
 }
