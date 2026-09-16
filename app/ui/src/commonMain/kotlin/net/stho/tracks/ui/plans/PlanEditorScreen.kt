@@ -343,9 +343,8 @@ private fun EditorHeader(
     }
 }
 
-/** The one line to say about the legs while editing, most urgent first. */
+/** The one line to say about the legs while editing, most urgent first. A leg routing says so itself: its dash pulses. */
 private fun editorNote(state: PlanEditor.State): String? = when {
-    state.routing.isNotEmpty() -> "Routing ${state.routing.size} ${if (state.routing.size == 1) "leg" else "legs"} on the phone…"
     state.errors.isNotEmpty() -> "The router failed: ${state.errors.values.first()}"
     state.noData.isNotEmpty() -> "No routing data for part of this plan on the phone yet, so these totals are short by it."
     state.legs.any { it is FailedLeg } -> "One leg could not be routed, so these totals are short by it."
