@@ -25,6 +25,7 @@ import net.stho.tracks.offline.AroundYou
 import net.stho.tracks.offline.MapArea
 import net.stho.tracks.offline.Network
 import net.stho.tracks.offline.PlanLine
+import net.stho.tracks.offline.PlanetWatch
 import net.stho.tracks.offline.SegmentStore
 import net.stho.tracks.offline.SegmentSync
 import net.stho.tracks.offline.SegmentTile
@@ -65,6 +66,12 @@ class OfflineDataTest {
         override suspend fun create(area: MapArea): StoredPack = Pack(area).also { stored += it }
 
         override fun resume(pack: StoredPack) = Unit
+
+        override suspend fun invalidate(pack: StoredPack) {
+            invalidated += pack.area?.key
+        }
+
+        val invalidated = mutableListOf<String?>()
 
         override suspend fun delete(pack: StoredPack) {
             stored -= pack as Pack
@@ -152,6 +159,39 @@ class OfflineDataTest {
         assertEquals(emptyMap(), offline.state.value.areas)
         assertEquals(emptyList(), store.stored)
         assertTrue(!segmentStore.has(west))
+    }
+
+    @Test
+    fun aNewPlanetDownloadsThePacksAgainOnWiFi() = runTest {
+        var etag = "\"planet-1\""
+        var now = 0L
+        val planetEngine = MockEngine { respond(ByteArray(0), HttpStatusCode.OK, headersOf(HttpHeaders.ETag, etag)) }
+        network.value = Network.Unmetered
+        fixes.emit(fix(garmisch))
+        OfflineData(
+            sensors = sensors,
+            plans = plans,
+            network = network,
+            maps = OfflineMaps(store),
+            segments = SegmentSync(segmentStore, HttpClient(engine), clock = { 0L }, base = "https://brouter.test/segments4"),
+            centreFile = dir / "around",
+            scope = backgroundScope,
+            io = StandardTestDispatcher(testScheduler),
+            fileSystem = fs,
+            planet = PlanetWatch(HttpClient(planetEngine), dir / "planet", clock = { now }, fileSystem = fs),
+        )
+
+        advanceTimeBy(PLANET_RECHECK_MS / 2)
+        assertEquals(emptyList(), store.invalidated, "the first planet the phone sees is the one its packs came from")
+
+        etag = "\"planet-2\""
+        now += 8L * 24 * 60 * 60 * 1000
+        advanceTimeBy(PLANET_RECHECK_MS)
+        assertEquals(listOf<String?>("around"), store.invalidated)
+
+        now += 8L * 24 * 60 * 60 * 1000
+        advanceTimeBy(PLANET_RECHECK_MS)
+        assertEquals(listOf<String?>("around"), store.invalidated, "refreshed once, not every week after")
     }
 
     @Test

@@ -73,6 +73,22 @@ class OfflineMaps internal constructor(private val store: PackStore) {
         return states(areas)
     }
 
+    /**
+     * Downloads again whatever changed in the packs this app made: VersaTiles published a new planet. MapLibre asks for each
+     * tile conditionally and keeps what is unchanged, and a pack is drawn from its old tiles until the new ones arrive.
+     */
+    suspend fun refresh() {
+        if (!settled) {
+            store.settle()
+            settled = true
+        }
+        for (pack in store.packs) {
+            if (pack.area == null) continue
+            store.invalidate(pack)
+            store.resume(pack)
+        }
+    }
+
     /** Where each of [areas] has come to, without changing anything. */
     fun states(areas: List<MapArea>): Map<String, AreaState> {
         val packs = store.packs
@@ -90,6 +106,9 @@ internal interface PackStore {
     suspend fun create(area: MapArea): StoredPack
 
     fun resume(pack: StoredPack)
+
+    /** Marks everything in [pack] to be checked against the server again. */
+    suspend fun invalidate(pack: StoredPack)
 
     suspend fun delete(pack: StoredPack)
 }
@@ -143,6 +162,8 @@ internal class MapLibrePackStore(private val manager: OfflineManager) : PackStor
     }
 
     override fun resume(pack: StoredPack) = manager.resume((pack as Pack).pack)
+
+    override suspend fun invalidate(pack: StoredPack) = manager.invalidate((pack as Pack).pack)
 
     override suspend fun delete(pack: StoredPack) = manager.delete((pack as Pack).pack)
 

@@ -25,6 +25,8 @@ import net.stho.tracks.offline.AroundYou
 import net.stho.tracks.offline.Network
 import net.stho.tracks.offline.OfflineNeeds
 import net.stho.tracks.offline.PlanLine
+import net.stho.tracks.offline.PlanetCheck
+import net.stho.tracks.offline.PlanetWatch
 import net.stho.tracks.offline.SegmentProblem
 import net.stho.tracks.offline.SegmentProgress
 import net.stho.tracks.offline.SegmentStore
@@ -64,6 +66,7 @@ fun offlineData(
     ),
     centreFile = directory / "around",
     scope = scope,
+    planet = PlanetWatch(downloadHttpClient(), directory / "planet", clock = { Clock.System.now().toEpochMilliseconds() }),
     onTilesLanded = onTilesLanded,
 )
 
@@ -84,6 +87,9 @@ const val SEGMENT_RECHECK_MS = 60 * 60_000L
 
 /** The first retry after brouter.de could not be reached; each one after waits twice as long, up to [SEGMENT_RECHECK_MS]. */
 const val SEGMENT_FIRST_RETRY_MS = 30_000L
+
+/** How often the planet watch is asked: it asks VersaTiles only once a week itself, so this only bounds how late it notices. */
+const val PLANET_RECHECK_MS = 60 * 60_000L
 
 data class OfflineState(
     /** What is needed now: the areas, and the segment tiles under them. */
@@ -137,7 +143,8 @@ sealed interface PlanOffline {
  * kept in [centreFile], so a start with no fix yet — indoors, in airplane mode — keeps the area where it was instead of
  * deleting it. Packs download on any network, as MapLibre does; segment tiles download on any network too, and are
  * re-checked only on an unmetered one, which [SegmentSync] decides from [network]. A tile that lands calls
- * [onTilesLanded].
+ * [onTilesLanded]. The packs are downloaded again when [planet] sees VersaTiles publish a new one, and elevation never
+ * changes, so nothing else is refreshed.
  *
  * [scope] must be single-threaded, as the UI's is: packs are MapLibre's Compose state. Segment files are written on [io].
  */
@@ -151,6 +158,7 @@ class OfflineData(
     scope: CoroutineScope,
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val fileSystem: FileSystem = FileSystem.SYSTEM,
+    private val planet: PlanetWatch? = null,
     private val onTilesLanded: () -> Unit = {},
 ) {
     private val centre = MutableStateFlow(readCentre())
@@ -177,6 +185,19 @@ class OfflineData(
         scope.launch {
             combine(needs.map { it.segments }.distinctUntilChanged(), network) { tiles, on -> tiles to on }
                 .collectLatest { (tiles, on) -> keepSegments(tiles, on) }
+        }
+        planet?.let { watch ->
+            scope.launch {
+                network.collectLatest { on ->
+                    while (true) {
+                        if (withContext(io) { watch.check(on) } == PlanetCheck.Changed) {
+                            maps.refresh()
+                            withContext(io) { watch.refreshed() }
+                        }
+                        delay(PLANET_RECHECK_MS)
+                    }
+                }
+            }
         }
     }
 
