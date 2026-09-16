@@ -109,7 +109,9 @@ private fun TracksScreen() {
     sensors?.let { shared ->
         val recorder = remember(shared) { Recorder(rides, shared, scope, dateTitle = ::localDate, onSaved = queue::kick) }
         val recording by recorder.state.collectAsState()
-        val offline = remember(shared) { offlineData(shared, offlineDirectory(), segmentsDirectory(), scope, ::freeBytes) }
+        val offline = remember(shared) {
+            offlineData(shared, library.plans, offlineDirectory(), segmentsDirectory(), scope, ::freeBytes, onTilesLanded = library::routeWhatIsMissing)
+        }
 
         // Location keeps running with the phone locked only while there is a ride to record, paused or not.
         LaunchedEffect(recording is RecorderState.Recording) {

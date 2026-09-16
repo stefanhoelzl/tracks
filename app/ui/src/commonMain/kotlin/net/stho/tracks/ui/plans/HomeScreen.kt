@@ -57,6 +57,8 @@ import net.stho.tracks.sensors.Fix
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
+import net.stho.tracks.ui.offline.OfflineState
+import net.stho.tracks.ui.offline.PlanOffline
 import net.stho.tracks.ui.theme.IconButton
 import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Pill
@@ -93,6 +95,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** The plan whose ⋯ menu is open as the screen appears: for the screenshots. */
     menuOpen: String? = null,
+    /** Where each plan stands offline (M13); without it, the rows say nothing about it. */
+    offline: OfflineState? = null,
     onIdle: () -> Unit = {},
 ) {
     BoxWithConstraints(modifier.fillMaxSize().background(Tokens.ground)) {
@@ -171,6 +175,7 @@ fun HomeScreen(
                             stored = stored,
                             routing = routing[stored.id],
                             menuOpen = stored.id == menuOpen,
+                            offline = offline?.plan(stored.id),
                             onOpen = { onOpen(stored.id) },
                             onEdit = { onEdit(stored.id) },
                             onCopy = { onCopy(stored.id) },
@@ -189,6 +194,7 @@ private fun PlanRow(
     stored: StoredPlan,
     routing: PlanRouting?,
     menuOpen: Boolean,
+    offline: PlanOffline?,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
     onCopy: () -> Unit,
@@ -207,6 +213,7 @@ private fun PlanRow(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 BasicText(titleOf(stored.plan), style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 BasicText(numbersOf(stored), style = Type.mono, maxLines = 1)
+                offlineOf(offline)?.let { BasicText(it, style = Type.note, maxLines = 1) }
                 statusOf(stored, routing)?.let { BasicText(it, style = Type.note, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
 

@@ -9,12 +9,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,6 +30,8 @@ import net.stho.tracks.offline.SegmentProgress
 import net.stho.tracks.offline.SegmentStore
 import net.stho.tracks.offline.SegmentSync
 import net.stho.tracks.offline.SegmentTile
+import net.stho.tracks.plan.legGeometries
+import net.stho.tracks.store.StoredPlan
 import net.stho.tracks.ui.map.AreaState
 import net.stho.tracks.ui.map.OfflineMaps
 import net.stho.tracks.ui.sensors.Sensors
@@ -36,23 +40,38 @@ import okio.Path
 
 /**
  * The app's offline data: packs in MapLibre's database (so after `configureMaps`), segment tiles from brouter.de into
- * [segmentDirectory], and what it keeps about itself in [directory]. No plans yet: M12 stores them.
+ * [segmentDirectory], and what it keeps about itself in [directory]. [plans] are the stored plans (M12's library);
+ * [onTilesLanded] is told when segment tiles arrive, so legs that had no data can route.
  */
-fun offlineData(sensors: Sensors, directory: Path, segmentDirectory: Path, scope: CoroutineScope, freeBytes: () -> Long?): OfflineData =
-    OfflineData(
-        sensors = sensors,
-        plans = MutableStateFlow(emptyList()),
-        network = networkState(scope),
-        maps = OfflineMaps(),
-        segments = SegmentSync(
-            SegmentStore(segmentDirectory),
-            downloadHttpClient(),
-            clock = { Clock.System.now().toEpochMilliseconds() },
-            freeBytes = freeBytes,
-        ),
-        centreFile = directory / "around",
-        scope = scope,
-    )
+fun offlineData(
+    sensors: Sensors,
+    plans: Flow<List<StoredPlan>>,
+    directory: Path,
+    segmentDirectory: Path,
+    scope: CoroutineScope,
+    freeBytes: () -> Long?,
+    onTilesLanded: () -> Unit,
+): OfflineData = OfflineData(
+    sensors = sensors,
+    plans = plans.map { stored -> stored.map(::planLine) },
+    network = networkState(scope),
+    maps = OfflineMaps(),
+    segments = SegmentSync(
+        SegmentStore(segmentDirectory),
+        downloadHttpClient(),
+        clock = { Clock.System.now().toEpochMilliseconds() },
+        freeBytes = freeBytes,
+    ),
+    centreFile = directory / "around",
+    scope = scope,
+    onTilesLanded = onTilesLanded,
+)
+
+/** A stored plan, as offline data sees it: its stops, and its legs as routed — or as straight stretches until they are. */
+fun planLine(stored: StoredPlan): PlanLine = PlanLine(
+    stored.id,
+    stored.plan.waypoints.map { Coordinate(it.lat, it.lon) } + legGeometries(stored.plan.waypoints, stored.legs).flatten(),
+)
 
 /** While a pack is downloading, how often its progress is read: MapLibre reports it only to a running UI. */
 const val PACK_POLL_MS = 2_000L
@@ -67,15 +86,48 @@ const val SEGMENT_RECHECK_MS = 60 * 60_000L
 const val SEGMENT_FIRST_RETRY_MS = 30_000L
 
 data class OfflineState(
+    /** What is needed now: the areas, and the segment tiles under them. */
+    val needs: OfflineNeeds = OfflineNeeds(emptyList(), emptySet()),
     /** Each area the map keeps offline, by its key: `around`, `plan:<id>`. */
     val areas: Map<String, AreaState> = emptyMap(),
-    /** Segment tiles needed and not yet on the phone. */
-    val segmentsWaiting: List<SegmentTile> = emptyList(),
+    /** Segment tiles needed and not yet on the phone; null until the directory has been looked at. */
+    val segmentsWaiting: List<SegmentTile>? = null,
     /** The segment tile downloading now. */
     val downloading: SegmentProgress? = null,
     val mapProblem: String? = null,
-    val segmentProblem: String? = null,
-)
+    val segmentProblem: SegmentProblem? = null,
+) {
+    /** Where the stored plan [id] stands offline, or null for a plan offline data does not know yet. */
+    fun plan(id: String): PlanOffline? {
+        val area = needs.areas.firstOrNull { it.key == OfflineNeeds.planKey(id) } ?: return null
+        val map = areas[area.key] ?: AreaState.Waiting
+        val waiting = segmentsWaiting ?: return PlanOffline.Pending
+        val tiles = SegmentTile.covering(area.bounds)
+        val missing = waiting.filter { it in tiles }
+        val tile = downloading?.takeIf { it.tile in tiles }
+        return when {
+            map is AreaState.Ready && missing.isEmpty() -> PlanOffline.Ready
+            (segmentProblem as? SegmentProblem.StorageFull)?.tile?.let { it in tiles } == true -> PlanOffline.PhoneFull
+            map is AreaState.Downloading -> PlanOffline.Downloading(map.fraction)
+            tile != null -> PlanOffline.Downloading(tile.totalBytes?.let { tile.receivedBytes.toDouble() / it } ?: 0.0)
+            else -> PlanOffline.Pending
+        }
+    }
+}
+
+/** A stored plan's offline data, as its row says it. */
+sealed interface PlanOffline {
+    /** The map of its area and the tiles to route in it are on the phone. */
+    data object Ready : PlanOffline
+
+    data class Downloading(val fraction: Double) : PlanOffline
+
+    /** Not yet, and not downloading now: no network, or waiting its turn. */
+    data object Pending : PlanOffline
+
+    /** Its tiles would leave the phone with too little room. */
+    data object PhoneFull : PlanOffline
+}
 
 /**
  * Keeps what the phone holds offline in step with what it needs, without being asked: the map's areas as offline packs,
@@ -84,13 +136,14 @@ data class OfflineState(
  * What is needed comes from [plans] and from where you are: the area around you follows [sensors], and its centre is
  * kept in [centreFile], so a start with no fix yet — indoors, in airplane mode — keeps the area where it was instead of
  * deleting it. Packs download on any network, as MapLibre does; segment tiles download on any network too, and are
- * re-checked only on an unmetered one, which [SegmentSync] decides from [network].
+ * re-checked only on an unmetered one, which [SegmentSync] decides from [network]. A tile that lands calls
+ * [onTilesLanded].
  *
  * [scope] must be single-threaded, as the UI's is: packs are MapLibre's Compose state. Segment files are written on [io].
  */
 class OfflineData(
     sensors: Sensors,
-    plans: StateFlow<List<PlanLine>>,
+    plans: Flow<List<PlanLine>>,
     network: StateFlow<Network?>,
     private val maps: OfflineMaps,
     private val segments: SegmentSync,
@@ -98,6 +151,7 @@ class OfflineData(
     scope: CoroutineScope,
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val fileSystem: FileSystem = FileSystem.SYSTEM,
+    private val onTilesLanded: () -> Unit = {},
 ) {
     private val centre = MutableStateFlow(readCentre())
     private val mutableState = MutableStateFlow(OfflineState())
@@ -114,9 +168,14 @@ class OfflineData(
             }
         }
         val needs = combine(plans, centre) { lines, around -> OfflineNeeds.of(lines, around) }.distinctUntilChanged()
-        scope.launch { needs.collectLatest(::keepMaps) }
         scope.launch {
-            combine(needs, network) { it, on -> it.segments to on }.distinctUntilChanged()
+            needs.collectLatest { now ->
+                mutableState.update { it.copy(needs = now) }
+                keepMaps(now)
+            }
+        }
+        scope.launch {
+            combine(needs.map { it.segments }.distinctUntilChanged(), network) { tiles, on -> tiles to on }
                 .collectLatest { (tiles, on) -> keepSegments(tiles, on) }
         }
     }
@@ -147,9 +206,8 @@ class OfflineData(
             val result = withContext(io) {
                 segments.sync(tiles, network) { progress -> mutableState.update { it.copy(downloading = progress) } }
             }
-            mutableState.update {
-                it.copy(segmentsWaiting = result.waiting, downloading = null, segmentProblem = result.problem?.let(::describe))
-            }
+            mutableState.update { it.copy(segmentsWaiting = result.waiting, downloading = null, segmentProblem = result.problem) }
+            if (result.downloaded.isNotEmpty() || result.refreshed.isNotEmpty()) onTilesLanded()
             val wait = if (result.problem is SegmentProblem.Unreachable) {
                 retry.also { retry = min(retry * 2, SEGMENT_RECHECK_MS) }
             } else {
@@ -158,11 +216,6 @@ class OfflineData(
             }
             delay(wait)
         }
-    }
-
-    private fun describe(problem: SegmentProblem): String = when (problem) {
-        is SegmentProblem.Unreachable -> problem.message
-        is SegmentProblem.StorageFull -> "${problem.tile.name} needs ${problem.bytes / 1_000_000} MB, and the phone is nearly full"
     }
 
     private fun readCentre(): Coordinate? = runCatching {

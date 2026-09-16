@@ -22,7 +22,7 @@ import net.stho.tracks.routing.NoRoutingData
 data class PlanRouting(
     /** The leg the engine is on now, if any. */
     val routing: Int? = null,
-    /** Legs with no tiles on this device yet. They route when the plans are next [PlanLibrary.start]ed. */
+    /** Legs with no tiles on this device yet. They route once the tiles land ([PlanLibrary.routeWhatIsMissing]). */
     val noData: Set<Int> = emptySet(),
     /** Legs the engine refused for a reason that is not the two points: said, never drawn as an unroutable leg. */
     val errors: Map<Int, String> = emptyMap(),
@@ -60,6 +60,14 @@ class PlanLibrary(
     /** Reads what is on disk, and routes whatever legs are still missing. */
     suspend fun start() {
         _plans.value = withContext(io) { store.list() }
+        routeWhatIsMissing()
+    }
+
+    /**
+     * Routes every leg still missing, in every plan: called when routing tiles land (M13), so a leg that had no data
+     * routes then, not at the next launch. A plan already routing starts again from its first missing leg.
+     */
+    fun routeWhatIsMissing() {
         for (plan in _plans.value) routeMissing(plan.id)
     }
 

@@ -39,6 +39,7 @@ import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.sensors.Sensors
 import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.upload.UploadQueue
+import kotlinx.coroutines.flow.flowOf
 
 /** What the app needs from the platform it runs on. */
 interface AppPlatform {
@@ -94,6 +95,7 @@ fun TracksApp(
     val fix by remember(sensors) { sensors.fixes }.collectAsState(null)
     val plans by library.plans.collectAsState()
     val routing by library.routing.collectAsState()
+    val offlineState by remember(offline) { offline?.state ?: flowOf(null) }.collectAsState(null)
     var open by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<PlanEditor?>(null) }
     var riding by remember { mutableStateOf(false) }
@@ -199,6 +201,7 @@ fun TracksApp(
             onShare = ::share,
             onDelete = { id -> scope.launch { library.delete(id) } },
             modifier = modifier,
+            offline = offlineState,
             onIdle = onIdle,
         )
     }

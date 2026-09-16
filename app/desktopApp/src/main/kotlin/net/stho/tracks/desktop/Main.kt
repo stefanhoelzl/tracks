@@ -145,7 +145,10 @@ fun main(args: Array<String>) {
                     val recorder = remember(sensors) { Recorder(store, sensors, scope, dateTitle = ::localDate, onSaved = { queue?.kick() }) }
                     val offline = remember(sensors) {
                         offlineDirectory?.let { dir ->
-                            offlineData(sensors, dir.toOkioPath(), segments.toPath(), scope, freeBytes = { dir.usableSpace })
+                            offlineData(
+                                sensors, library.plans, dir.toOkioPath(), segments.toPath(), scope,
+                                freeBytes = { dir.usableSpace }, onTilesLanded = library::routeWhatIsMissing,
+                            )
                         }
                     }
                     TracksApp(

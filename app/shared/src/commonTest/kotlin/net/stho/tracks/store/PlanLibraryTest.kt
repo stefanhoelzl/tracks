@@ -57,10 +57,13 @@ class PlanLibraryTest {
         val gates = ArrayDeque<CompletableDeferred<Unit>>()
         var answer: (List<Waypoint>) -> Leg = { error("no answer") }
 
+        /** Whether the tile for 40° N has landed. */
+        var tilesFor40 = false
+
         override suspend fun route(stretch: List<Waypoint>, profile: Profile): Leg {
             asked.add(stretch)
             gates.removeFirstOrNull()?.await()
-            if (stretch.last().lat == 40.0) throw NoRoutingData("E20_N40.rd5")
+            if (stretch.last().lat == 40.0 && !tilesFor40) throw NoRoutingData("E20_N40.rd5")
             return answer(stretch)
         }
     }
@@ -115,6 +118,24 @@ class PlanLibraryTest {
 
         assertEquals(listOf("Far away"), second.asked.map { it.last().name }, "a failed leg is an answer; only the missing one is asked again")
         assertEquals(1, library.plans.value.size)
+    }
+
+    @Test
+    fun aLegWithNoTilesRoutesOnceTheyLandWithoutAStart() = runTest {
+        val router = Router().apply { answer = ::routed }
+        val library = library(router)
+        val stored = library.receive(plan)
+        advanceUntilIdle()
+        assertEquals(PlanRouting(noData = setOf(1)), library.routing.value[stored.id])
+        router.asked.clear()
+
+        router.tilesFor40 = true
+        library.routeWhatIsMissing()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Far away"), router.asked.map { it.last().name }, "only the missing leg is asked again")
+        assertIs<RoutedLeg>(library.find(stored.id)!!.legs[1])
+        assertNull(library.routing.value[stored.id])
     }
 
     @Test

@@ -15,6 +15,7 @@ import net.stho.tracks.plan.derivedName
 import net.stho.tracks.plan.planTotals
 import net.stho.tracks.store.PlanRouting
 import net.stho.tracks.store.StoredPlan
+import net.stho.tracks.ui.offline.PlanOffline
 import net.stho.tracks.ui.theme.StatTile
 
 /* What a stored plan says about itself, in the list and in its preview. Kept apart from both so they cannot differ. */
@@ -53,6 +54,15 @@ internal fun PlanTiles(legs: List<Leg?>) {
 }
 
 /** The one line to say about a plan's legs, most urgent first; null when every leg is routed. */
+/** Whether the plan is on the phone for a ride with no signal (M13), and how far its download has come. */
+internal fun offlineOf(offline: PlanOffline?): String? = when (offline) {
+    null -> null
+    PlanOffline.Ready -> "Offline ✓"
+    is PlanOffline.Downloading -> "Downloading ${(offline.fraction * 100).toInt()}%"
+    PlanOffline.Pending -> "Not offline yet"
+    PlanOffline.PhoneFull -> "Not offline: the phone is nearly full"
+}
+
 internal fun statusOf(stored: StoredPlan, routing: PlanRouting?): String? {
     val legs = stored.legs.size
     val inFlight = routing?.routing

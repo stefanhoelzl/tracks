@@ -29,6 +29,7 @@ import net.stho.tracks.ui.map.MapCamera
 import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
+import net.stho.tracks.offline.SegmentProblem
 import net.stho.tracks.ui.offline.OfflineData
 import net.stho.tracks.ui.offline.OfflineState
 import net.stho.tracks.ui.recording.Recorder
@@ -135,10 +136,14 @@ internal fun offlineLines(state: OfflineState): List<String> = buildList {
             "routing ${downloading.tile.name}: " +
                 (downloading.totalBytes?.let { "${downloading.receivedBytes * 100 / it}%" } ?: "${downloading.receivedBytes / 1_000_000} MB"),
         )
-        state.segmentsWaiting.isNotEmpty() -> add("routing: ${state.segmentsWaiting.joinToString { it.name }} waiting")
+        !state.segmentsWaiting.isNullOrEmpty() -> add("routing: ${state.segmentsWaiting.joinToString { it.name }} waiting")
     }
     state.mapProblem?.let { add("map: $it") }
-    state.segmentProblem?.let { add("routing: $it") }
+    when (val problem = state.segmentProblem) {
+        null -> Unit
+        is SegmentProblem.Unreachable -> add("routing: ${problem.message}")
+        is SegmentProblem.StorageFull -> add("routing: ${problem.tile.name} needs ${problem.bytes / 1_000_000} MB, and the phone is nearly full")
+    }
 }
 
 private fun Double.fixed(digits: Int): String {
