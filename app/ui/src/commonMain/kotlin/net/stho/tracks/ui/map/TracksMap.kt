@@ -1,10 +1,5 @@
 package net.stho.tracks.ui.map
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -14,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,6 +32,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -78,6 +75,7 @@ import org.maplibre.compose.overlay.ExpandingAttributionButton
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
+import org.maplibre.compose.style.TransitionOptions
 import org.maplibre.spatialk.geojson.BoundingBox
 import org.maplibre.spatialk.geojson.Position
 import org.maplibre.spatialk.units.Bearing
@@ -307,16 +305,18 @@ private fun MapLibreMap(
 
     // The one thing on the map that moves on its own, because it is the one thing waiting on somebody else.
     val waiting = drawing != null && drawing.pulse && drawing.legs.any { it.state == LegState.Routing }
-    val routingOpacity = if (waiting) {
-        val pulse by rememberInfiniteTransition().animateFloat(
-            initialValue = ROUTING_REST_OPACITY,
-            targetValue = ROUTING_LOW_OPACITY,
-            animationSpec = infiniteRepeatable(tween(ROUTING_PERIOD_MS / 2), RepeatMode.Reverse),
-        )
-        pulse
-    } else {
-        ROUTING_REST_OPACITY
+    // Pulsed by MapLibre, not by recomposing every frame: the opacity flips between its two ends every half period and
+    // the layer's own transition fades between them. On the phone an opacity set every frame drew no routing dash at all
+    // (tried on the SE2); flipped twice a period, it pulses.
+    var low by remember { mutableStateOf(false) }
+    LaunchedEffect(waiting) {
+        low = false
+        while (waiting) {
+            delay((ROUTING_PERIOD_MS / 2).milliseconds)
+            low = !low
+        }
     }
+    val routingOpacity = if (waiting && low) ROUTING_LOW_OPACITY else ROUTING_REST_OPACITY
 
     // Start where the camera is going when that is known, rather than flying in: every tile a fly-in passes through is
     // one more download, on a phone that may be on a hillside's last bar of signal.
@@ -383,6 +383,7 @@ private fun MapLibreMap(
             source = rememberGeoJsonSource(GeoJsonData.JsonString(routingJson)),
             color = const(Tokens.accent),
             opacity = const(routingOpacity),
+            opacityTransition = TransitionOptions(duration = (ROUTING_PERIOD_MS / 2).milliseconds),
             width = const(BEELINE_WIDTH),
             dasharray = const(BEELINE_DASH),
             cap = const(LineCap.Butt),
@@ -592,20 +593,56 @@ private fun WaypointHandles(
     state.cameraPosition
 
     waypoints.forEachIndexed { index, mark ->
-        val screen = runCatching { state.screenLocationFromPosition(Position(mark.at.lon, mark.at.lat)) }.getOrNull() ?: return@forEachIndexed
-        var dragged by remember(index, mark) { mutableStateOf(screen) }
-        fun finish() {
-            val at = state.positionFromScreenLocation(dragged) ?: mark.at.let { Position(it.lon, it.lat) }
-            currentOnDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), true)
+        key(index) {
+            val screen = runCatching { state.screenLocationFromPosition(Position(mark.at.lon, mark.at.lat)) }.getOrNull()
+            if (screen != null) WaypointHandle(state, index, mark, screen, currentOnTap, currentOnDrag)
         }
-        Box(
-            Modifier
-                .offset(screen.x - HANDLE_SIZE / 2, screen.y - HANDLE_SIZE / 2)
-                .size(HANDLE_SIZE)
-                .pointerInput(index, mark) { detectTapGestures(onTap = { currentOnTap(index) }) }
-                .pointerInput(index, mark) {
+    }
+}
+
+/**
+ * One waypoint's touch target.
+ *
+ * Its gestures are keyed on the waypoint's index alone. Every step of a drag moves the waypoint, and a gesture keyed on
+ * where it is would be torn down after the first step — cancelled without `onDragEnd` or `onDragCancel`, leaving the
+ * editor sure a drag is still on: every leg drawn as a still straight dash, routed or not. While a drag is on, the
+ * target stays where the drag began, so the finger's movement is measured against a target that does not move under
+ * it; the map draws the waypoint where the finger is.
+ */
+@Composable
+private fun WaypointHandle(
+    state: MapState,
+    index: Int,
+    mark: WaypointMark,
+    screen: DpOffset,
+    onTap: (Int) -> Unit,
+    onDrag: (Int, Coordinate, Boolean) -> Unit,
+) {
+    val currentMark by rememberUpdatedState(mark)
+    val currentScreen by rememberUpdatedState(screen)
+    var dragged by remember { mutableStateOf(screen) }
+    var anchor by remember { mutableStateOf<DpOffset?>(null) }
+
+    fun finish() {
+        if (anchor == null) return
+        anchor = null
+        val at = state.positionFromScreenLocation(dragged) ?: currentMark.at.let { Position(it.lon, it.lat) }
+        onDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), true)
+    }
+
+    val place = anchor ?: screen
+    Box(
+        Modifier
+            .offset(place.x - HANDLE_SIZE / 2, place.y - HANDLE_SIZE / 2)
+            .size(HANDLE_SIZE)
+            .pointerInput(index) { detectTapGestures(onTap = { onTap(index) }) }
+            .pointerInput(index) {
+                try {
                     detectDragGestures(
-                        onDragStart = { dragged = screen },
+                        onDragStart = {
+                            dragged = currentScreen
+                            anchor = currentScreen
+                        },
                         onDragEnd = { finish() },
                         // A drag the platform takes back — the map claiming the gesture, a system swipe — still ends:
                         // left unfinished, the plan would stay drawn as straight lines and never route again.
@@ -614,10 +651,13 @@ private fun WaypointHandles(
                             change.consume()
                             dragged = DpOffset(dragged.x + amount.x.toDp(), dragged.y + amount.y.toDp())
                             val at = state.positionFromScreenLocation(dragged) ?: return@detectDragGestures
-                            currentOnDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), false)
+                            onDrag(index, Coordinate(lat = at.latitude, lon = at.longitude), false)
                         },
                     )
-                },
-        )
-    }
+                } finally {
+                    // Torn down mid-drag — the waypoint removed, the editor left: the drag still ends.
+                    finish()
+                }
+            },
+    )
 }
