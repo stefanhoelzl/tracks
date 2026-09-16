@@ -218,21 +218,29 @@ private const val MIN_STEPS = 40.0
 
 /** What the profile draws for a plan's track, or null when there is too little altitude to draw a line. */
 fun terrainOf(track: PlanTrack, reportedM: Double?): Terrain? {
-    val measured = track.altitudeM.filterNotNull()
+    if (track.altitudeM.count { it != null } < 2) return null
+    return terrainAlong(cumulativeDistances(track.coordinates, reportedM), track.altitudeM)
+}
+
+/**
+ * What the profile draws for heights already measured against distance — metres from 0, ascending, one altitude each:
+ * a stretch of a route matched against, or a ride's own barometer against the distance ridden.
+ */
+fun terrainAlong(distances: List<Double>, altitudeM: List<Double?>): Terrain? {
+    val measured = altitudeM.filterNotNull()
     if (measured.size < 2) return null
 
-    val distances = cumulativeDistances(track.coordinates, reportedM)
     val totalM = distances.lastOrNull() ?: 0.0
     if (totalM <= 0) return null
 
     val tolerance = max(MIN_TOLERANCE_M, (measured.max() - measured.min()) * TOLERANCE_OF_SPAN)
-    val grades = gradients(distances, track.altitudeM)
-    val drawn = drawnIndices(distances, track.altitudeM, tolerance, min(MAX_STEP_M, totalM / MIN_STEPS))
-    if (drawn.count { track.altitudeM[it] != null } < 2) return null
+    val grades = gradients(distances, altitudeM)
+    val drawn = drawnIndices(distances, altitudeM, tolerance, min(MAX_STEP_M, totalM / MIN_STEPS))
+    if (drawn.count { altitudeM[it] != null } < 2) return null
 
     return Terrain(
         distances = drawn.map { distances[it] },
-        altitudeM = drawn.map { track.altitudeM[it] },
+        altitudeM = drawn.map { altitudeM[it] },
         gradients = drawn.map { grades[it] },
         trackIndex = drawn,
         totalM = totalM,
