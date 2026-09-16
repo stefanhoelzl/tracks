@@ -80,7 +80,7 @@ class OfflineDataTest {
 
     private val requests = mutableListOf<String>()
     private val engine = MockEngine { request ->
-        requests += request.url.encodedPath
+        requests += "${request.method.value} ${request.url.encodedPath}"
         val body = request.url.encodedPath.encodeToByteArray()
         respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentLength, body.size.toString()))
     }
@@ -119,7 +119,10 @@ class OfflineDataTest {
         val state = offline.state.first { "around" in it.areas && segmentStore.has(west) && segmentStore.has(east) && it.downloading == null }
 
         assertEquals(listOf(aroundGarmisch), store.stored.map { it.area })
-        assertEquals(setOf("/segments4/E5_N45.rd5", "/segments4/E10_N45.rd5"), requests.toSet())
+        assertEquals(
+            setOf("HEAD /segments4/E5_N45.rd5", "GET /segments4/E5_N45.rd5", "HEAD /segments4/E10_N45.rd5", "GET /segments4/E10_N45.rd5"),
+            requests.toSet(),
+        )
         assertNull(state.segmentProblem)
         assertEquals("47.4925 11.0953", fs.read(dir / "around") { readUtf8() }.trim())
     }
@@ -151,6 +154,25 @@ class OfflineDataTest {
 
         pack.state = AreaState.Ready(40)
         assertEquals(PlanOffline.Ready, offline.state.first { it.areas["plan:a"] is AreaState.Ready }.plan("a"))
+    }
+
+    @Test
+    fun aTileIosFinishedInTheBackgroundLetsLegsRoute() = runTest {
+        plans.value = listOf(PlanLine("w", listOf(Coordinate(47.5, 7.5), Coordinate(47.6, 7.6))))
+        network.value = null
+        val offline = start()
+        assertEquals(listOf(west), offline.state.first { it.segmentsWaiting != null }.segmentsWaiting)
+
+        // Meanwhile iOS finished the download and installed the tile: nothing of this sync fetched it.
+        fs.createDirectories(dir / "segments")
+        segmentStore.startPart(west, "\"b1\"")
+        segmentStore.appendToPart(west).use { sink -> okio.Buffer().writeUtf8("E5_N45").let { sink.write(it, it.size) } }
+        segmentStore.complete(west, net.stho.tracks.offline.SegmentRecord("\"b1\"", null, 6, 0))
+        network.value = Network.Metered
+        offline.state.first { it.segmentsWaiting?.isEmpty() == true }
+
+        assertEquals(emptyList(), requests, "a tile on disk with its record is not asked for")
+        assertEquals(1, landed)
     }
 
     @Test
@@ -226,7 +248,7 @@ class OfflineDataTest {
 
         network.value = Network.Metered
         offline.state.first { it.segmentsWaiting?.isEmpty() == true && it.downloading == null }
-        assertEquals(2, requests.size)
+        assertEquals(listOf("GET /segments4/E5_N45.rd5", "GET /segments4/E10_N45.rd5"), requests.filter { it.startsWith("GET") })
     }
 
     @Test

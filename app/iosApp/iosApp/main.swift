@@ -222,6 +222,16 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     return true
   }
 
+  // iOS relaunched the app to hand over routing tiles it went on downloading while the app was suspended or ended (M13).
+  // didFinishLaunching has already made the session; it installs the tiles and says when it is done.
+  func application(
+    _ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    let handled = BackgroundSegmentsKt.handleBackgroundSegmentEvents(identifier: identifier) { completionHandler() }
+    if !handled { completionHandler() }
+  }
+
   // A universal link: a tracks.stho.net plan link, opened in the app as the link it is. It lands in the plan list,
   // as a pasted one does, and never starts anything.
   func application(
