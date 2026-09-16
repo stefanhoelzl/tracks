@@ -22,6 +22,7 @@ import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -129,6 +130,106 @@ class PlanEditorTest {
 
         assertNull(editor.state.value.legs[3])
         assertEquals(setOf(3), editor.state.value.noData)
+    }
+
+    @Test
+    fun undoRoutesTheLegsItChangesAndRedoGoesForwardAgain() = runTest {
+        val router = Router(::routed)
+        val editor = PlanEditor(opened, router, this)
+        assertFalse(editor.state.value.canUndo)
+
+        editor.update(moveWaypoint(plan, 2, Coordinate(47.471, 11.121)))
+        advanceUntilIdle()
+        router.asked.clear()
+
+        editor.undo()
+        assertEquals(plan, editor.state.value.plan)
+        assertEquals(setOf(1, 2), editor.state.value.routing, "no legs are kept for an undo: the two it changes route again")
+        assertSame(opened.legs[0]!!.coordinates, editor.state.value.legs[0]!!.coordinates, "the leg it left alone is kept")
+        advanceUntilIdle()
+        assertEquals(listOf("C", "D"), router.asked.map { it.last().name })
+        assertFalse(editor.state.value.changed, "back at the plan it opened, legs routed again on the phone are nothing to save")
+        assertTrue(editor.state.value.canRedo)
+
+        editor.redo()
+        assertEquals(47.471, editor.state.value.plan.waypoints[2].lat)
+        assertTrue(editor.state.value.changed)
+        assertFalse(editor.state.value.canRedo)
+    }
+
+    @Test
+    fun anEditAfterAnUndoDropsWhatCouldBeRedone() = runTest {
+        val editor = PlanEditor(opened, Router(::routed), this)
+
+        editor.update(plan.copy(profile = Profile.Gravel))
+        editor.undo()
+        editor.update(plan.copy(profile = Profile.Road))
+
+        assertFalse(editor.state.value.canRedo)
+        editor.undo()
+        assertEquals(Profile.Trekking, editor.state.value.plan.profile)
+        assertFalse(editor.state.value.canUndo)
+    }
+
+    @Test
+    fun undoCancelsTheRouteOfALegItRemoves() = runTest {
+        val router = Router(::routed).apply { gates["C"] = CompletableDeferred() }
+        val editor = PlanEditor(opened, router, this)
+
+        editor.update(moveWaypoint(plan, 2, Coordinate(47.471, 11.121)))
+        runCurrent()
+        editor.undo()
+        router.gates.remove("C")?.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("C"), router.cancelled)
+        assertEquals(47.47, (editor.state.value.legs[1] as RoutedLeg).to.lat)
+    }
+
+    @Test
+    fun typingIntoOneNameIsOneStep() = runTest {
+        val editor = PlanEditor(opened, Router(::routed), this)
+
+        for (typed in listOf("B", "Be", "Bee")) editor.update(updateWaypoint(editor.state.value.plan, 1) { it.copy(name = typed) })
+        for (typed in listOf("T", "Tr")) editor.update(editor.state.value.plan.copy(name = typed))
+        editor.update(updateWaypoint(editor.state.value.plan, 1) { it.copy(name = "Beet") })
+
+        editor.undo()
+        assertEquals("Bee", editor.state.value.plan.waypoints[1].name, "typing into another name starts a step of its own")
+        editor.undo()
+        assertEquals("Three legs", editor.state.value.plan.name)
+        editor.undo()
+        assertEquals(plan, editor.state.value.plan)
+        assertFalse(editor.state.value.canUndo)
+    }
+
+    @Test
+    fun aNameFoundLateBelongsToAddingTheStop() = runTest {
+        val editor = PlanEditor(opened, Router(::routed), this)
+        editor.update(addWaypoint(plan, Waypoint(47.45, 11.15, WaypointKind.Poi, null), 4))
+        val placed = editor.state.value.plan.waypoints[4]
+        editor.update(editor.state.value.plan.copy(profile = Profile.Gravel))
+
+        editor.nameFound(placed, "Hut")
+        assertEquals("Hut", editor.state.value.plan.waypoints[4].name)
+
+        editor.undo()
+        assertEquals("Hut", editor.state.value.plan.waypoints[4].name, "undoing what came after keeps the name")
+        editor.undo()
+        assertEquals(plan, editor.state.value.plan, "the name was no step of its own")
+        editor.redo()
+        assertEquals("Hut", editor.state.value.plan.waypoints[4].name)
+    }
+
+    @Test
+    fun historyKeepsTheLastHundredSteps() = runTest {
+        val editor = PlanEditor(opened, Router(::routed), this)
+
+        repeat(101) { step -> editor.update(editor.state.value.plan.copy(profile = if (step % 2 == 0) Profile.Gravel else Profile.Trekking)) }
+        repeat(100) { editor.undo() }
+
+        assertFalse(editor.state.value.canUndo)
+        assertEquals(Profile.Gravel, editor.state.value.plan.profile, "the first step fell off")
     }
 
     @Test

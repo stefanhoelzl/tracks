@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
@@ -69,7 +70,7 @@ import net.stho.tracks.ui.map.PlanDrawing
 import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.ui.map.WaypointMark
 import net.stho.tracks.sensors.Fix
-import net.stho.tracks.ui.theme.Pill
+import net.stho.tracks.ui.theme.IconButton
 import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.SnapSheet
@@ -87,8 +88,9 @@ private const val SHEET_SHARE = 0.5f
  * drags; a tap on it edits it. A long press on the map drops a shaping point into the nearest leg, the phone's way of
  * dragging the line. While a marker drags the plan draws as straight lines, and it routes once it is let go.
  *
- * Only the legs an edit touches route again, on the phone, drawn meanwhile as the dashed, pulsing beeline. Save
- * overwrites the plan; Copy keeps it and saves this as a new one.
+ * Only the legs an edit touches route again, on the phone, drawn meanwhile as the dashed, pulsing beeline. Undo and Redo
+ * float over the map's corner while there is a step to take. Save overwrites the plan; Copy keeps it and saves this as
+ * a new one.
  */
 @Composable
 fun PlanEditorScreen(
@@ -169,9 +171,7 @@ fun PlanEditorScreen(
                 } catch (e: Exception) {
                     null
                 } ?: return@launch
-                val current = editor.state.value.plan
-                val at = current.waypoints.indexOfFirst { it.lat == placed.lat && it.lon == placed.lon && it.kind == WaypointKind.Poi && it.name == null }
-                if (at >= 0) editor.update(updateWaypoint(current, at) { it.copy(name = found) })
+                editor.nameFound(placed, found)
             }
         }
     }
@@ -204,6 +204,17 @@ fun PlanEditorScreen(
             )
         }
 
+        // Each in a slot of its own, so neither moves as the other comes and goes; while a dialog holds a waypoint by
+        // its index, they wait for it to close.
+        if (dialog == null) {
+            Row(
+                Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, top = 64.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(Modifier.size(44.dp)) { if (state.canUndo) IconButton(Icons.Undo, "Undo", editor::undo) }
+                Box(Modifier.size(44.dp)) { if (state.canRedo) IconButton(Icons.Redo, "Redo", editor::redo) }
+            }
+        }
 
         val stops = plan.waypoints.count { it.kind == WaypointKind.Poi }
         SnapSheet(
