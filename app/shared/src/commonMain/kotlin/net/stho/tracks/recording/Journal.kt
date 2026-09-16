@@ -26,6 +26,12 @@ sealed interface Entry {
     data class Resumed(val epochMillis: Long) : Entry
     data class Stopped(val epochMillis: Long) : Entry
 
+    /**
+     * The plan the ride follows from here on, by its id on the phone; null for none. Written as navigation starts — so
+     * a ride the app died during continues on its plan — and whenever the plan it follows becomes another.
+     */
+    data class Follows(val planId: String?, val epochMillis: Long) : Entry
+
     /** What the Save sheet said. A journal ending in one is a ride waiting to upload. */
     data class Saved(val title: String, val sport: String) : Entry
 }
@@ -52,6 +58,7 @@ object Journal {
         is Entry.Paused -> fields("pause", entry.epochMillis)
         is Entry.Resumed -> fields("resume", entry.epochMillis)
         is Entry.Stopped -> fields("stop", entry.epochMillis)
+        is Entry.Follows -> fields("follow", entry.epochMillis, entry.planId?.let(::quote))
         is Entry.Saved -> fields("save", quote(entry.title), entry.sport)
     }
 
@@ -80,6 +87,7 @@ object Journal {
             "pause" -> Entry.Paused(long(1))
             "resume" -> Entry.Resumed(long(1))
             "stop" -> Entry.Stopped(long(1))
+            "follow" -> Entry.Follows(text(2)?.let(::unquote), long(1))
             "save" -> Entry.Saved(unquote(text(1) ?: invalid(line)), text(2) ?: invalid(line))
             else -> invalid(line)
         }

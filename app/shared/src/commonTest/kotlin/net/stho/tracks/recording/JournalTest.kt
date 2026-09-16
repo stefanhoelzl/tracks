@@ -18,9 +18,11 @@ class JournalTest {
         Entry.Started("0b7c", t0, "Über den\tPass \"alt\"\nzurück", "gravel"),
         Entry.Located(Fix(Coordinate(47.4925, 11.0953), 707.25, 91.5, 5.4, 4.7, t0 + 1000)),
         Entry.Located(Fix(Coordinate(47.4926, 11.0954), null, null, null, 12.0, t0 + 2000)),
+        Entry.Follows("plan-7\t\"x\"", t0 + 1200),
         Entry.Pressured(Pressure(930.1234, t0 + 1500)),
         Entry.Paused(t0 + 3000),
         Entry.Resumed(t0 + 4000),
+        Entry.Follows(null, t0 + 4500),
         Entry.Stopped(t0 + 5000),
         Entry.Saved("Ride\ton 15 Sep", "hike"),
     )
@@ -57,11 +59,15 @@ class JournalTest {
         val rides = Rides(dir)
         rides.start(entries[0] as Entry.Started).use { writer -> entries.drop(1).take(3).forEach(writer::append) }
         assertEquals(Ride.State.Recording, rides.get("0b7c").state)
+        assertEquals("plan-7\t\"x\"", rides.get("0b7c").following)
 
         rides.append("0b7c", Entry.Paused(t0 + 3000))
         assertEquals(Ride.State.Paused, rides.get("0b7c").state)
         rides.append("0b7c", Entry.Stopped(t0 + 5000))
         assertEquals(Ride.State.Stopped, rides.get("0b7c").state)
+        rides.append("0b7c", Entry.Follows(null, t0 + 5500))
+        assertEquals(Ride.State.Stopped, rides.get("0b7c").state)
+        assertEquals(null, rides.get("0b7c").following)
         rides.append("0b7c", Entry.Saved("x", "bike"))
         assertEquals(Ride.State.Saved, rides.all().single().state)
 
