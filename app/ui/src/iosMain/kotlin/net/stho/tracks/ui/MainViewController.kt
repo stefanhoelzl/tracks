@@ -25,6 +25,9 @@ import net.stho.tracks.ui.offline.backgroundSegments
 import net.stho.tracks.ui.offline.freeBytes
 import net.stho.tracks.ui.offline.mapsCacheFile
 import net.stho.tracks.ui.offline.networkState
+import net.stho.tracks.ui.offline.downloadHttpClient
+import net.stho.tracks.ui.offline.profilesDirectory
+import net.stho.tracks.offline.ProfileSync
 import net.stho.tracks.routing.BRouterDe
 import net.stho.tracks.routing.OnlineFirstRouter
 import net.stho.tracks.ui.offline.offlineData
@@ -85,13 +88,18 @@ private fun TracksScreen() {
 
     // brouter.de while there is a network, as the web routes; the engine on the phone without one. One engine: the
     // library's background routing and the editor's share it, one route at a time.
+    // The engine's profiles, in the app's own directory: the bundled ones until brouter.de's change (offline data).
+    val profiles = remember {
+        ProfileSync(profilesDirectory(), downloadHttpClient(), clock = { Clock.System.now().toEpochMilliseconds() })
+            .also { it.seed((NSBundle.mainBundle.resourcePath + "/profiles").toPath()) }
+    }
     val router = remember {
         val network = networkState(MainScope())
         OnlineFirstRouter(
             online = BRouterDe(IosHttp),
             onDevice = LegRouter(
                 segmentDir = segmentsDirectory().toString(),
-                profileDir = NSBundle.mainBundle.resourcePath + "/profiles",
+                profileDir = profiles.directory.toString(),
                 dispatcher = Dispatchers.IO,
             ),
             isOnline = { network.value != null },
@@ -126,6 +134,7 @@ private fun TracksScreen() {
                 shared, library.plans, offlineDirectory(), segmentsDirectory(), scope, ::freeBytes,
                 onTilesLanded = library::routeWhatIsMissing,
                 transfer = { backgroundSegments() },
+                profiles = profiles,
             )
         }
 

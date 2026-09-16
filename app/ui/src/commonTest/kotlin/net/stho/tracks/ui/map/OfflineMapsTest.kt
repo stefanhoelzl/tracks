@@ -6,6 +6,7 @@ import kotlin.test.assertNull
 import kotlinx.coroutines.test.runTest
 import net.stho.tracks.offline.Bounds
 import net.stho.tracks.offline.MapArea
+import net.stho.tracks.offline.STORAGE_RESERVE_BYTES
 
 class OfflineMapsTest {
     private val garmisch = MapArea("around", Bounds(46.59, 9.74, 48.39, 12.45))
@@ -119,7 +120,7 @@ class OfflineMapsTest {
         val pack = Pack(plan, AreaState.Downloading(120, 1000, 5))
         val store = FakeStore(pack)
         var now = 0L
-        val maps = OfflineMaps(store) { now }
+        val maps = OfflineMaps(store, clock = { now })
 
         maps.reconcile(listOf(plan))
         now += 30_000
@@ -142,6 +143,25 @@ class OfflineMapsTest {
         now += PACK_STALL_MS
         maps.reconcile(listOf(plan))
         assertEquals(listOf("resume plan:a", "resume plan:a"), store.log)
+    }
+
+    @Test
+    fun aNearlyFullPhonePausesWhatIsUnfinishedAndResumesWhenThereIsRoom() = runTest {
+        val whole = Pack(garmisch, AreaState.Ready(500))
+        val unfinished = Pack(plan, AreaState.Downloading(10, 100, 5))
+        val store = FakeStore(whole, unfinished)
+        var free = STORAGE_RESERVE_BYTES - 1
+        val maps = OfflineMaps(store, clock = { 0L }, freeBytes = { free })
+
+        val states = maps.reconcile(listOf(garmisch, plan))
+
+        assertEquals(listOf("pause plan:a"), store.log, "a whole pack is left as it is")
+        assertEquals(mapOf("around" to AreaState.Ready(500), "plan:a" to AreaState.StorageFull), states)
+
+        free = STORAGE_RESERVE_BYTES + 1
+        store.log.clear()
+        assertEquals(AreaState.Downloading(10, 100, 5), maps.reconcile(listOf(garmisch, plan))["plan:a"])
+        assertEquals(listOf("resume plan:a"), store.log)
     }
 
     @Test

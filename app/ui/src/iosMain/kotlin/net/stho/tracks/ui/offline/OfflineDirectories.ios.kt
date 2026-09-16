@@ -33,6 +33,9 @@ internal fun mapsCacheFile(): String = appDirectory(NSApplicationSupportDirector
 /** Where the engine reads segment tiles: Documents/segments, as M10's shell always has — half a gigabyte a place. */
 internal fun segmentsDirectory(): Path = appDirectory(NSDocumentDirectory, "segments").path!!.toPath()
 
+/** The engine's profiles, kept as brouter.de has them: Application Support, seeded from the ones the app ships with. */
+internal fun profilesDirectory(): Path = appDirectory(NSApplicationSupportDirectory, "profiles").path!!.toPath()
+
 /** What offline data keeps about itself: where the area around you is centred. */
 internal fun offlineDirectory(): Path = appDirectory(NSApplicationSupportDirectory, "offline").path!!.toPath()
 
