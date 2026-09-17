@@ -8,7 +8,7 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | One Edge Script at [tracks.stho.net](https://tracks.stho.net), over Bunny Database |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M track points |
 | **Stack** | Node 24 · pnpm · libSQL · React · MapLibre · Deno at the edge · Kotlin Multiplatform on the phone |
-| **Status** | M1–M15 complete · M16 planned: the iPhone app's lock screen and release |
+| **Status** | M1–M15 complete · M16–M17 planned: the iPhone app's lock screen, battery and release |
 
 ---
 
@@ -40,7 +40,7 @@ Route planning arrived in M8, and took none of the space that had been left for 
 is a fragment in the address bar, not a row. The nullable column stayed unwritten, which is
 cheaper than the safest migration there is.
 
-The iPhone app is M10–M16 — M10–M15 have shipped, and it is described in full below: a plan made here goes onto
+The iPhone app is M10–M17 — M10–M15 have shipped, and it is described in full below: a plan made here goes onto
 the phone as the link it already is, can be re-planned there with no signal, is ridden on a
 heading-up map, and comes back as an activity. It keeps the rules above — nothing is written
 upstream, and the only thing it adds to the server is a file that tells iOS which links are
@@ -1327,8 +1327,9 @@ you are facing, and the plan you drew. It is also not a second planner that drif
 first — it runs **the same router on the same data**, so a leg re-planned on a hut terrace is
 the leg the web would have drawn.
 
-It is M10–M16, and M10–M15 have shipped; M16 — the lock screen, the battery and TestFlight for
-every account — is what is left. The design was settled by an interview and three spikes,
+It is M10–M17, and M10–M15 have shipped. What is left is M16, the lock screen, and M17, the
+battery measured on a real ride and TestFlight for every account — one milestone until M16 went
+looking and found enough in the release to be its own. The design was settled by an interview and three spikes,
 `spike/brouter-ios/REPORT.md` (MobiVM against J2ObjC, on branch `brouter-ios-spike`),
 `spike/kotlin-brouter/REPORT.md` (BRouter as Kotlin) and `spike/map-stack/REPORT.md` (the map
 layer), and then corrected milestone by milestone by what riding it taught. Where a milestone
@@ -1373,7 +1374,7 @@ headers are dropped. The plan had been to download gently, at eight and with a n
 are; the library cannot do that, and an on-device throttling proxy or a second downloader writing
 MBTiles was judged more machinery than the problem warranted. VersaTiles publishes no usage policy,
 and its server's own configuration allows 200 requests a second per address. **The maintainers were
-not asked**: for one person's phone it was judged fine. Opening TestFlight to every account in M16
+not asked**: for one person's phone it was judged fine. Opening TestFlight to every account in M17
 changes that, and the fallback is written down — regional extracts cut from
 `download.versatiles.org` and hosted by us. The bundled style is served to MapLibre under
 `tracks://`, because a `file://` style never started on the phone.
@@ -1539,7 +1540,7 @@ UI tests, screenshot scenes of the real map, and a replayed ride recorded, saved
 on a database made for the run) and an `ios` job that builds the shell on macOS; the web deploys without
 waiting for any of them, and `.ship/gates.sh` runs everything that runs on Linux. The minimum is **iOS 18.5**,
 because the map library's bundled ICU is built for it. Every Tracks account can sign in; TestFlight for all of
-them is M16.
+them is M17.
 
 ### The map is behind our own interface
 
@@ -1608,7 +1609,9 @@ stop*: a long press and the editor already are both.
 
 **The screen stays on while a ride records or waits to be saved**, and at no other time, with no toggle; you lock
 the phone yourself. Locked, a Live Activity is to show the next stop and the finish and a small heading-up **map
-snapshot** redrawn every few seconds — a lock screen can show a picture, not a map. That is M16.
+snapshot** redrawn every few seconds — a lock screen can show a picture, not a map. That is M16,
+and whether the picture can carry a map at all is the first thing it has to answer: see *Still
+undecided*.
 
 ### Recording and the upload
 
@@ -1645,7 +1648,7 @@ app.
 
 ### Battery
 
-**The target is ≤5 %/h in real riding** — screen on, outdoors, auto-brightness — measured in M16. It may not be
+**The target is ≤5 %/h in real riding** — screen on, outdoors, auto-brightness — measured in M17. It may not be
 reachable: at outdoor brightness the display alone can cost more than that, and the app cannot make sunlight
 cheaper. What the app can do is known: redraw the map a few times a second rather than at the display's 60–120 Hz,
 since the position only moves once a second; offer a dimmer riding style; and refresh the lock-screen snapshot
@@ -1839,7 +1842,8 @@ inspected through a SQLite browser.
 | **M13** | Offline data | The whole ride in airplane mode. Each stored plan's box plus 25 km and the 100 km around you, with every `rd5` tile under them; missing data on any network, refreshes on Wi-Fi at each source's cadence, and a 1 GB reserve. `rd5` through an iOS background session, map packs as MapLibre ships them under a `tracks://` style, glyphs shared, a new VersaTiles planet noticed by ETag. brouter.de's profiles follow the server weekly. Routing becomes online first — brouter.de while there is a network, the phone without — and a plan's legs route the moment its tiles land. The VersaTiles maintainers were not asked; see *Still undecided*. |
 | **M14** | Riding | The screen you ride with. Navigate in a plan's ⋯ menu starts a recording that follows it, *Ride* one with no plan, and while a ride is on the riding screen is the app. Where you are is the nearest point on the route with the last match as the tie-break — forward-only snapping lost on the first out-and-back. A long press, not a tap, re-plans mid-ride; Edit plan opens the editor over the ride; recording never pauses. The screen stays on only while riding. Riding it reshaped the screen in the next pull request: one collapsing sheet with a page per stop ahead, average speed, controls behind ⋯, a three-state compass, and a Stop that Save ride? can take back. |
 | **M15** | Recording and the upload | A ride recorded on the phone lands in Tracks. The append-only journal that is also the upload queue, recording with the phone locked, the barometer, and a tally of distance, moving time and climb. Sign-in through the web's own session route with the cookie in the Keychain, and a queue that uploads saved rides through the unchanged import frame as `source: tracks`. CI records a replayed ride and uploads it to a dev server on every run. Shipped beside M12–M13 rather than after them, because it needed only the sensors and the import route. |
-| **M16** | *Planned* — the lock screen and the device | The Live Activity and its map snapshot, fed by the riding screen's next stop and finish. The battery target measured and its levers pulled; Live Activity throttling, garbage-collector pauses and the peak that crept over M10's long routing series. The VersaTiles question answered, the local-network ATS exception checked against review, and TestFlight opened to every account. |
+| **M16** | *Planned* — the lock screen | The Live Activity and its picture, fed by the riding screen's own next stop and finish, so nothing is computed twice — and the numbers it needs from the phone: how often iOS lets a Live Activity refresh, and what drawing its picture costs. Re-scoped on the day it started: the battery and the release went to M17, because checking the handoff turned up enough in each to be a milestone. |
+| **M17** | *Planned* — battery and the release | The battery target measured on a real ride with the Live Activity running, and its levers pulled — the map redrawn a few times a second rather than at 120 Hz, a dimmer riding style, a rarer snapshot. Then TestFlight for every account: a signed build's pipeline, a privacy manifest and an encryption declaration, versions from the build settings, distribution signing beside the development signing that puts builds on the phone today, and the VersaTiles question answered before more than one phone downloads packs. |
 
 ---
 
@@ -2049,7 +2053,7 @@ M2.5's own migration.
 **VersaTiles and offline packs** — the maps are MapLibre offline packs from tiles.versatiles.org, at the 20
 parallel requests and the User-Agent MapLibre gives them. VersaTiles publishes no policy either way, and the
 maintainers were not asked, because for one person's phone it was judged fine. TestFlight for every account
-(M16) makes it more than one phone. If they would rather not, the fallback is regional extracts cut from
+(M17) makes it more than one phone. If they would rather not, the fallback is regional extracts cut from
 `download.versatiles.org` and hosted by us — a pipeline and a bill.
 
 **Whether ≤5 %/h survives the sun** — outdoors, the display alone may cost more than the target,
@@ -2059,8 +2063,8 @@ or whether the target moves, waits for the first TestFlight build.
 **What the phone still has to say** — M10 answered memory and routing speed on a real phone: an
 iPhone SE2 with 3 GB never had less than 2 GB left, and routed 43% slower when hot. Still
 unmeasured: garbage-collector pauses, how often iOS lets a Live Activity refresh, what a snapshot
-costs, and the peak that crept from 87 to 108 MB over ten 306 km routes back to back. M16 looks at
-all of it.
+costs, and the peak that crept from 87 to 108 MB over ten 306 km routes back to back. The two the
+lock screen needs are M16's; the rest waits for M17 and the ride it is measured on.
 
 **maplibre-compose in CI** — the desktop runtime is Alpha on an experimental binding, and the headless CI render
 depends on overriding Skiko's `llvmpipe` blocklist, which Skiko may change. The spike's flat tilt on iOS stopped
@@ -2068,6 +2072,27 @@ mattering when the camera lost its tilt.
 
 **Light only, or dark too** — the design said light or dark follows iOS; M11 shipped light only, and every
 milestone since has kept it. Whether dark mode is dropped or becomes work of its own is not decided.
+
+**Whether the lock screen can show a map at all** — the design says a snapshot, redrawn every few
+seconds. iOS forbids GPU work in the background, so a MapLibre snapshot taken while the phone is
+locked may simply fail, and the picture would fall back to the plan, the ridden track and the rider
+drawn on the CPU with no tiles under them — a diagram rather than a map. A short test on the phone
+in M16 settles it. Live Activities also end after eight hours and can only be restarted from the
+foreground, which a long day outlives; what the lock screen shows afterwards is unanswered.
+
+**What a day on the bars costs** — beyond the display: `Recorder.track` and `TracksMap` rebuild the
+whole ridden line every second, which on a six-hour ride is a long line rebuilt 20,000 times, and
+`CADisableMinimumFrameDurationOnPhone` lets a ProMotion phone draw the map at 120 Hz for a position
+that moves once a second. Both are M17's to measure before they are optimised. Whether the
+garbage-collector pauses and the peak memory that crept from 87 to 108 MB over ten long routes are
+M16's or M17's has not been said.
+
+**What the release needs that the app has not got** — an upload to App Store Connect wants a
+`PrivacyInfo.xcprivacy` (reading free disk space is a declared API), `ITSAppUsesNonExemptEncryption`,
+and version numbers taken from the build settings rather than the literal `1.0` and `1` in
+`Info.plist`. Signing today is development only: the script that puts a build on the phone does not
+make a distribution build. Whether `NSAllowsLocalNetworking` — there for device tests against a LAN
+dev server — stays in a TestFlight build is also open.
 
 **The cost of carrying BRouter** — 14 fix passes, one of them a rewritten routine, replayed for
 every release with byte parity as the gate. How much of that replays cleanly depends on how much
