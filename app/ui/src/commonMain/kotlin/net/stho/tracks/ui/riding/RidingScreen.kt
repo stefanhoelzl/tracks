@@ -78,11 +78,11 @@ const val RIDING_ZOOM = 15.0
 /** A page collapsed, fixed: a line and a strip. A page change must not change what the map is inset by. */
 private val COLLAPSED_PAGE = 54.dp
 
-/** A page open, fixed: its label, its stop, its numbers and its profile. */
-private val OPEN_PAGE = 160.dp
+/** A page open, fixed: the same line, over a profile with room to read the climbs. */
+private val OPEN_PAGE = 146.dp
 
 private val STRIP_HEIGHT = 30.dp
-private val PROFILE_HEIGHT = 72.dp
+private val OPEN_PROFILE_HEIGHT = 122.dp
 
 /** A drag on the sheet further than this, or a fling, opens or collapses it. */
 private val SNAP_DRAG = 24.dp
@@ -106,8 +106,8 @@ data class RideStats(val paused: Boolean, val distanceM: Double, val climbedM: D
  *   distance.
  * - **⋯** holds Pause (or Resume), Edit plan and Stop. While paused, a chip over the map says so, and resumes.
  *
- * The sheet is collapsed — a page is a line and a strip — or [expanded], its numbers big and its profile tall; a drag or
- * a tap on its top switches, and [onExpanded] is told.
+ * The sheet is collapsed — a page is a line and a strip — or [expanded], the same line over a profile with more height to
+ * it; a drag or a tap on its top switches, and [onExpanded] is told.
  *
  * A total across a leg that is not routed counts what is routed and says so with a `+`; the leg itself is its dash on
  * the map and a gap in the profile. There is no cue for being off the route: the map shows it.
@@ -303,22 +303,20 @@ private fun StopPage(navigation: Navigation, page: Int, expanded: Boolean) {
 
     if (progress == null) {
         val whole = remember(route) { route.terrain() }
-        PageText("WAITING FOR GPS…", names.getOrElse(1) { names.lastOrNull() ?: "" }, null, expanded)
+        PageLine("WAITING FOR GPS…", names.getOrElse(1) { names.lastOrNull() ?: "" }, null)
         whole?.let { Profile(it, expanded, youM = null, marksM = emptyList()) }
         return
     }
     if (first == null) {
-        PageText("FINISH", "⚑ ${names.lastOrNull() ?: ""}", "you are there", expanded)
+        PageLine(null, "⚑ ${names.lastOrNull() ?: ""}", "finish · you are there")
         return
     }
 
     val ordinal = first + page
     val reading = progress.ahead.getOrNull(page) ?: return
-    val finish = ordinal == route.stops.size - 1
     val name = names.getOrElse(ordinal) { "" }
-    val label = "${if (finish) "FINISH" else if (page == 0) "NEXT STOP" else "THEN"} · ${page + 1} OF ${progress.ahead.size}"
     val line = when {
-        finish -> "⚑ $name"
+        ordinal == route.stops.size - 1 -> "⚑ $name"
         page == 0 -> "→ $name"
         else -> "then $name"
     }
@@ -326,26 +324,14 @@ private fun StopPage(navigation: Navigation, page: Int, expanded: Boolean) {
     val stretch = remember(route, progress.alongM, ordinal) { route.terrainBetween(progress.alongM, route.stops[ordinal]) }
     val marks = remember(route, progress.alongM, ordinal) { (first until ordinal).map { route.stops[it] - progress.alongM } }
 
-    if (expanded) {
-        BasicText(label, style = Type.label)
-        BasicText(name, style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Numbers(reading)
-    } else {
-        PageText(null, line, reading(reading), expanded = false)
-    }
+    PageLine(null, line, reading(reading))
     // You are where the stretch starts, always: no dot for it.
     stretch?.let { Profile(it, expanded, youM = null, marksM = marks) }
 }
 
-/** A page with nothing to swipe to: a label, a name and a note, on one line collapsed. */
+/** A page's one line: a label, a name and a note. */
 @Composable
-private fun PageText(label: String?, name: String, note: String?, expanded: Boolean) {
-    val said = listOfNotNull(name.ifEmpty { null }, note).joinToString(" · ")
-    if (expanded) {
-        label?.let { BasicText(it, style = Type.label) }
-        if (said.isNotEmpty()) BasicText(said, style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        return
-    }
+private fun PageLine(label: String?, name: String, note: String?) {
     Row(Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically) {
         label?.let { BasicText(if (name.isEmpty()) it else "$it · ", style = Type.label, maxLines = 1) }
         BasicText(name, style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
@@ -353,42 +339,21 @@ private fun PageText(label: String?, name: String, note: String?, expanded: Bool
     }
 }
 
+/** The profile under a page's line: a strip collapsed, and the same drawing with room to read the climbs open. */
 @Composable
 private fun Profile(terrain: Terrain, expanded: Boolean, youM: Double?, marksM: List<Double>) {
-    if (expanded) {
-        ElevationProfile(terrain, height = PROFILE_HEIGHT, youM = youM, marksM = marksM)
-    } else {
-        ElevationProfile(terrain, height = STRIP_HEIGHT, youM = youM, marksM = marksM, axes = false)
-    }
+    ElevationProfile(terrain, height = if (expanded) OPEN_PROFILE_HEIGHT else STRIP_HEIGHT, youM = youM, marksM = marksM, axes = false)
 }
 
 /** A ride with no plan: the profile of what has been ridden, you at its end. */
 @Composable
 private fun RideSoFar(elevation: Terrain?, expanded: Boolean) {
+    PageLine("RIDE SO FAR", "", null)
     if (elevation == null) {
-        PageText("RIDE SO FAR", "", null, expanded)
         BasicText("The profile starts once there is a climb or a descent to draw.", style = Type.note, maxLines = 2)
         return
     }
-    if (expanded) BasicText("RIDE SO FAR", style = Type.label) else PageText("RIDE SO FAR", "", null, expanded = false)
     Profile(elevation, expanded, youM = elevation.totalM, marksM = emptyList())
-}
-
-@Composable
-private fun Numbers(reading: Reading?) {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) {
-        val plus = if (reading?.incomplete == true) "+" else ""
-        Number(reading?.let { Format.km(it.distanceM) + plus } ?: "—", "km")
-        Number(reading?.let { "↑ " + Format.metres(it.ascentM) + plus } ?: "—", "m")
-    }
-}
-
-@Composable
-private fun Number(value: String, unit: String) {
-    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        BasicText(value, style = Type.number)
-        BasicText(unit, style = Type.unit, modifier = Modifier.padding(bottom = 3.dp))
-    }
 }
 
 /** Speed, average speed, metres climbed and distance: the ride so far, whichever page is up. */
