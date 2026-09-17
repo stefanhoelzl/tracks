@@ -103,6 +103,26 @@ class RouteTest {
     }
 
     @Test
+    fun comingBackFromBeyondATurnaroundStopGoesOnToTheFinish() {
+        // Out 700 m to a stop and back the same road: two legs over one line, as a plan to a place and home reads.
+        val out = leg(listOf(at(0.0), at(700.0)))
+        val back = leg(listOf(at(700.0), at(0.0)))
+        val route = Route(listOf(stop(at(0.0)), stop(at(700.0)), stop(at(0.0))), listOf(out, back))
+        val follower = Follower(route)
+
+        for (m in 0..690 step 10) follower.follow(at(m.toDouble(), 4.0))
+        assertEquals(2, follower.follow(at(705.0, 3.0))!!.nextStop)
+        // Past the stop into a building, off the road, and back out the way you came.
+        for (m in 720..840 step 20) near(700.0, follower.follow(at(m.toDouble(), 30.0))!!.alongM, 1.0, "beyond the stop at $m:")
+        for (m in 600 downTo 10 step 10) {
+            val progress = follower.follow(at(m.toDouble(), 4.0))!!
+            near(1400.0 - m, progress.alongM, 3.0, "home at $m:")
+            assertEquals(2, progress.nextStop, "home at $m")
+        }
+        assertNull(follower.follow(at(0.0))!!.nextStop)
+    }
+
+    @Test
     fun aFigureOfEightsCrossingKeepsTheLoopYouAreOn() {
         // Two loops of 800 m sides sharing one corner, which is crossed twice.
         val eight = listOf(
