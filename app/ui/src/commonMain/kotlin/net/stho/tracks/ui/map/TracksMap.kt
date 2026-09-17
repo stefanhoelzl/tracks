@@ -20,11 +20,13 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
@@ -105,7 +107,10 @@ class MapStyle(val json: String) {
 }
 
 sealed interface MapCamera {
-    /** Keep the rider centred at [zoom], turned by [orientation] — centred in what [inset] leaves of the map. */
+    /**
+     * Keep the rider centred at [zoom], turned by [orientation] — centred in what [inset] leaves of the map. Every move
+     * goes back to [zoom]: a pinch is a gesture, and a gesture leaves following for [Free].
+     */
     data class Follow(
         val orientation: Orientation,
         val zoom: Double = 15.5,
@@ -117,6 +122,9 @@ sealed interface MapCamera {
      * person using it: a map that re-centres every second cannot be panned or zoomed.
      */
     data class Centre(val zoom: Double = 13.0, val inset: PaddingValues = PaddingValues(0.dp)) : MapCamera
+
+    /** Wherever the person using the map has put it: nothing moves the camera until another camera is asked for. */
+    data object Free : MapCamera
 
     /** Fit [points], north-up, clear of [inset] — whatever is drawn over the map's edges. */
     data class Overview(val points: List<Coordinate>, val inset: PaddingValues = PaddingValues(32.dp)) : MapCamera
@@ -158,7 +166,8 @@ data class PlanDrawing(
  * [onLongPlace], set instead, reports one with the name of the place under it.
  * A [drawing]'s waypoints can be tapped ([onWaypointTap]) and, once a long press picks one up, dragged ([onWaypointDrag],
  * reported as they move and once more, `done`, where they are let go). [onIdle] is called whenever the map has finished
- * drawing what it was asked for — what a screenshot waits for.
+ * drawing what it was asked for — what a screenshot waits for. [onGesture] is called when a finger pans, pinches or turns
+ * the map — not for a tap or a long press — for a screen to stop moving the camera itself.
  */
 @Composable
 fun TracksMap(
@@ -176,13 +185,14 @@ fun TracksMap(
     onLongPlace: ((Coordinate, String?) -> Unit)? = null,
     onWaypointTap: (Int) -> Unit = {},
     onWaypointDrag: (index: Int, at: Coordinate, done: Boolean) -> Unit = { _, _, _ -> },
+    onGesture: () -> Unit = {},
     onIdle: () -> Unit = {},
 ) {
     // A Metal or Vulkan surface created at 0×0 never recovers (the KRAIL pitfalls): wait for a size, once.
     var sized by remember { mutableStateOf(false) }
     Box(modifier.onSizeChanged { if (it.width > 0 && it.height > 0) sized = true }) {
         if (sized) {
-            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onIdle)
+            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onGesture, onIdle)
         }
     }
 }
@@ -259,23 +269,30 @@ private fun Fix.measurement() = LocationMeasurement(
 
 private const val FOLLOW_MS = 950L
 
-/** How wide the slice of the rider's dot that shows where the phone faces is: roughly what the eye takes in. */
+/** How wide the cone that shows where the phone faces is: roughly what the eye takes in. */
 private const val FIELD_OF_VIEW_DEG = 60.0
 
-/** The black of the rider's dot, inside its white rim: LocationPuckSizes' default radius of 6 dp. */
-private val RIDER_DOT_DIAMETER = 12.dp
+/** How far the cone reaches from the rider before it has faded out. */
+private val FACING_REACH = 46.dp
+
+/** The cone's blue: not the accent, which the plan line is, and which a cone lying along it would vanish into. */
+private val FACING_COLOUR = Color(0xFF2F6FD6)
 
 private fun pointJson(at: Coordinate?): String = at?.let {
     """{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[${it.lon},${it.lat}]}}"""
 } ?: EMPTY_COLLECTION
 
-/** A pie slice [sweepDeg] wide, pointing up from the centre: rotated by the heading, it points where the phone faces. */
-private class FacingWedge(private val color: Color, private val sweepDeg: Float) : Painter() {
+/**
+ * A cone [sweepDeg] wide, pointing up from the centre and fading out towards its edge: rotated by the heading, it points
+ * where the phone faces.
+ */
+private class FacingCone(private val color: Color, private val sweepDeg: Float) : Painter() {
     override val intrinsicSize: Size get() = Size.Unspecified
 
     override fun DrawScope.onDraw() {
+        val fade = Brush.radialGradient(listOf(color.copy(alpha = 0.55f), color.copy(alpha = 0f)), center = center, radius = size.minDimension / 2)
         // Compose measures angles clockwise from three o'clock; up is -90°.
-        drawArc(color = color, startAngle = -90f - sweepDeg / 2, sweepAngle = sweepDeg, useCenter = true)
+        drawArc(brush = fade, startAngle = -90f - sweepDeg / 2, sweepAngle = sweepDeg, useCenter = true)
     }
 }
 
@@ -294,6 +311,7 @@ private fun MapLibreMap(
     onLongPlace: ((Coordinate, String?) -> Unit)?,
     onWaypointTap: (Int) -> Unit,
     onWaypointDrag: (Int, Coordinate, Boolean) -> Unit,
+    onGesture: () -> Unit,
     onIdle: () -> Unit,
 ) {
     val currentCamera by rememberUpdatedState(camera)
@@ -304,6 +322,7 @@ private fun MapLibreMap(
     val currentOnLongPress by rememberUpdatedState(onLongPress)
     val currentOnLongPlace by rememberUpdatedState(onLongPlace)
     val currentOnIdle by rememberUpdatedState(onIdle)
+    val currentOnGesture by rememberUpdatedState(onGesture)
     val layoutDirection = LocalLayoutDirection.current
     val scope = rememberCoroutineScope()
 
@@ -351,7 +370,7 @@ private fun MapLibreMap(
                 zoom = camera.zoom,
                 bearing = mapBearing(camera.orientation, fix, heading, previous = 0.0),
             )
-            is MapCamera.Overview -> CameraPosition(target = Position(at.lon, at.lat), zoom = 13.0)
+            is MapCamera.Overview, MapCamera.Free -> CameraPosition(target = Position(at.lon, at.lat), zoom = 13.0)
             is MapCamera.Centre -> CameraPosition(target = Position(at.lon, at.lat), zoom = camera.zoom)
         }
     }
@@ -463,8 +482,28 @@ private fun MapLibreMap(
             textHaloWidth = const(1.6.dp),
         )
 
+        // Where the phone faces: a fading cone out of the dot, FIELD_OF_VIEW_DEG wide, from the compass rather than the
+        // course. It is what you are looking at, which a rider stopped at a junction wants to know and a course cannot
+        // say. Turned with the map, so it points the same way whichever way up the map is. Under the dot, so the dot
+        // stays where you are.
+        val facing = currentHeading
+        val rider = currentFix
+        val facingSource = rememberGeoJsonSource(GeoJsonData.JsonString(pointJson(rider?.at)))
+        val facingPainter = remember { FacingCone(FACING_COLOUR, FIELD_OF_VIEW_DEG.toFloat()) }
+        SymbolLayer(
+            id = "rider-facing",
+            source = facingSource,
+            visible = facing != null && rider != null,
+            iconImage = image(facingPainter, size = DpSize(FACING_REACH * 2, FACING_REACH * 2)),
+            iconAnchor = const(SymbolAnchor.Center),
+            iconRotate = const((facing?.degrees ?: 0.0).toFloat()),
+            iconRotationAlignment = const(IconRotationAlignment.Map),
+            iconAllowOverlap = const(true),
+            iconIgnorePlacement = const(true),
+        )
+
         // Ink, not accent: the rider sits on the plan line, and an accent dot would vanish into it. The library's own
-        // bearing marks — an arrow, and a thin arc on the dot's rim — are off; the facing wedge below replaces them.
+        // bearing marks — an arrow, and a thin arc on the dot's rim — are off; the facing cone under it replaces them.
         LocationPuck(
             idPrefix = "rider",
             location = currentFix?.measurement(),
@@ -477,26 +516,6 @@ private fun MapLibreMap(
                 accuracyFillColor = Color.Transparent,
             ),
         )
-
-        // Where the phone faces: an accent slice of the dot, FIELD_OF_VIEW_DEG wide, from the compass rather than the
-        // course. It is what you are looking at, which a rider stopped at a junction wants to know and a course cannot
-        // say. Turned with the map, so it points the same way whichever way up the map is. Inside the ink dot, the
-        // accent stays legible even where the rider sits on the accent plan line.
-        val facing = currentHeading
-        val rider = currentFix
-        val facingSource = rememberGeoJsonSource(GeoJsonData.JsonString(pointJson(rider?.at)))
-        val facingPainter = remember { FacingWedge(Tokens.accent, FIELD_OF_VIEW_DEG.toFloat()) }
-        SymbolLayer(
-            id = "rider-facing",
-            source = facingSource,
-            visible = facing != null && rider != null,
-            iconImage = image(facingPainter, size = DpSize(RIDER_DOT_DIAMETER, RIDER_DOT_DIAMETER)),
-            iconAnchor = const(SymbolAnchor.Center),
-            iconRotate = const((facing?.degrees ?: 0.0).toFloat()),
-            iconRotationAlignment = const(IconRotationAlignment.Map),
-            iconAllowOverlap = const(true),
-            iconIgnorePlacement = const(true),
-        )
     }
 
     LaunchedEffect(state) {
@@ -505,16 +524,14 @@ private fun MapLibreMap(
 
     // Exactly one camera effect, keyed on the state, reading its inputs through snapshotFlow: a new fix every second
     // must not cancel and restart the effect, or the camera never finishes an animation. The camera is acted on when
-    // it changes; only Follow also moves with the fixes — and even then keeps whatever zoom the map was given.
+    // it changes; only Follow also moves with the fixes, always back to its own zoom.
     LaunchedEffect(state) {
         snapshotFlow { currentCamera }.collectLatest { camera ->
             when (camera) {
                 is MapCamera.Follow -> {
-                    var first = true
                     snapshotFlow { currentFix to currentHeading }.collectLatest { (fix, heading) ->
                         if (fix == null) return@collectLatest
-                        val zoom = if (first) camera.zoom else state.cameraPosition.zoom
-                        first = false
+                        val zoom = camera.zoom
                         val bearing = mapBearing(camera.orientation, fix, heading, previous = state.cameraPosition.bearing)
                         val aim = insetTarget(fix.at, zoom, bearing, camera.inset, layoutDirection)
                         state.animateCameraPosition(
@@ -531,6 +548,7 @@ private fun MapLibreMap(
                         duration = FOLLOW_MS.milliseconds,
                     )
                 }
+                MapCamera.Free -> Unit
                 is MapCamera.Overview -> if (camera.points.isNotEmpty()) {
                     state.animateCameraToBounds(
                         BoundingBox(
@@ -550,8 +568,28 @@ private fun MapLibreMap(
     Box(
         Modifier.pointerInput(Unit) {
             // Watched before anything below takes the touch, and never consumed: the map and the handles still get it.
+            // A second finger, or one that has moved further than a tap may, is a gesture on the map; a long press
+            // stays where it landed, and is not.
+            val slop = viewConfiguration.touchSlop
             awaitPointerEventScope {
-                while (true) fingers = awaitPointerEvent(PointerEventPass.Initial).changes.count { it.pressed }
+                val downs = HashMap<PointerId, Offset>()
+                var gestured = false
+                while (true) {
+                    val changes = awaitPointerEvent(PointerEventPass.Initial).changes
+                    fingers = changes.count { it.pressed }
+                    for (change in changes) {
+                        if (change.pressed) downs.getOrPut(change.id) { change.position } else downs.remove(change.id)
+                    }
+                    if (downs.isEmpty()) {
+                        gestured = false
+                        continue
+                    }
+                    val moved = changes.any { change -> downs[change.id]?.let { (change.position - it).getDistance() > slop } == true }
+                    if (!gestured && (downs.size > 1 || moved)) {
+                        gestured = true
+                        currentOnGesture()
+                    }
+                }
             }
         },
     ) {
