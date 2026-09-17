@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { setupServer } from 'msw/node'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { elevationTileJson } from '../web/src/map/elevation-fixture.ts'
 import { generateAppStyle, STYLE_FILE } from './app-style.ts'
+
+// The elevation TileJSON comes from the committed fixture: this suite stays offline.
+const server = setupServer(elevationTileJson)
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+afterAll(() => server.close())
 
 describe('the map style the phone draws', () => {
   it('is the style the web builds today', async () => {
