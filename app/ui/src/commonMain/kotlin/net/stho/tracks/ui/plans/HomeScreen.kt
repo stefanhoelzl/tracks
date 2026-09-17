@@ -43,7 +43,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -55,9 +59,9 @@ import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.sensors.Fix
 import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
-import net.stho.tracks.ui.offline.OfflineState
 import net.stho.tracks.ui.offline.PlanOffline
 import net.stho.tracks.ui.theme.IconButton
 import net.stho.tracks.ui.theme.Icons
@@ -99,8 +103,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** The plan whose ⋯ menu is open as the screen appears: for the screenshots. */
     menuOpen: String? = null,
-    /** Where each plan stands offline (M13); without it, the rows say nothing about it. */
-    offline: OfflineState? = null,
+    /** Where a plan stands offline (M13), by its id; null says nothing about it. */
+    offline: (String) -> PlanOffline? = { null },
     upload: UploadQueue? = null,
     onIdle: () -> Unit = {},
 ) {
@@ -179,7 +183,7 @@ fun HomeScreen(
                             stored = stored,
                             routing = routing[stored.id],
                             menuOpen = stored.id == menuOpen,
-                            offline = offline?.plan(stored.id),
+                            offline = offline(stored.id),
                             onOpen = { onOpen(stored.id) },
                             onNavigate = onNavigate?.let { navigate -> { navigate(stored.id) } },
                             onEdit = { onEdit(stored.id) },
@@ -232,8 +236,11 @@ private fun PlanRow(
     }
 }
 
-/** One thing a ⋯ menu offers: its icon, and the word a screen reader says for it. */
-internal class MenuEntry(val icon: ImageVector, val label: String, val onClick: () -> Unit)
+/**
+ * One thing a ⋯ menu offers: its icon, and the word a screen reader says for it. [fill] sets one apart — the thing to
+ * do, or the one that ends something — drawing its icon in white on it.
+ */
+internal class MenuEntry(val icon: ImageVector, val label: String, val onClick: () -> Unit, val fill: Color? = null)
 
 /**
  * A plan's ⋯ menu: Navigate, Edit, Copy, Share link and Delete, the same wherever a plan is shown. Navigate is there when
@@ -262,9 +269,12 @@ internal fun PlanMenu(
     )
 }
 
-/** A ⋯ button that opens [entries] below it as one row of icons, all alike and without words. */
+/**
+ * A ⋯ button that opens [entries] as one row of icons without words: below it, or above it when [opensUp] — for a ⋯ at
+ * the bottom of the screen.
+ */
 @Composable
-internal fun ActionMenu(entries: List<MenuEntry>, modifier: Modifier = Modifier, initiallyOpen: Boolean = false) {
+internal fun ActionMenu(entries: List<MenuEntry>, modifier: Modifier = Modifier, initiallyOpen: Boolean = false, opensUp: Boolean = false) {
     var open by remember { mutableStateOf(initiallyOpen) }
     Box(modifier) {
         Box(
@@ -274,16 +284,16 @@ internal fun ActionMenu(entries: List<MenuEntry>, modifier: Modifier = Modifier,
             BasicText("⋯", style = Type.title.copy(color = Tokens.ink2))
         }
         if (open) {
-            // Below the ⋯, not over it: a second tap on ⋯ is outside the menu, and closes it.
+            // Beside the ⋯, not over it: a second tap on ⋯ is outside the menu, and closes it.
             Popup(
-                alignment = Alignment.TopEnd,
-                offset = with(LocalDensity.current) { IntOffset(0, 48.dp.roundToPx()) },
+                popupPositionProvider = remember(opensUp) { MenuPosition(opensUp) },
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true),
             ) {
                 Row(
                     // Lifted off the white it opens over.
-                    Modifier.padding(end = 8.dp, bottom = 8.dp).shadow(8.dp, Shapes.panel).background(Tokens.surface, Shapes.panel).padding(4.dp),
+                    Modifier.padding(end = 8.dp, top = if (opensUp) 8.dp else 0.dp, bottom = if (opensUp) 0.dp else 8.dp)
+                        .shadow(8.dp, Shapes.panel).background(Tokens.surface, Shapes.panel).padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     entries.forEach { entry ->
@@ -298,12 +308,25 @@ internal fun ActionMenu(entries: List<MenuEntry>, modifier: Modifier = Modifier,
     }
 }
 
+/** Its right edge on the ⋯'s, and its top on the ⋯'s bottom — or its bottom on the ⋯'s top. */
+private class MenuPosition(private val opensUp: Boolean) : PopupPositionProvider {
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize) =
+        IntOffset(
+            (anchorBounds.right - popupContentSize.width).coerceAtLeast(0),
+            if (opensUp) anchorBounds.top - popupContentSize.height else anchorBounds.bottom,
+        )
+}
+
 @Composable
 private fun MenuIcon(entry: MenuEntry, onClick: () -> Unit) {
     Box(
-        Modifier.size(44.dp).clickable(onClick = onClick).semantics { contentDescription = entry.label },
+        Modifier
+            .size(44.dp)
+            .then(entry.fill?.let { Modifier.background(it, Shapes.control) } ?: Modifier)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = entry.label },
         contentAlignment = Alignment.Center,
     ) {
-        Image(entry.icon, contentDescription = null, modifier = Modifier.size(20.dp), colorFilter = ColorFilter.tint(Tokens.ink))
+        Image(entry.icon, contentDescription = null, modifier = Modifier.size(20.dp), colorFilter = ColorFilter.tint(if (entry.fill != null) Tokens.surface else Tokens.ink))
     }
 }

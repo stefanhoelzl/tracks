@@ -37,17 +37,26 @@ private const val AREA_OPACITY = 0.16f
  * ends of the track under it.
  *
  * The plan editor draws it, and the riding panel draws the same thing with you on it: [youM] metres along, a dot on the
- * line and a dashed rule down to the axis.
+ * line and a dashed rule down to the axis. [marksM] are stops along it, each a faint dashed rule. Without [axes] it is
+ * the line alone, edge to edge: a strip under a line of text.
  */
 @Composable
-fun ElevationProfile(terrain: Terrain, modifier: Modifier = Modifier, height: Dp = 96.dp, youM: Double? = null) {
+fun ElevationProfile(
+    terrain: Terrain,
+    modifier: Modifier = Modifier,
+    height: Dp = 96.dp,
+    youM: Double? = null,
+    marksM: List<Double> = emptyList(),
+    axes: Boolean = true,
+) {
     val stops = remember(terrain) { terrain.rampStops() }
     val floorM = terrain.floorM
     val topM = terrain.topM
 
     Column(modifier) {
         Box(Modifier.fillMaxWidth().height(height)) {
-            Canvas(Modifier.fillMaxWidth().height(height).padding(start = 34.dp, end = 8.dp, top = 8.dp, bottom = 6.dp)) {
+            val plotPadding = if (axes) Modifier.padding(start = 34.dp, end = 8.dp, top = 8.dp, bottom = 6.dp) else Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+            Canvas(Modifier.fillMaxWidth().height(height).then(plotPadding)) {
                 val width = size.width
                 val plot = size.height
                 fun x(distance: Double) = (distance / terrain.totalM * width).toFloat()
@@ -98,6 +107,17 @@ fun ElevationProfile(terrain: Terrain, modifier: Modifier = Modifier, height: Dp
                     start = end + 1
                 }
 
+                marksM.forEach { along ->
+                    val px = x(along.coerceIn(0.0, terrain.totalM))
+                    drawLine(
+                        Tokens.muted,
+                        Offset(px, 0f),
+                        Offset(px, plot),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 2.dp.toPx())),
+                    )
+                }
+
                 youM?.let { along ->
                     val px = x(along.coerceIn(0.0, terrain.totalM))
                     drawLine(
@@ -113,12 +133,16 @@ fun ElevationProfile(terrain: Terrain, modifier: Modifier = Modifier, height: Dp
                     }
                 }
             }
-            BasicText(Format.metres(topM), style = Type.axis, modifier = Modifier.align(Alignment.TopStart))
-            BasicText(Format.metres(floorM), style = Type.axis, modifier = Modifier.align(Alignment.BottomStart))
+            if (axes) {
+                BasicText(Format.metres(topM), style = Type.axis, modifier = Modifier.align(Alignment.TopStart))
+                BasicText(Format.metres(floorM), style = Type.axis, modifier = Modifier.align(Alignment.BottomStart))
+            }
         }
-        Row(Modifier.fillMaxWidth().padding(start = 34.dp, end = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            BasicText("0", style = Type.axis)
-            BasicText("${Format.km(terrain.totalM)} km", style = Type.axis)
+        if (axes) {
+            Row(Modifier.fillMaxWidth().padding(start = 34.dp, end = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                BasicText("0", style = Type.axis)
+                BasicText("${Format.km(terrain.totalM)} km", style = Type.axis)
+            }
         }
     }
 }

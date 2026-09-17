@@ -71,6 +71,14 @@ fun Riding(
     val navigation by navigator.state.collectAsState()
     val routing by library.routing.collectAsState()
     val recording = state as? RecorderState.Recording
+    val rideId = when (val current = state) {
+        is RecorderState.Recording -> current.id
+        is RecorderState.Stopped -> current.id
+        is RecorderState.Interrupted -> current.id
+        RecorderState.Idle -> null
+    }
+    // Kept out here, for as long as the ride: the editor replaces the riding screen, and the sheet is as it was after.
+    var expanded by remember(rideId) { mutableStateOf(false) }
     val planId = recording?.planId
     val scope = rememberCoroutineScope()
 
@@ -143,11 +151,13 @@ fun Riding(
         navigation = navigation.takeIf { planId != null },
         routing = navigation?.let { routing[it.plan.id] },
         elevation = elevation,
-        stats = recording?.let { RideStats(it.paused, it.distanceM, it.climbedM) },
+        stats = recording?.let { RideStats(it.paused, it.distanceM, it.climbedM, it.movingMillis) },
         onPause = recorder::pause,
         onResume = recorder::resume,
         onStop = recorder::stop,
         modifier = modifier,
+        expanded = expanded,
+        onExpanded = { expanded = it },
         onLongPlace = if (planId != null) { at, name -> target = DetourTarget(at, name) } else null,
         onEditPlan = planId?.let { id ->
             {

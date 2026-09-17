@@ -52,7 +52,10 @@ import net.stho.tracks.sensors.Pressure
 import net.stho.tracks.sensors.pressureAt
 import net.stho.tracks.ui.riding.Navigation
 import net.stho.tracks.ui.riding.RideStats
+import net.stho.tracks.ui.offline.PlanOffline
 import net.stho.tracks.ui.riding.RidingScreen
+import net.stho.tracks.ui.recording.RecorderState
+import net.stho.tracks.ui.recording.SaveRideSheet
 import net.stho.tracks.sensors.Heading
 import net.stho.tracks.sensors.distanceM
 import kotlinx.coroutines.awaitCancellation
@@ -110,7 +113,7 @@ private const val PIXEL_TOLERANCE = 0.0003
 private const val TAP_TOLERANCE_PX = 2.0
 
 /** What a scene draws: the map on its own, or one of the app's screens over it. */
-private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried, Riding, RidingDialog, RidingDetour, FreeRide }
+private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried, Riding, RidingOpen, RidingMenu, RidingDialog, RidingDetour, FreeRide, SaveRide }
 
 /** The iPhone SE2's 4.7″ screen, the phone every device check runs on: what riding has to fit. */
 private val SE2 = DpSize(375.dp, 667.dp)
@@ -143,6 +146,9 @@ private val SCENES = listOf(
     Scene("stop-carried", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp) }, screen = Screen.StopCarried),
     // 2.2 km in, 400 m before the ride's stop: the camera the riding screen sets, on the phone it has to fit.
     Scene("riding", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.Riding, size = SE2),
+    Scene("riding-open", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingOpen, size = SE2),
+    Scene("riding-menu", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingMenu, size = SE2),
+    Scene("save-ride", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.SaveRide, size = SE2),
     Scene("riding-dialog", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingDialog, size = SE2),
     Scene("riding-detour", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingDetour, size = SE2),
     Scene("free-ride", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.FreeRide, size = SE2),
@@ -268,6 +274,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         routing = emptyMap(),
                         notice = null,
                         onNew = {},
+                        onRide = {},
                         onOpen = {},
                         onNavigate = {},
                         onEdit = {},
@@ -275,6 +282,15 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         onShare = {},
                         onDelete = {},
                         menuOpen = plans.first().id.takeIf { scene.screen == Screen.HomeMenu },
+                        // Every mark a plan can have offline, one a row.
+                        offline = { id ->
+                            when (plans.indexOfFirst { it.id == id }) {
+                                0 -> PlanOffline.PhoneFull
+                                1 -> PlanOffline.Pending
+                                2 -> PlanOffline.Downloading(0.4)
+                                else -> PlanOffline.Ready
+                            }
+                        },
                         onIdle = onIdle,
                     )
                     Screen.Preview -> PlanPreview(
@@ -323,7 +339,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             onIdle = onIdle,
                         )
                     }
-                    Screen.Riding, Screen.RidingDialog, Screen.RidingDetour, Screen.FreeRide -> {
+                    Screen.Riding, Screen.RidingOpen, Screen.RidingMenu, Screen.RidingDialog, Screen.RidingDetour, Screen.FreeRide, Screen.SaveRide -> {
                         // The ride up to this second, recorded and followed as the phone would have, fix by fix.
                         val ridden = remember { ride.fixes.take(scene.second + 1) }
                         val tally = remember {
@@ -360,15 +376,33 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             navigation = navigation,
                             routing = PlanRouting(routing = 0).takeIf { scene.screen == Screen.RidingDetour },
                             elevation = remember { tally.elevation.terrain() },
-                            stats = RideStats(paused = false, distanceM = tally.odometer.distanceM, climbedM = tally.climb.gainM),
+                            // Stopped, the Save sheet asks and there is no ride sheet under it; paused, the ⋯ menu is open.
+                            stats = RideStats(
+                                paused = scene.screen == Screen.RidingMenu,
+                                distanceM = tally.odometer.distanceM,
+                                climbedM = tally.climb.gainM,
+                                movingMillis = tally.odometer.movingMillis,
+                            ).takeIf { scene.screen != Screen.SaveRide },
                             onPause = {},
                             onResume = {},
                             onStop = {},
+                            expanded = scene.screen == Screen.RidingOpen,
                             onEditPlan = {},
                             undo = UndoControls(canUndo = true, canRedo = false, onUndo = {}, onRedo = {}).takeIf { scene.screen == Screen.RidingDetour },
                             pulse = false,
+                            menuOpen = scene.screen == Screen.RidingMenu,
                             onIdle = onIdle,
                         ) {
+                            if (scene.screen == Screen.SaveRide) {
+                                Box(Modifier.align(Alignment.BottomCenter).padding(12.dp)) {
+                                    SaveRideSheet(
+                                        RecorderState.Stopped(id = "scene", title = navigation?.plan?.plan?.name ?: "", sport = "bike"),
+                                        onSave = { _, _ -> },
+                                        onContinue = {},
+                                        onDiscard = {},
+                                    )
+                                }
+                            }
                             if (scene.screen == Screen.RidingDialog) {
                                 DetourDialog(
                                     DetourTarget(detourAt, "Kochelberg"),
