@@ -197,6 +197,19 @@ class Route(waypoints: List<Waypoint>, legs: List<Leg?>) {
         )
     }
 
+    /** The point [alongM] metres along the route, between the points on either side; null for a route with none. */
+    fun pointAt(alongM: Double): Coordinate? {
+        if (points.isEmpty()) return null
+        val here = alongM.coerceIn(0.0, totalM)
+        val after = along.indexOfFirst { it >= here }
+        if (after <= 0) return points[if (after < 0) points.size - 1 else 0]
+        val a = points[after - 1]
+        val b = points[after]
+        val span = along[after] - along[after - 1]
+        val t = if (span <= 0) 1.0 else (here - along[after - 1]) / span
+        return Coordinate(a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t)
+    }
+
     /** The whole route's terrain, measured along it: a leg that is not routed is a gap as long as its straight line. */
     fun terrain(): Terrain? = terrainAlong(along, altitudes)
 

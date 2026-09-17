@@ -84,6 +84,9 @@ private val OPEN_PAGE = 204.dp
 private val STRIP_HEIGHT = 30.dp
 private val OPEN_PROFILE_HEIGHT = 180.dp
 
+/** The riding profile's least height: short stretches are what it mostly draws, and 200 m flattens them. */
+private const val PROFILE_MIN_SPAN_M = 100.0
+
 /** A drag on the sheet further than this, or a fling, opens or collapses it. */
 private val SNAP_DRAG = 24.dp
 
@@ -119,6 +122,9 @@ data class RideStats(val paused: Boolean, val distanceM: Double, val climbedM: D
  * button turns it north-up and back. A pan or a pinch leaves the map where the finger put it, and the button — grey
  * then — follows you again. A tap on the map does nothing here: a long press is a detour, [onLongPlace], so a bump or a
  * glove cannot make one. Undo and Redo sit top left while there is a step to take.
+ *
+ * A tap on a stop's profile picks that place on the route: the map leaves following to show it, ringed, and the profile
+ * marks it. Following again — the grey button — lets it go.
  */
 @Composable
 fun RidingScreen(
@@ -142,11 +148,17 @@ fun RidingScreen(
     pulse: Boolean = true,
     /** The ⋯ menu open as the screen appears: for the screenshots. */
     menuOpen: Boolean = false,
+    /** A place on the route picked as the screen appears, in metres along it: for the screenshots. */
+    initiallyPickedM: Double? = null,
     onIdle: () -> Unit = {},
     sheet: @Composable BoxScope.() -> Unit = {},
 ) {
     var orientation by remember { mutableStateOf(Orientation.HeadingUp) }
-    var manual by remember { mutableStateOf(false) }
+    var manual by remember { mutableStateOf(initiallyPickedM != null) }
+    // Metres along the route, not along a page: it stays put as you ride, whichever page shows it.
+    var pickedM by remember { mutableStateOf(initiallyPickedM) }
+    val picked = remember(navigation?.route, pickedM) { pickedM?.let { navigation?.route?.pointAt(it) } }
+    LaunchedEffect(manual) { if (!manual) pickedM = null }
     var sheetHeight by remember { mutableStateOf(0.dp) }
     val density = LocalDensity.current
     val stored = navigation?.plan
@@ -164,7 +176,11 @@ fun RidingScreen(
             TracksMap(
                 style = it,
                 // Centred in what the inset leaves: a top inset a third of the gap down puts you two thirds down it.
-                camera = if (manual) MapCamera.Free else MapCamera.Follow(orientation, RIDING_ZOOM, PaddingValues(top = top + gap / 3, bottom = sheetHeight)),
+                camera = when {
+                    !manual -> MapCamera.Follow(orientation, RIDING_ZOOM, PaddingValues(top = top + gap / 3, bottom = sheetHeight))
+                    picked != null -> MapCamera.Show(picked, PaddingValues(top = top, bottom = sheetHeight))
+                    else -> MapCamera.Free
+                },
                 modifier = Modifier.fillMaxSize(),
                 ridden = ridden,
                 fix = fix,
@@ -172,6 +188,7 @@ fun RidingScreen(
                 drawing = drawing,
                 onLongPlace = onLongPlace,
                 onGesture = { manual = true },
+                marker = picked,
                 onIdle = onIdle,
             )
         }
@@ -213,6 +230,11 @@ fun RidingScreen(
                     MenuEntry(Icons.StopRide, "Stop", onStop, fill = Tokens.ink),
                 ),
                 menuOpen = menuOpen,
+                pickedM = pickedM,
+                onPick = { alongM ->
+                    pickedM = alongM
+                    manual = true
+                },
                 modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { sheetHeight = with(density) { it.height.toDp() } },
             )
         }
@@ -242,6 +264,8 @@ private fun RideSheet(
     onExpanded: (Boolean) -> Unit,
     menu: List<MenuEntry>,
     menuOpen: Boolean,
+    pickedM: Double?,
+    onPick: (Double) -> Unit,
     modifier: Modifier,
 ) {
     val snap = with(LocalDensity.current) { SNAP_DRAG.toPx() }
@@ -285,7 +309,7 @@ private fun RideSheet(
             }
             HorizontalPager(pager, Modifier.fillMaxWidth().padding(end = 8.dp).height(if (expanded) OPEN_PAGE else COLLAPSED_PAGE)) { page ->
                 Column(Modifier.fillMaxSize()) {
-                    if (navigation == null) RideSoFar(elevation, expanded) else StopPage(navigation, page, expanded)
+                    if (navigation == null) RideSoFar(elevation, expanded) else StopPage(navigation, page, expanded, pickedM, onPick)
                 }
             }
         }
@@ -295,7 +319,7 @@ private fun RideSheet(
 
 /** From where you are to the stop [page] places ahead — or, before a fix or past the finish, the one thing to say. */
 @Composable
-private fun StopPage(navigation: Navigation, page: Int, expanded: Boolean) {
+private fun StopPage(navigation: Navigation, page: Int, expanded: Boolean, pickedM: Double?, onPick: (Double) -> Unit) {
     val route = navigation.route
     val progress = navigation.progress
     val names = remember(navigation.plan) { stopNames(navigation) }
@@ -304,7 +328,7 @@ private fun StopPage(navigation: Navigation, page: Int, expanded: Boolean) {
     if (progress == null) {
         val whole = remember(route) { route.terrain() }
         PageLine("WAITING FOR GPS…", names.getOrElse(1) { names.lastOrNull() ?: "" }, null)
-        whole?.let { Profile(it, expanded, youM = null, marksM = emptyList()) }
+        whole?.let { Profile(it, expanded, youM = null, marksM = emptyList(), pickedM = pickedM, onPick = onPick) }
         return
     }
     if (first == null) {
@@ -326,7 +350,9 @@ private fun StopPage(navigation: Navigation, page: Int, expanded: Boolean) {
 
     PageLine(null, line, reading(reading))
     // You are where the stretch starts, always: no dot for it.
-    stretch?.let { Profile(it, expanded, youM = null, marksM = marks) }
+    stretch?.let { terrain ->
+        Profile(terrain, expanded, youM = null, marksM = marks, pickedM = pickedM?.minus(progress.alongM)) { onPick(progress.alongM + it) }
+    }
 }
 
 /** A page's one line: a label, a name and a note. */
@@ -341,8 +367,24 @@ private fun PageLine(label: String?, name: String, note: String?) {
 
 /** The profile under a page's line: a strip collapsed, and the same drawing with room to read the climbs open. */
 @Composable
-private fun Profile(terrain: Terrain, expanded: Boolean, youM: Double?, marksM: List<Double>) {
-    ElevationProfile(terrain, height = if (expanded) OPEN_PROFILE_HEIGHT else STRIP_HEIGHT, youM = youM, marksM = marksM, axes = false)
+private fun Profile(
+    terrain: Terrain,
+    expanded: Boolean,
+    youM: Double?,
+    marksM: List<Double>,
+    pickedM: Double? = null,
+    onPick: ((Double) -> Unit)? = null,
+) {
+    ElevationProfile(
+        terrain,
+        height = if (expanded) OPEN_PROFILE_HEIGHT else STRIP_HEIGHT,
+        youM = youM,
+        marksM = marksM,
+        axes = false,
+        minSpanM = PROFILE_MIN_SPAN_M,
+        pickedM = pickedM,
+        onPick = onPick,
+    )
 }
 
 /** A ride with no plan: the profile of what has been ridden, you at its end. */
