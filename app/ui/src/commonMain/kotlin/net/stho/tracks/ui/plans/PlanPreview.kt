@@ -1,16 +1,16 @@
 package net.stho.tracks.ui.plans
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,6 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.plan.WaypointKind
@@ -41,7 +44,6 @@ import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.sensors.Fix
 import net.stho.tracks.ui.theme.IconButton
 import net.stho.tracks.ui.theme.Icons
-import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.theme.SnapSheet
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
@@ -103,7 +105,7 @@ fun PlanPreview(
             TracksMap(
                 style = it,
                 // Framed clear of the minimised sheet: open, the sheet is the thing being looked at.
-                camera = MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = UNDER_MAP_CREDIT + 64.dp, end = 32.dp, bottom = covered + 32.dp)),
+                camera = MapCamera.Overview(frame, inset = PaddingValues(start = 32.dp, top = UNDER_MAP_CREDIT + 32.dp, end = 32.dp, bottom = covered + 32.dp)),
                 modifier = Modifier.fillMaxSize(),
                 drawing = drawing,
                 fix = fix,
@@ -111,20 +113,19 @@ fun PlanPreview(
             )
         }
 
-        Pill(
-            "‹ Plans",
-            onClick = onBack,
-            primary = false,
-            // Under the map's attribution, which holds the top edge.
-            modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 16.dp, top = UNDER_MAP_CREDIT),
-        )
-
         SnapSheet(
             expanded = expanded,
             onExpanded = { expanded = it },
             onHeaderHeight = { covered = it },
             header = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Back is on the sheet, not over the map: its own tap, so it never opens or closes the sheet.
+                    Box(
+                        Modifier.padding(end = 4.dp).size(44.dp).clickable(onClick = onBack).semantics { contentDescription = "Back to plans" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(Icons.Back, contentDescription = null, modifier = Modifier.size(24.dp), colorFilter = ColorFilter.tint(Tokens.ink))
+                    }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         BasicText(titleOf(plan), style = Type.title)
                         val stops = plan.waypoints.count { it.kind == WaypointKind.Poi }
