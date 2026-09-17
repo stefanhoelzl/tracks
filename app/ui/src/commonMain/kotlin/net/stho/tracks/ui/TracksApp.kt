@@ -214,7 +214,7 @@ fun TracksApp(
             onShare = ::share,
             onDelete = { id -> scope.launch { library.delete(id) } },
             modifier = modifier,
-            offline = offlineState,
+            offline = { id -> offlineState?.plan(id) },
             upload = upload,
             onIdle = onIdle,
         )

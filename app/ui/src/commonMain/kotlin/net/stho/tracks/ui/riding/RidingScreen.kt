@@ -1,7 +1,12 @@
 package net.stho.tracks.ui.riding
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation as DragOrientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -9,7 +14,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +23,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -29,21 +34,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.plan.Format
@@ -58,7 +62,9 @@ import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.ui.map.UNDER_MAP_CREDIT
+import net.stho.tracks.ui.plans.ActionMenu
 import net.stho.tracks.ui.plans.ElevationProfile
+import net.stho.tracks.ui.plans.MenuEntry
 import net.stho.tracks.ui.plans.planDrawing
 import net.stho.tracks.ui.theme.IconButton
 import net.stho.tracks.ui.theme.Icons
@@ -66,40 +72,53 @@ import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
 
-/** How close the riding map starts: about 1.7 km of road across a phone. Pinching changes it, and it keeps. */
+/** How close the riding map follows you: about 1.7 km of road across a phone. Following always comes back to it. */
 const val RIDING_ZOOM = 15.0
 
-/** The profiles on the panel: short, so a panel, the stats and the controls fit an SE2's 4.7″ with map to spare. */
-private val PROFILE_HEIGHT = 52.dp
+/** A page collapsed, fixed: a line and a strip. A page change must not change what the map is inset by. */
+private val COLLAPSED_PAGE = 54.dp
 
-/** One page of the panel, fixed: a page change must not change what the map is inset by. */
-private val PAGE_HEIGHT = 118.dp
+/** A page open, fixed: its label, its stop, its numbers and its profile. */
+private val OPEN_PAGE = 160.dp
+
+private val STRIP_HEIGHT = 30.dp
+private val PROFILE_HEIGHT = 72.dp
+
+/** A drag on the sheet further than this, or a fling, opens or collapses it. */
+private val SNAP_DRAG = 24.dp
+
+/** Paused: the web's warning amber, since a paused ride is one that is not being recorded. */
+private val PAUSED = Color(0xFFCE7A0C)
 
 /** Undo and Redo over the riding map, while there is a step to take. */
 data class UndoControls(val canUndo: Boolean, val canRedo: Boolean, val onUndo: () -> Unit, val onRedo: () -> Unit)
 
-/** The ride so far, as recorded: what the fixed row reads. */
-data class RideStats(val paused: Boolean, val distanceM: Double, val climbedM: Double?)
+/** The ride so far, as recorded: what the stats line reads. */
+data class RideStats(val paused: Boolean, val distanceM: Double, val climbedM: Double?, val movingMillis: Long = 0)
 
 /**
- * The screen you ride with: the map turned with you, and what is ahead of you on the plan you follow.
+ * The screen you ride with: the map turned with you, under one sheet with what is ahead of you on the plan you follow.
  *
- * - **The top card** is the next stop — its distance and climb from here — and swipes to the stops after it.
- * - **The bottom panel** swipes between *To finish* and *To next stop*, each with its profile and you on it. It is
- *   independent of the card: *To next stop* is always the actual next stop.
- * - **Under both, fixed**, the ride so far: speed, metres climbed, distance. Then Pause and Stop.
+ * - **The pages** are the stops still ahead, one each and the finish last: its name, the distance and climb from where
+ *   you are to it, and the profile of that stretch, with a tick at each stop on the way. They swipe; a new next stop
+ *   brings the first page back.
+ * - **The stats line**, fixed under them, is the ride so far: speed, average speed over the time moving, metres climbed,
+ *   distance.
+ * - **⋯** holds Pause (or Resume), Edit plan and Stop. While paused, a chip over the map says so, and resumes.
+ *
+ * The sheet is collapsed — a page is a line and a strip — or [expanded], its numbers big and its profile tall; a drag or
+ * a tap on its top switches, and [onExpanded] is told.
  *
  * A total across a leg that is not routed counts what is routed and says so with a `+`; the leg itself is its dash on
  * the map and a gap in the profile. There is no cue for being off the route: the map shows it.
  *
- * Without a [navigation] it is a ride with no plan: no card, and the panel is the profile of the ride so far,
- * [elevation]. Without [stats] — a ride stopped, or found interrupted — there is no panel at all, and [sheet] is what
- * asks about it.
+ * Without a [navigation] it is a ride with no plan: one page, the profile of the ride so far, [elevation]. Without
+ * [stats] — a ride stopped, or found interrupted — there is no sheet at all, and [sheet] is what asks about it.
  *
- * Your dot sits in the lower third of the map the card and the panel leave, heading-up, at [RIDING_ZOOM]; the compass
- * button turns it north-up and back. A tap on the map does nothing here: a long press is a detour, [onLongPlace], so a
- * bump or a glove cannot make one. Undo and Redo sit under the card while there is a step to take, and Edit plan opens
- * the editor.
+ * The map follows you heading-up, your dot in the lower third of what the sheet leaves, at [RIDING_ZOOM]; the compass
+ * button turns it north-up and back. A pan or a pinch leaves the map where the finger put it, and the button — grey
+ * then — follows you again. A tap on the map does nothing here: a long press is a detour, [onLongPlace], so a bump or a
+ * glove cannot make one. Undo and Redo sit top left while there is a step to take.
  */
 @Composable
 fun RidingScreen(
@@ -115,180 +134,244 @@ fun RidingScreen(
     onResume: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
+    expanded: Boolean = false,
+    onExpanded: (Boolean) -> Unit = {},
     onLongPlace: ((Coordinate, String?) -> Unit)? = null,
     onEditPlan: (() -> Unit)? = null,
     undo: UndoControls? = null,
     pulse: Boolean = true,
+    /** The ⋯ menu open as the screen appears: for the screenshots. */
+    menuOpen: Boolean = false,
     onIdle: () -> Unit = {},
     sheet: @Composable BoxScope.() -> Unit = {},
 ) {
     var orientation by remember { mutableStateOf(Orientation.HeadingUp) }
-    var cardBottom by remember { mutableStateOf<Dp?>(null) }
-    var panelHeight by remember { mutableStateOf(0.dp) }
+    var manual by remember { mutableStateOf(false) }
+    var sheetHeight by remember { mutableStateOf(0.dp) }
     val density = LocalDensity.current
     val stored = navigation?.plan
     val drawing = remember(stored, routing, pulse) { stored?.let { planDrawing(it, routing, pulse) } }
-    val showCard = navigation != null && stats != null
     // What is not drawn covers nothing: the map is inset by what is on the screen.
-    LaunchedEffect(showCard) { if (!showCard) cardBottom = null }
-    LaunchedEffect(stats != null) { if (stats == null) panelHeight = 0.dp }
+    LaunchedEffect(stats != null) { if (stats == null) sheetHeight = 0.dp }
 
     BoxWithConstraints(modifier.fillMaxSize().background(Tokens.ground)) {
         val topInset = with(density) { WindowInsets.safeDrawing.getTop(this).toDp() }
-        val top = cardBottom ?: (topInset + UNDER_MAP_CREDIT)
-        val gap = (maxHeight - top - panelHeight).coerceAtLeast(0.dp)
+        // The buttons float over the map, and cover nothing the camera keeps clear of: only the credit and the sheet do.
+        val top = topInset + UNDER_MAP_CREDIT
+        val gap = (maxHeight - top - sheetHeight).coerceAtLeast(0.dp)
 
         style?.let {
             TracksMap(
                 style = it,
                 // Centred in what the inset leaves: a top inset a third of the gap down puts you two thirds down it.
-                camera = MapCamera.Follow(orientation, RIDING_ZOOM, PaddingValues(top = top + gap / 3, bottom = panelHeight)),
+                camera = if (manual) MapCamera.Free else MapCamera.Follow(orientation, RIDING_ZOOM, PaddingValues(top = top + gap / 3, bottom = sheetHeight)),
                 modifier = Modifier.fillMaxSize(),
                 ridden = ridden,
                 fix = fix,
                 heading = heading,
                 drawing = drawing,
                 onLongPlace = onLongPlace,
+                onGesture = { manual = true },
                 onIdle = onIdle,
             )
         }
 
-        Column(
+        Row(
             Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                .padding(start = 8.dp, end = 8.dp, top = UNDER_MAP_CREDIT),
+                .padding(start = 12.dp, end = 12.dp, top = UNDER_MAP_CREDIT),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (showCard && navigation != null) {
-                StopCard(
-                    navigation,
-                    Modifier.fillMaxWidth().onGloballyPositioned { cardBottom = with(density) { it.boundsInRoot().bottom.toDp() } },
-                )
+            // Each in a slot of its own, so neither moves as the other comes and goes.
+            Box(Modifier.size(44.dp)) { if (undo?.canUndo == true) IconButton(Icons.Undo, "Undo", undo.onUndo, primary = false) }
+            Box(Modifier.size(44.dp)) { if (undo?.canRedo == true) IconButton(Icons.Redo, "Redo", undo.onRedo, primary = false) }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                if (stats?.paused == true) PausedChip(onResume)
             }
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Each in a slot of its own, so neither moves as the other comes and goes.
-                Box(Modifier.size(44.dp)) { if (undo?.canUndo == true) IconButton(Icons.Undo, "Undo", undo.onUndo, primary = false) }
-                Box(Modifier.size(44.dp)) { if (undo?.canRedo == true) IconButton(Icons.Redo, "Redo", undo.onRedo, primary = false) }
-                Spacer(Modifier.weight(1f))
-                IconButton(
-                    Icons.NorthUp,
-                    if (orientation == Orientation.HeadingUp) "North up" else "Heading up",
-                    onClick = { orientation = if (orientation == Orientation.HeadingUp) Orientation.NorthUp else Orientation.HeadingUp },
-                    primary = orientation == Orientation.NorthUp,
-                )
+            when {
+                manual -> IconButton(Icons.Locate, "Follow me again", onClick = { manual = false }, primary = false)
+                orientation == Orientation.HeadingUp ->
+                    IconButton(Icons.Navigate, "Heading up; turn north up", onClick = { orientation = Orientation.NorthUp })
+                else -> IconButton(Icons.NorthUp, "North up; turn heading up", onClick = { orientation = Orientation.HeadingUp })
             }
         }
 
         if (stats != null) {
-            Column(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .onSizeChanged { panelHeight = with(density) { it.height.toDp() } }
-                    .background(Tokens.glassHi, Shapes.sheet)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                    .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
-            ) {
-                if (navigation != null) PlanPanel(navigation) else RideSoFar(elevation)
-                StatsRow(fix, stats)
-                Controls(stats.paused, onPause, onResume, onStop, onEditPlan.takeIf { navigation != null })
-            }
+            RideSheet(
+                navigation = navigation,
+                elevation = elevation,
+                fix = fix,
+                stats = stats,
+                expanded = expanded,
+                onExpanded = onExpanded,
+                menu = listOfNotNull(
+                    if (stats.paused) MenuEntry(Icons.Resume, "Resume", onResume, fill = Tokens.accent) else MenuEntry(Icons.Pause, "Pause", onPause),
+                    onEditPlan?.takeIf { navigation != null }?.let { MenuEntry(Icons.Edit, "Edit plan", it) },
+                    MenuEntry(Icons.StopRide, "Stop", onStop, fill = Tokens.ink),
+                ),
+                menuOpen = menuOpen,
+                modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { sheetHeight = with(density) { it.height.toDp() } },
+            )
         }
 
         sheet()
     }
 }
 
-/** The stop ahead and the ones after it, a page each; back to the next stop whenever it changes. */
 @Composable
-private fun StopCard(navigation: Navigation, modifier: Modifier) {
-    val progress = navigation.progress
-    val names = remember(navigation.plan) { stopNames(navigation) }
-    val first = progress?.nextStop
-    Column(
-        modifier.background(Tokens.glassHi, Shapes.panel).padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+private fun PausedChip(onResume: () -> Unit) {
+    Box(
+        Modifier.background(PAUSED, Shapes.pill).clickable(onClick = onResume).semantics { contentDescription = "Paused; resume" }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
-        if (progress == null || first == null) {
-            BasicText(if (progress == null) "WAITING FOR A FIX" else "FINISH", style = Type.label)
-            BasicText(if (progress == null) names.getOrElse(1) { "" } else "${names.last()} · you are there", style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            return@Column
-        }
-        val ahead = progress.ahead
-        key(first) {
-            val pager = rememberPagerState { ahead.size }
-            HorizontalPager(pager, Modifier.fillMaxWidth()) { page ->
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    BasicText(
-                        "${if (page == 0) "NEXT STOP" else "THEN"} · ${page + 1} OF ${ahead.size}",
-                        style = Type.label,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BasicText(
-                            names.getOrElse(first + page) { "" },
-                            style = Type.body,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        ahead.getOrNull(page)?.let { BasicText(reading(it), style = Type.mono.copy(color = Tokens.ink2)) }
-                    }
-                }
-            }
-            if (ahead.size > 1) Dots(pager, Modifier.align(Alignment.CenterHorizontally))
-        }
+        BasicText("PAUSED · RESUME", style = Type.label.copy(color = Tokens.surface), maxLines = 1)
     }
 }
 
-/** *To finish* and *To next stop*, a page each, of one fixed height. */
+/** The one sheet: its top with the page dots and ⋯, the pages, and the stats line. */
 @Composable
-private fun PlanPanel(navigation: Navigation) {
-    val route = navigation.route
-    val progress = navigation.progress
-    val whole = remember(route) { route.terrain() }
-    val nextStop = progress?.nextStop
-    val nextLeg = nextStop?.let { it - 1 }
-    val leg = remember(route, nextLeg) { nextLeg?.let(route::legTerrain) }
-    val pager = rememberPagerState { 2 }
+private fun RideSheet(
+    navigation: Navigation?,
+    elevation: Terrain?,
+    fix: Fix?,
+    stats: RideStats,
+    expanded: Boolean,
+    onExpanded: (Boolean) -> Unit,
+    menu: List<MenuEntry>,
+    menuOpen: Boolean,
+    modifier: Modifier,
+) {
+    val snap = with(LocalDensity.current) { SNAP_DRAG.toPx() }
+    var dragged by remember { mutableFloatStateOf(0f) }
+    val progress = navigation?.progress
+    val first = progress?.nextStop
+    val pages = if (navigation != null && progress != null && first != null) progress.ahead.size else 1
 
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            BasicText("TO FINISH", style = Type.label.copy(color = if (pager.currentPage == 0) Tokens.ink else Tokens.muted))
-            BasicText("TO NEXT STOP", style = Type.label.copy(color = if (pager.currentPage == 1) Tokens.ink else Tokens.muted))
-            Spacer(Modifier.weight(1f))
-            Dots(pager)
-        }
-        HorizontalPager(pager, Modifier.fillMaxWidth().height(PAGE_HEIGHT)) { page ->
-            Column {
-                when {
-                    progress == null -> Numbers(null)
-                    page == 0 -> {
-                        Numbers(progress.toFinish)
-                        whole?.let { ElevationProfile(it, height = PROFILE_HEIGHT, youM = progress.alongM) }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .background(Tokens.glassHi, Shapes.sheet)
+            .draggable(
+                state = rememberDraggableState { dragged += it },
+                orientation = DragOrientation.Vertical,
+                onDragStarted = { dragged = 0f },
+                onDragStopped = { velocity ->
+                    when {
+                        dragged < -snap || velocity < -800f -> onExpanded(true)
+                        dragged > snap || velocity > 800f -> onExpanded(false)
                     }
-                    nextStop == null || nextLeg == null -> BasicText("You are at the finish.", style = Type.note, modifier = Modifier.padding(top = 8.dp))
-                    else -> {
-                        Numbers(progress.ahead.firstOrNull())
-                        leg?.let { ElevationProfile(it, height = PROFILE_HEIGHT, youM = progress.alongM - route.stops[nextLeg]) }
-                    }
+                },
+            )
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+            .animateContentSize()
+            .padding(start = 14.dp, end = 6.dp, bottom = 10.dp),
+    ) {
+        // Back to the first page whenever the next stop changes, or the plan does.
+        key(navigation?.plan?.id, first) {
+            val pager = rememberPagerState { pages }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onExpanded(!expanded) }
+                    .semantics { contentDescription = if (expanded) "Collapse" else "Expand" },
+            ) {
+                Box(Modifier.align(Alignment.Center).width(36.dp).height(5.dp).background(Tokens.line2, Shapes.pill))
+                if (pages > 1) Dots(pager, Modifier.align(Alignment.CenterStart))
+                ActionMenu(menu, Modifier.align(Alignment.CenterEnd), initiallyOpen = menuOpen, opensUp = true)
+            }
+            HorizontalPager(pager, Modifier.fillMaxWidth().padding(end = 8.dp).height(if (expanded) OPEN_PAGE else COLLAPSED_PAGE)) { page ->
+                Column(Modifier.fillMaxSize()) {
+                    if (navigation == null) RideSoFar(elevation, expanded) else StopPage(navigation, page, expanded)
                 }
             }
         }
+        StatsRow(fix, stats, Modifier.padding(end = 8.dp))
+    }
+}
+
+/** From where you are to the stop [page] places ahead — or, before a fix or past the finish, the one thing to say. */
+@Composable
+private fun StopPage(navigation: Navigation, page: Int, expanded: Boolean) {
+    val route = navigation.route
+    val progress = navigation.progress
+    val names = remember(navigation.plan) { stopNames(navigation) }
+    val first = progress?.nextStop
+
+    if (progress == null) {
+        val whole = remember(route) { route.terrain() }
+        PageText("WAITING FOR GPS…", names.getOrElse(1) { names.lastOrNull() ?: "" }, null, expanded)
+        whole?.let { Profile(it, expanded, youM = null, marksM = emptyList()) }
+        return
+    }
+    if (first == null) {
+        PageText("FINISH", "⚑ ${names.lastOrNull() ?: ""}", "you are there", expanded)
+        return
+    }
+
+    val ordinal = first + page
+    val reading = progress.ahead.getOrNull(page) ?: return
+    val finish = ordinal == route.stops.size - 1
+    val name = names.getOrElse(ordinal) { "" }
+    val label = "${if (finish) "FINISH" else if (page == 0) "NEXT STOP" else "THEN"} · ${page + 1} OF ${progress.ahead.size}"
+    val line = when {
+        finish -> "⚑ $name"
+        page == 0 -> "→ $name"
+        else -> "then $name"
+    }
+    // Measured again as you move, a stretch at a time: the profile always starts where you are.
+    val stretch = remember(route, progress.alongM, ordinal) { route.terrainBetween(progress.alongM, route.stops[ordinal]) }
+    val marks = remember(route, progress.alongM, ordinal) { (first until ordinal).map { route.stops[it] - progress.alongM } }
+
+    if (expanded) {
+        BasicText(label, style = Type.label)
+        BasicText(name, style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Numbers(reading)
+    } else {
+        PageText(null, line, reading(reading), expanded = false)
+    }
+    // You are where the stretch starts, always: no dot for it.
+    stretch?.let { Profile(it, expanded, youM = null, marksM = marks) }
+}
+
+/** A page with nothing to swipe to: a label, a name and a note, on one line collapsed. */
+@Composable
+private fun PageText(label: String?, name: String, note: String?, expanded: Boolean) {
+    val said = listOfNotNull(name.ifEmpty { null }, note).joinToString(" · ")
+    if (expanded) {
+        label?.let { BasicText(it, style = Type.label) }
+        if (said.isNotEmpty()) BasicText(said, style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        return
+    }
+    Row(Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically) {
+        label?.let { BasicText(if (name.isEmpty()) it else "$it · ", style = Type.label, maxLines = 1) }
+        BasicText(name, style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        note?.let { BasicText(" · $it", style = Type.mono, maxLines = 1) }
+    }
+}
+
+@Composable
+private fun Profile(terrain: Terrain, expanded: Boolean, youM: Double?, marksM: List<Double>) {
+    if (expanded) {
+        ElevationProfile(terrain, height = PROFILE_HEIGHT, youM = youM, marksM = marksM)
+    } else {
+        ElevationProfile(terrain, height = STRIP_HEIGHT, youM = youM, marksM = marksM, axes = false)
     }
 }
 
 /** A ride with no plan: the profile of what has been ridden, you at its end. */
 @Composable
-private fun RideSoFar(elevation: Terrain?) {
-    Column(Modifier.fillMaxWidth().height(PAGE_HEIGHT - 30.dp)) {
-        BasicText("RIDE SO FAR", style = Type.label)
-        if (elevation == null) {
-            BasicText("The profile starts once there is a climb or a descent to draw.", style = Type.note, modifier = Modifier.padding(top = 8.dp))
-        } else {
-            ElevationProfile(elevation, height = PROFILE_HEIGHT, youM = elevation.totalM)
-        }
+private fun RideSoFar(elevation: Terrain?, expanded: Boolean) {
+    if (elevation == null) {
+        PageText("RIDE SO FAR", "", null, expanded)
+        BasicText("The profile starts once there is a climb or a descent to draw.", style = Type.note, maxLines = 2)
+        return
     }
+    if (expanded) BasicText("RIDE SO FAR", style = Type.label) else PageText("RIDE SO FAR", "", null, expanded = false)
+    Profile(elevation, expanded, youM = elevation.totalM, marksM = emptyList())
 }
 
 @Composable
@@ -308,52 +391,39 @@ private fun Number(value: String, unit: String) {
     }
 }
 
-/** Speed, metres climbed and distance: the ride so far, whichever page is up. */
+/** Speed, average speed, metres climbed and distance: the ride so far, whichever page is up. */
 @Composable
-private fun StatsRow(fix: Fix?, stats: RideStats) {
-    Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(1.dp).background(Tokens.line))
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-        val speed = fix?.speedMps?.takeUnless { stats.paused }?.let { (it * 3.6).roundToInt().toString() } ?: "—"
-        Stat(speed, "km/h", Modifier.weight(1f))
-        Stat(stats.climbedM?.let { Format.metres(it) } ?: "—", "m climbed", Modifier.weight(1f))
-        Stat(Format.km(stats.distanceM), "km", Modifier.weight(1f))
+private fun StatsRow(fix: Fix?, stats: RideStats, modifier: Modifier) {
+    Column(modifier) {
+        Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(1.dp).background(Tokens.line))
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            val speed = fix?.speedMps?.takeUnless { stats.paused }?.let { (it * 3.6).roundToInt().toString() } ?: "—"
+            Stat(speed, "km/h", Modifier.weight(1f))
+            Stat(averageOf(stats), "avg km/h", Modifier.weight(1f))
+            Stat(stats.climbedM?.let { Format.metres(it) } ?: "—", "m climbed", Modifier.weight(1f))
+            Stat(Format.km(stats.distanceM), "km", Modifier.weight(1f))
+        }
     }
+}
+
+/** The distance over the time spent moving, to a tenth; a dash until there has been a minute of it. */
+private fun averageOf(stats: RideStats): String {
+    if (stats.movingMillis < 60_000) return "—"
+    val tenths = (stats.distanceM / (stats.movingMillis / 1000.0) * 36).roundToInt()
+    return "${tenths / 10}.${tenths % 10}"
 }
 
 @Composable
 private fun Stat(value: String, unit: String, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        BasicText(value, style = Type.number)
+        BasicText(value, style = Type.number.copy(fontSize = 20.sp))
         BasicText(unit, style = Type.unit)
     }
 }
 
 @Composable
-private fun Controls(paused: Boolean, onPause: () -> Unit, onResume: () -> Unit, onStop: () -> Unit, onEditPlan: (() -> Unit)?) {
-    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (paused) {
-            Control("Resume", Tokens.accent, Tokens.surface, onResume, Modifier.weight(1f))
-        } else {
-            Control("Pause", Tokens.sunk, Tokens.ink, onPause, Modifier.weight(1f))
-        }
-        onEditPlan?.let { Control("Edit plan", Tokens.sunk, Tokens.ink, it, Modifier.weight(1f)) }
-        Control("Stop", Tokens.ink, Tokens.surface, onStop, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun Control(label: String, background: Color, color: Color, onClick: () -> Unit, modifier: Modifier) {
-    Box(
-        modifier.height(44.dp).background(background, Shapes.control).clickable(onClick = onClick).semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) {
-        BasicText(label, style = Type.control.copy(color = color))
-    }
-}
-
-@Composable
 private fun Dots(pager: PagerState, modifier: Modifier = Modifier) {
-    Row(modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(modifier.padding(start = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         repeat(pager.pageCount) { page ->
             Box(Modifier.size(5.dp).background(if (page == pager.currentPage) Tokens.ink2 else Tokens.line2, CircleShape))
         }

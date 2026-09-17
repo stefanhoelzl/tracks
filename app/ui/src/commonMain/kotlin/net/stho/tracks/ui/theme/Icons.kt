@@ -38,9 +38,37 @@ object Icons {
     )
 
     val Navigate: ImageVector = lucide("navigation", "M3 11l19-9-9 19-2-8-8-2z")
-    val NorthUp: ImageVector = lucide("compass", "M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0z", "M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z")
-    val Undo: ImageVector = lucide("undo-2", "M9 14L4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11")
-    val Redo: ImageVector = lucide("redo-2", "M15 14l5-5-5-5", "M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13")
+
+    /** North up: a compass whose needle points north, its north half filled. */
+    val NorthUp: ImageVector = ImageVector.Builder(name = "compass-north", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+        .addPath(addPathNodes("M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0z"), fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 2f)
+        .addPath(addPathNodes("M12 4.5L15 12H9z"), fill = SolidColor(Color.Black))
+        .addPath(addPathNodes("M12 19.5L9 12h6z"), fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 1.6f, strokeLineJoin = StrokeJoin.Round)
+        .build()
+
+    /** The map left where a finger put it: a tap follows you again. */
+    val Locate: ImageVector = lucide(
+        "locate-fixed",
+        "M2 12h3",
+        "M19 12h3",
+        "M12 2v3",
+        "M12 19v3",
+        "M19 12a7 7 0 1 1-14 0a7 7 0 1 1 14 0z",
+        "M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0z",
+    )
+
+    // Circular, not hooked: a hooked arrow pointing left, top left over a map, reads as Back.
+    val Undo: ImageVector = lucide("rotate-ccw", "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5")
+    val Redo: ImageVector = lucide("rotate-cw", "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8", "M21 3v5h-5")
+
+    // A ride's controls, behind its ⋯.
+    val Pause: ImageVector = lucide(
+        "pause",
+        "M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z",
+        "M6 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z",
+    )
+    val Resume: ImageVector = lucide("play", "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z")
+    val StopRide: ImageVector = lucide("square", "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z")
     val New: ImageVector = lucide("plus", "M5 12h14", "M12 5v14")
     val Close: ImageVector = lucide("x", "M18 6L6 18", "M6 6l12 12")
     val Save: ImageVector = lucide("check", "M20 6L9 17l-5-5")
