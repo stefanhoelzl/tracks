@@ -14,9 +14,12 @@ const val RECORDED_SOURCE = "tracks"
 const val MAX_ACCURACY_M = 30.0
 
 /** The sports the Save sheet offers, as `sport:` values. */
-val SPORTS = listOf("bike", "hike")
+val SPORTS = listOf("bike", "hike", "run")
 
-/** A plan's profile, as a sport: every bike profile is `bike`, hiking is `hike`, and a ride with no plan is a bike ride. */
+/**
+ * A plan's profile, as a sport: every bike profile is `bike`, hiking is `hike`, and a ride with no plan is a bike ride.
+ * No profile is a run: `run` is only ever chosen on the Save sheet.
+ */
 fun sportFor(profile: String?): String = if (profile == "hiking") "hike" else "bike"
 
 /**

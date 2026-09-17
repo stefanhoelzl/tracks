@@ -4,6 +4,7 @@ import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.codec.Polyline
@@ -79,5 +80,7 @@ class RideFrameTest {
     @Test
     fun theSportComesFromThePlansProfile() {
         assertEquals(listOf("bike", "bike", "bike", "bike", "hike", "bike"), listOf("road", "trekking", "gravel", "mtb", "hiking", null).map(::sportFor))
+        assertFalse("run" in listOf("road", "trekking", "gravel", "mtb", "hiking", null).map(::sportFor), "a run is only chosen by hand")
+        assertEquals(listOf("bike", "hike", "run"), SPORTS)
     }
 }

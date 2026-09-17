@@ -208,6 +208,39 @@ class Route(waypoints: List<Waypoint>, legs: List<Leg?>) {
         return terrainAlong(along.subList(from, to).map { it - start }, altitudes.subList(from, to))
     }
 
+    /**
+     * The terrain from [fromM] to [toM] along the route, measured from [fromM]: what lies between you and a stop ahead.
+     * Its ends are where the two fall between points, so it is exactly as long as the stretch.
+     */
+    fun terrainBetween(fromM: Double, toM: Double): Terrain? {
+        val from = fromM.coerceIn(0.0, totalM)
+        val to = toM.coerceIn(from, totalM)
+        if (to <= from) return null
+        val distances = ArrayList<Double>()
+        val heights = ArrayList<Double?>()
+        distances += 0.0
+        heights += altitudeAt(from)
+        for (i in along.indices) {
+            if (along[i] <= from || along[i] >= to) continue
+            distances += along[i] - from
+            heights += altitudes[i]
+        }
+        distances += to - from
+        heights += altitudeAt(to)
+        return terrainAlong(distances, heights)
+    }
+
+    /** The height [alongM] metres along, between the points on either side; null where either has none. */
+    private fun altitudeAt(alongM: Double): Double? {
+        if (along.isEmpty()) return null
+        val after = along.indexOfFirst { it >= alongM }
+        if (after <= 0) return altitudes.getOrNull(if (after < 0) along.size - 1 else 0)
+        val a = altitudes[after - 1] ?: return null
+        val b = altitudes[after] ?: return null
+        val span = along[after] - along[after - 1]
+        return if (span <= 0) b else a + (alongM - along[after - 1]) / span * (b - a)
+    }
+
     /** Linear between the points on either side of [alongM]. */
     private fun interpolate(values: List<Double>, alongM: Double): Double {
         if (values.isEmpty()) return 0.0

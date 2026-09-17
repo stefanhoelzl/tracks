@@ -207,6 +207,19 @@ class RouteTest {
     }
 
     @Test
+    fun theTerrainBetweenTwoPointsIsAsLongAsTheStretchAndStartsWhereYouAre() {
+        val legs = listOf(leg(listOf(at(0.0), at(1000.0))), leg(listOf(at(1000.0), at(1600.0)), climbM = 60.0))
+        val route = Route(listOf(stop(at(0.0)), stop(at(1000.0)), stop(at(1600.0))), legs)
+
+        val terrain = assertNotNull(route.terrainBetween(1300.0, route.totalM))
+        near(0.0, terrain.distances.first(), 0.01)
+        near(300.0, terrain.totalM, 1.0)
+        near(730.0, terrain.altitudeM.first()!!, 1.0)
+        near(760.0, terrain.altitudeM.last()!!, 0.01)
+        assertNull(route.terrainBetween(1600.0, 1600.0))
+    }
+
+    @Test
     fun aDetourAheadKeepsWhereYouAre() {
         val waypoints = listOf(stop(at(0.0)), stop(at(2000.0)))
         val follower = Follower(Route(waypoints, listOf(leg(listOf(at(0.0), at(2000.0))))))
