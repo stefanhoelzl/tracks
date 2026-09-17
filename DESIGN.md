@@ -7,8 +7,8 @@ tagged, filtered and counted on your own machine.
 |---|---|
 | **Deployment** | One Edge Script at [tracks.stho.net](https://tracks.stho.net), over Bunny Database |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M track points |
-| **Stack** | Node 24 · pnpm · libSQL · React · MapLibre · Deno at the edge |
-| **Status** | M1–M8 complete |
+| **Stack** | Node 24 · pnpm · libSQL · React · MapLibre · Deno at the edge · Kotlin Multiplatform on the phone |
+| **Status** | M1–M15 complete · M16 planned: the iPhone app's lock screen and release |
 
 ---
 
@@ -34,10 +34,17 @@ server against the same database, so there is no local copy to drift.
 | **Performance analysis** | No heart rate, power, cadence, zones or fitness modelling. Out by construction — only GPS, elevation and time are stored. |
 | **Writing back upstream** | Strictly read-only sync. No pushing tags, renames or edits to Strava or Komoot. Keeps the blast radius of any bug at zero. |
 | **Photos and media** | Both services attach photos. Not imported, not displayed. |
+| **Turn-by-turn navigation** | The phone shows the map, where you are and which way you are facing, and nothing that talks. No instructions, no rerouting prompts, no off-route alarm — a plan you drew yourself is one you can follow by looking. |
 
 Route planning arrived in M8, and took none of the space that had been left for it: a plan
 is a fragment in the address bar, not a row. The nullable column stayed unwritten, which is
 cheaper than the safest migration there is.
+
+The iPhone app is M10–M16 — M10–M15 have shipped, and it is described in full below: a plan made here goes onto
+the phone as the link it already is, can be re-planned there with no signal, is ridden on a
+heading-up map, and comes back as an activity. It keeps the rules above — nothing is written
+upstream, and the only thing it adds to the server is a file that tells iOS which links are
+its own.
 
 ### Conventions
 
@@ -109,7 +116,7 @@ mystery. Only **recorded** Komoot tours are imported; planned routes are exclude
 2. It offers the ids to `POST /api/import/select`, which answers with the ones the
    database has no track for. A re-import gets an empty list and **fetches nothing**.
 3. It reads only those, one at a time, and serializes each as an NDJSON frame.
-4. It posts them all to `POST /api/import/:source`, which writes them and streams its
+4. It posts them all to `POST /api/import`, which writes them and streams its
    progress back.
 
 Two phases rather than one continuous stream because streaming a *request* body needs
@@ -456,6 +463,13 @@ tuned here to sit under the track colours rather than compete with them. Contour
 `maplibre-contour`, which generates contour vector tiles from the same DEM in a worker: always on
 above z11, with no toggle, because a contour is a property of the basemap and this app has no
 map-options surface for one control to live in.
+
+The bike network and trails are part of the same washed style: cycleways and anything `bicycle=designated` in the
+accent washed towards the paper, and paths, steps and unpaved footways in a trail blaze's red, both from z13, both
+thinner than a track, and dotted rather than dashed where unpaved, because a dash is a plan's straight-line leg.
+Shortbread has no `bicycle` below z14, so at z13 a trail is grey — red there would turn a shared cycle path green one
+zoom in. `washedColorful()` lives in `map/colorful.ts` so the iPhone app draws the identical style, and
+`colorful.test.ts` checks every layer's filters against what the tiles carry.
 
 | | |
 |---|---|
@@ -840,7 +854,7 @@ camera *is* meaningful is `bbox`, and there it is already a filter term.
 | `GET /api/activities/:id` | Detail plus the full-resolution track: three strings read straight off the row — geometry at precision 6, altitude and time delta-coded |
 | `GET /api/tag-types` | The registry, each type with the values in use counted over *every* activity — the sidebar renders it, the autocomplete offers it, and the colour layout is laid out from it |
 | `POST /api/import/select` | Takes `{source, ids}`, returns the subset with no track yet. A pure query — no lock, no session |
-| `POST /api/import/:source` | Takes NDJSON frames, writes them in one transaction, streams NDJSON progress back |
+| `POST /api/import` | Takes one activity's frame as JSON, its `source` inside it, and writes it in one `batch()` — one transaction. One request per activity since M7, so the response is the progress |
 | `GET /api/stats?<filters>` | Aggregates for the analytics views — **deferred**, and possibly for good: the browser already holds every matching row, which is all four cards' input |
 | `GET /api/heatmap?<filters>` | Grid cell counts — **deferred** |
 | `POST /api/tags?<filters>` | Bulk `add` / `remove` over everything the filter matches. The lever that makes 500 untagged activities tractable, and nearly free because the target is parsed by the same code every read uses |
@@ -964,7 +978,7 @@ waypoint here", and a click that might instead select a track is a click you hav
 
 ### The plan is a fragment
 
-It lives in `#plan=`, not in the query string and not in a table. A fragment is never
+It lives in the fragment, not in the query string and not in a table. A fragment is never
 transmitted, so the one piece of state in this app that says where you are *going* stays in
 the tab — the same rule that keeps a Komoot password and a Strava archive off the server,
 applied to the only new data M8 creates.
@@ -976,15 +990,17 @@ it now returns `search + hash`, subscribes to `hashchange` beside `popstate`, an
 double notification a hash write produces costs nothing. There is no second state mechanism,
 and no second place to look when the URL disagrees with the screen.
 
-Waypoints encode with the polyline codec the app already ships, at about six characters
-each, plus a parallel string of kinds. Coordinates were never what makes a plan URL long;
-names are. Both need `encodeURIComponent` on the way in, because polyline encoding emits
-ASCII 63–126 and that range includes a backslash, which a fragment may not carry raw.
+The fragment is itself a `URLSearchParams`: `name`, `profile` (left out when it is
+trekking), `at`, `kinds`, and one `poi` per POI. Waypoints encode into `at` with the polyline
+codec the app already ships, at about six characters each, and `kinds` is a parallel string of
+`p` and `r`. Coordinates were never what makes a plan URL long; names are. Escaping is the
+platform's problem, which matters because polyline encoding emits ASCII 63–126 and that range
+includes a backslash, which a fragment may not carry raw.
 
-**Leaving the mode clears the plan.** `#plan=` exists only while `mode=planning`, so there
+**Leaving the mode clears the plan.** The fragment exists only while `mode=planning`, so there
 is no Clear control anywhere — switching away is the clear, and starting fresh is switching
 back. Back is the safety net, since a mode switch pushes. The cost is stated rather than
-hidden: a `?mode=planning#plan=…` link stops carrying its plan the moment its recipient
+hidden: a `?mode=planning#at=…` link stops carrying its plan the moment its recipient
 looks at Analytics.
 
 ### Two kinds of waypoint
@@ -1186,7 +1202,7 @@ click is a control that lies.
 
 The camera fits the plan **once, on first load**, padded past both panels — the same
 opening-fit-then-never-again rule the `bbox` filter settled on, for the same reason. A
-`?mode=planning#plan=…` link that opened on the wrong continent would be reported as broken
+`?mode=planning#at=…` link that opened on the wrong continent would be reported as broken
 before anything else about it. Panning keeps writing `bbox`, because the tracks underneath
 are still filtered by it and that mechanism must not fork per mode.
 
@@ -1298,6 +1314,346 @@ named, which is M3.5's rule about a bad frame, unchanged.
 
 ---
 
+## The iPhone app
+
+The web is where a trip is drawn, over everything already ridden. The phone is where it is
+ridden, and where it turns out that the pass is closed. So the app does four things and is
+designed around the one of them that is hard: **load a plan, re-plan it with no signal — also
+halfway up the valley — ride it on a map that turns with you, and upload the ride.**
+
+It is not a navigation app in the sense the word usually carries. There is no turn-by-turn,
+no voice, no off-route alarm and no rerouting prompt: the map, your position and the direction
+you are facing, and the plan you drew. It is also not a second planner that drifts from the
+first — it runs **the same router on the same data**, so a leg re-planned on a hut terrace is
+the leg the web would have drawn.
+
+It is M10–M16, and M10–M15 have shipped; M16 — the lock screen, the battery and TestFlight for
+every account — is what is left. The design was settled by an interview and three spikes,
+`spike/brouter-ios/REPORT.md` (MobiVM against J2ObjC, on branch `brouter-ios-spike`),
+`spike/kotlin-brouter/REPORT.md` (BRouter as Kotlin) and `spike/map-stack/REPORT.md` (the map
+layer), and then corrected milestone by milestone by what riding it taught. Where a milestone
+reversed the design it is said below, and the design that lost is under *Considered and rejected*.
+Simulator numbers ran on a GitHub `macos-26` runner — an Apple M1, virtual, three cores; every phone
+number on an iPhone SE (2nd gen), A13 and 3 GB, the harder case.
+
+### Offline is the premise, not a mode
+
+**The whole ride works in airplane mode.** Network is needed to get a plan onto the phone and to
+upload a ride, and for nothing in between. That one decision is why the router lives on the phone,
+why maps are downloaded without being asked for, and why most of this section exists.
+
+What is kept offline is decided by the app, not the rider — there is no region picker and no
+Downloads screen:
+
+| | |
+|---|---|
+| **For every stored plan** | Its bounding box plus 25 km, rounded out to 0.1° — map tiles to z14, elevation, and every `rd5` segment tile the box reaches. The box, not the line: a re-plan that leaves the line is the reason to have routing data at all |
+| **Around you** | A 100 km radius at the same detail, re-centred once you have moved 25 km. This is what makes a ride with no plan, or a re-plan that leaves a plan's own area, work offline |
+| **Glyphs and sprites** | Stored once and shared by every area, in MapLibre's own database. Glyphs were measured at 92% of a pack's bytes |
+| **Satellite** | Never. The phone has no satellite view |
+
+What each area needs is a set, so deleting a plan frees only what nothing else still needs, and a
+recorded ride pins nothing. Measured around Garmisch, one area is about **1 GB**: vector ~325 MB,
+elevation ~190 MB (z0–12, which is all the server has), `rd5` ~450 MB. Routing needs whole segment
+tiles, which is why they dominate, and why every download first asks with a `HEAD` whether the file
+exists, has changed, and fits beside a **1 GB reserve** the app leaves free. Below that reserve,
+unfinished map packs pause and the plan's row says the phone is full.
+
+Missing data downloads **on any network**, as soon as it is needed — a plan that arrives at a
+trailhead should not wait for Wi-Fi. Refreshing waits for Wi-Fi and follows each source's cadence:
+`rd5` a week after it was fetched, because brouter.de rebuilds weekly; map packs when VersaTiles
+publishes a new planet, which one weekly `HEAD` on `download.versatiles.org/osm.versatiles`
+notices by its ETag; elevation never. `rd5` bytes move through an iOS **background URL session**, so
+a 250 MB tile finishes while the app is suspended or even ended. A map pack stalled for a minute is
+paused and resumed, and an area that moves keeps its old pack until the new one is whole.
+
+**The map downloads are MapLibre offline packs, used exactly as the library ships them.** They open
+20 requests at once with the User-Agent `MapLibreNative/1.0`, and neither can be changed — custom
+headers are dropped. The plan had been to download gently, at eight and with a name saying who we
+are; the library cannot do that, and an on-device throttling proxy or a second downloader writing
+MBTiles was judged more machinery than the problem warranted. VersaTiles publishes no usage policy,
+and its server's own configuration allows 200 requests a second per address. **The maintainers were
+not asked**: for one person's phone it was judged fine. Opening TestFlight to every account in M16
+changes that, and the fallback is written down — regional extracts cut from
+`download.versatiles.org` and hosted by us. The bundled style is served to MapLibre under
+`tracks://`, because a `file://` style never started on the phone.
+
+**brouter.de's routing profiles follow the server, not the app.** The `.brf` files and `lookups.dat`
+live in Application Support, seeded from the app and refreshed from brouter.de's `profiles2` weekly
+on Wi-Fi, and a file is replaced only if it reads as a profile of the same lookup version. brouter.de
+changes profiles without a release — its `hiking-mountain.brf` sets `SAC_access_penalty` to 999 where
+v1.7.10 says 9000 — and a phone routing with last year's profile would draw a leg the web does not.
+
+Place search is Photon when there is a signal. Without one, a waypoint is placed on the map and a
+POI takes its name from the vector-tile label under it — a hut or a col is already named on the map
+you are looking at. There is no offline search index.
+
+### The plan arrives as the link it already is
+
+A plan is its link — `?mode=planning#name=…&at=…&kinds=…&poi=…` — and **the link is the only way
+in**: a tracks.stho.net planning link opened on the phone lands in the app through a universal link.
+A share sheet and a Paste link button both existed for a while and were removed. No `routes` table is
+added, and the fragment still never crosses the server; the one server change is the
+`apple-app-site-association` file, which claims `/?mode=planning` for
+`E9Z8BADH58.net.stho.tracks`. The grammar is ported to Kotlin as `PlanFragment`, pinned by fixtures
+generated from `plan.ts`. A plan can also be started from nothing, with the + on home.
+
+Arriving never starts navigation. The plan is **kept at once** — one JSON file per plan in
+Application Support, at the link's precision — and lands in the list, where its legs are routed as
+soon as they can be and each is saved as it lands. A plan re-planned on the phone goes back the way
+it came, as a link.
+
+**Routing is online first.** While there is a network, a leg is asked of brouter.de exactly as the
+web asks it; without one, or when brouter.de does not answer, the phone's own engine routes it over
+the `rd5` tiles it holds. A 400 from brouter.de stays a failed leg rather than falling back. M12
+shipped routing on the phone only, which made the phone's line differ from the web's by however old
+its tiles were and left a freshly arrived plan unrouted until its tiles had landed; M13 reversed it.
+A leg with no tiles yet is "no data here", drawn as a still dash and routed the moment its tiles
+arrive — never drawn as unroutable.
+
+**Only the legs an edit touches are routed again**, and a newer edit to a leg cancels the route in
+flight — the engine stops mid-search. On the phone a long leg takes seconds: about 11 s for 176 km and
+25 s for 306 km on a phone already hot from routing, which is why a leg being routed draws as the web's
+dashed, pulsing beeline, pulsed by MapLibre's own transition, and why it never holds up the map or the
+recording.
+
+The editor is the web's rules with a phone's gestures. A tap places a point through the one dialog,
+POI or ROUTING; **a stop moves only once a long press has picked it up**, so a pinch never drags one; a
+long press on the line shapes it, where the web drags the line; a long press on a stop in the list
+reorders it. Every edit can be undone and redone. The profile pills, the stop list and the elevation
+profile sit under the numbers, as on the web, and Cancel, Copy and Save live in the editor's ⋯ menu.
+
+**Tapping a plan in the list opens it read-only**, with its stops and profile on a sheet. Navigating
+it is **Navigate in its ⋯ menu** — in the list and in the plan view, beside Edit, Copy, Share link and
+Delete, all as icons. Save overwrites the plan; Copy first keeps the original. Each row carries a 12 dp
+offline mark leading its numbers: a cloud when it is kept offline, a ring filling while it downloads, a
+grey ring while it waits, and an amber one when the phone is full.
+
+### One router, in Kotlin
+
+The web routes with BRouter at brouter.de, and the phone runs **the same BRouter** — v1.7.10, on the
+same `rd5` data and the same profiles, with the same `filtered ascend`. Every alternative on iOS was
+measured or argued against that bar:
+
+| | 176 km route, simulator | peak footprint | app size | why not |
+|---|---:|---:|---:|---|
+| JVM reference (same M1 runner) | 9.3 s | — | — | not on iOS |
+| J2ObjC | 42 s | 3.2 GB, growing every route | +43 MB | leaks the routing graph |
+| MobiVM | 10.9 s | 107 MB | +7.6 MB | a JVM in the app, one maintainer |
+| **Kotlin/Native, via J2K** | **9.4 s** | **76 MB, flat** | **+2.8 MB** | — |
+
+All of them reproduce brouter.de **byte for byte** — geometry, elevations, ascent, cost — on the six
+routes the spikes compared, so correctness never decided anything; memory and upkeep did. J2ObjC's
+reference counting cannot free a graph that is cyclic by design, which BRouter's node and link graph
+is, and the transient garbage waits for an autorelease pool that only drains when the search does.
+MobiVM works, and is the written fallback — but its build is not kept alive.
+
+**The routing core is converted with IntelliJ's own J2K, run headless.** There is no command-line J2K,
+so a container holds IntelliJ IDEA 2026.2.2 and a one-class plugin — an `ApplicationStarter` that opens
+the five Java modules as a project and calls the converter, which is how Meta ran it for its own
+migration. The IDE is JetBrains' Apache-2.0 open-source build rather than the unified download: both may
+run headless, but only the open-source one may be cached in CI and baked into an image, and it converts
+BRouter to the identical tree (`app/docs/j2k-licensing.md`). `convert.sh` does all of it: 101 files in
+about two minutes, the same output every time, converted one file at a time in dependency order because
+a batch conversion loses the contract between the files it converts together (1,202 compile errors
+against 399).
+
+Getting from that output to common Kotlin is **14 scripted fix passes** — 360 hunks for the conversion,
+about 40% replacing Java APIs and 60% cleaning up J2K's types, and one more for the routine below — plus
+~950 hand-written lines standing in for `java.io` (over Okio), `java.text` and parts of `java.util`, each
+tested against the JDK. The Kotlin is committed and never edited by hand: `replay.sh --check` proves the
+tree is exactly J2K's output plus the passes. Every pass names its edits and how many it expects, so a
+new BRouter release is: run `convert.sh`, `replay.sh`, rebase what no longer applies, `parity/fetch.sh`,
+and pass the parity set.
+
+That gate is the design, because J2K is not always right. It produced four bugs that changed behaviour,
+and two compiled cleanly: `(int) x` became a cast that throws on every route, and `float += double` became
+a narrowing before the addition, which showed up as **one joule** in one column of three routes and
+nowhere else. So the parity set is **17 routes**, well past the six that caught it: every profile the app
+offers, named and unnamed vias, shaping points, three routes over 250 km through the Alps, and routes
+across two tiles. `parity/fetch.sh` asks brouter.de for them one at a time, ten seconds apart, and pins
+the tiles and profiles they were answered from. brouter.de rebuilds its tiles weekly, so that snapshot is
+published as a release of this repository and checksummed before the tests run — never kept in git.
+Parity runs on the JVM and on native Linux in CI.
+
+**One BRouter routine is rewritten, not converted.** `OsmNodesMap.cleanupPeninsulas` walks dead ends
+recursively and wraps the walk in `catch (StackOverflowError)`, giving up part-way when it runs too deep.
+Kotlin/Native cannot catch one — the app would crash — so pass 06 makes the walk a loop over an explicit
+stack: the same visit order, the same unlinking, and no giving up. That is brouter.de's answer only if
+brouter.de never gives up, and measured, it does not: the deepest walk on the parity routes is 4,862
+levels, none overflows even on a 512 KB stack, and brouter.de runs on the JVM's default of 1 MB. A route
+deep enough to overflow brouter.de would come back different from the phone, and would be written down as
+an exception.
+
+The rest of what native Kotlin costs is known and accepted: `synchronized` is a no-op, which is fine
+because one thread routes and nothing reads the engine while it does; the debug stack sampler and
+`RoutingEngine`'s `Thread` superclass are gone; and on Linux it is about 1.9× slower than HotSpot on long
+routes while using a sixth of the memory. No garbage-collector setting was worth changing.
+
+**On the phone** all 17 parity routes are byte-identical to brouter.de:
+
+| | cold | peak footprint |
+|---|---:|---:|
+| 27 km | 1.0 s | 44 MB |
+| 176 km | 8.6 s | 67 MB |
+| 306 km | 17.3 s | 92 MB |
+
+**Memory is not the risk**: the app never had less than 2 GB left. **Heat is, and it is bounded.** Twenty
+176 km routes back to back slowed from 8.2 to 10.9 s, and ten 306 km routes on the phone already hot
+settled at 24.9 s — 43% over cold. That is seven minutes of continuous routing, where a re-plan is one
+route and then idle, and since M13 it is only ever offline. The whole app, engine included, is a few
+megabytes.
+
+### Kotlin Multiplatform, and a desktop that is never shipped
+
+The app is **Kotlin Multiplatform with a Compose Multiplatform UI**. One codebase draws the screens, and it
+targets iOS, which is the product, and a JVM desktop app, which is not. There is no Android app.
+
+The desktop app is how the phone gets tested without a phone, or a Mac: it runs the real UI on Linux with a
+ride replayed from a GPX file at 1 Hz and a barometer that replays with it, routes with the real engine over
+`--segments`, and opens plans with `--link`. Navigating, re-planning, recording and uploading can all be
+exercised at a desk, and uploads go only to a `--server` it is given — there is no default, so never
+production by accident. That was the argument for Kotlin over Swift: a native Swift app could only ever be
+run in a simulator on a Mac. What stays iOS-only is small and at the edges — the Live Activity widget, which
+must be Swift; `CLLocationManager` and `CMAltimeter`; the background URL session; the Keychain.
+
+```
+app/
+├─ shared/      # no Compose: codecs, plans and their store, the offline needs, riding, recording, upload
+├─ brouter/     # BRouter's routing core, converted, and its conversion and parity
+├─ ui/          # Compose Multiplatform: TracksMap, home, the plan screens, riding, recording, sensors
+├─ iosApp/      # the Xcode shell (XcodeGen), the app delegate's hooks, later the Live Activity widget
+└─ desktopApp/  # the harness: replayed location and barometer, never shipped
+```
+
+`:shared` and `:brouter` stay free of Compose because the map library has no native Linux build and the
+parity gate runs natively there; `:ui` builds the iOS framework and exports `:shared`. It is a Gradle project
+on JDK 25 inside the pnpm monorepo, and TypeScript and Kotlin meet where they must agree: the plan fragment,
+the polyline and scalar codecs, the import frame, the plan-editing rules, BRouter's request and answer,
+Photon, `format.ts` and the elevation profile's measurements are ported, and fixtures generated from the
+TypeScript check the Kotlin byte for byte — stale fixtures fail `pnpm test`, and a port that disagrees fails
+the Kotlin tests. The washed map style and the colour tokens are pinned the same way.
+
+CI has an `app` job (the Kotlin tests and both parity runs, 15 minutes cold and 4 warm), a `ui` job (the
+UI tests, screenshot scenes of the real map, and a replayed ride recorded, saved and uploaded to a dev server
+on a database made for the run) and an `ios` job that builds the shell on macOS; the web deploys without
+waiting for any of them, and `.ship/gates.sh` runs everything that runs on Linux. The minimum is **iOS 18.5**,
+because the map library's bundled ICU is built for it. Every Tracks account can sign in; TestFlight for all of
+them is M16.
+
+### The map is behind our own interface
+
+The map is **maplibre-compose**, pinned to one version and wrapped in a `TracksMap` composable that speaks
+only the app's types — points, legs by state, position fixes, a camera mode, a tap, a gesture. It is the
+library most likely to hurt: three breaking releases in five weeks on an experimental binding layer, Beta on
+iOS and Alpha on the desktop. Wrapped, an upgrade is one module and a deliberate act. What still leaks through
+is behaviour rather than types: setup is process-wide and must run before the first map, pack progress only
+moves while a UI is up, and the desktop needs its own window host. The map's credit is a small pill, open once
+a launch, then an ⓘ.
+
+The style is VersaTiles' `colorful` washed by **the web's own `washedColorful()`**, run by `pnpm style:app` and
+committed into the app as JSON, so web and phone draw one map and a test fails when they drift. Both draw the
+bike network — cycleways and anything `bicycle=designated` — in the accent washed towards the paper, and trails
+— paths, steps, and footways when unpaved — in a trail blaze's red, from z13, where the tiles first carry them;
+unpaved is dotted, never dashed, because a dash is the plan's straight-line leg. Shortbread has no `bicycle`
+below z14, so a trail is grey at z13 rather than red one zoom and green the next. Metric only; the app is **light
+only** today (see *Still undecided*).
+
+**The rider is an ink dot with a fading blue cone** for where the phone faces, on every map. The camera has
+three states behind one button: **heading-up** (GPS course while moving, the compass below about 4 km/h, where
+course is noise), **north-up**, and **manual**, which a pan, pinch or rotate switches to and which leaves the map
+where it was put; following always returns to its zoom. There is **no tilt**. North-up is a button rather than a
+tap on the map so that taps stay free.
+
+**CI renders the real map**, under Xvfb with Mesa's lavapipe in one container, from a committed 3.4 MB tile
+fixture and never the network, and screenshot tests compare it. It needs two things said out loud: Skiko blocks
+any GL renderer named `llvmpipe` and falls back to software rendering the map refuses, so
+`force_gl_renderer=softgl-llvmpipe` overrides it; and the lavapipe ICD is `lvp_icd.json`. The first is a
+workaround against a blocklist, and it is written down because the day it stops working will look like a broken
+map.
+
+### Riding it
+
+**Navigating a plan starts recording a ride that follows it**, and *Ride* on home starts one with no plan. While
+a ride records, waits to be saved, or was found interrupted, **the riding screen is the app**; Continue after the
+app was killed brings the navigation back with it. **There is no off-route cue at all**: no banner, no restyled
+line, no vibration. You can see that you are not on the line.
+
+**Where you are along the plan is the nearest point on it, with the past as the tie-break.** Where the route
+passes within 30 m of you more than once, the pass nearest along to the last match wins, and on a tie the one
+ahead. Riding back moves the readouts back, and the next stop is the first one beyond the match. The design had
+been forward-only snapping, which never jumps to the way home on an out-and-back — but it also never lets you
+turn around, and the first real out-and-back found that. Legs are scaled to the router's own distance and ascent.
+
+The screen is **one sheet over a map at zoom 15**, the rider in the lower third of what the sheet leaves:
+
+- **A page per stop ahead, the finish last**, each the distance, the climb and the elevation profile from you to
+  it, with you on it. Swiping between them is the whole navigation; opening the sheet only gives the profile more
+  room. The profile's span is at least 100 m (the editor keeps the web's 200 m), and a tap on it shows that place
+  on the map. Totals across a leg that is not routed yet show `+`. A ride with no plan shows the ride so far.
+- **The ride so far, fixed**: speed, average speed over moving time, metres climbed and distance.
+- **Pause, Edit plan and Stop behind ⋯**, and a PAUSED chip on the map that resumes.
+
+M14 shipped this as a top card of stops and a separate two-page bottom panel, *To finish* and *To next stop*, as
+the mockup had it; riding it put both into one sheet with a page per stop, which answers *how far to the hut* and
+*how far to the end* with the same swipe.
+
+**Re-planning mid-ride is a long press** — a tap on the riding map does nothing, because a tap on a moving map on
+a handlebar is a mistake more often than a wish. The long press opens a dialog: **Through** or **Stop** into the
+leg you are on, or **End** after the finish. The change is saved over the stored plan at once, routed online
+first, pulsing while it routes, and undone without routing again. **Edit plan** opens the full editor over the
+ride; **Copy** there makes the ride follow the copy, and the journal records which plan a ride follows, so a
+restart does too. **Recording never pauses** for any of it. There is no one-tap *back to route* and no *skip this
+stop*: a long press and the editor already are both.
+
+**The screen stays on while a ride records or waits to be saved**, and at no other time, with no toggle; you lock
+the phone yourself. Locked, a Live Activity is to show the next stop and the finish and a small heading-up **map
+snapshot** redrawn every few seconds — a lock screen can show a picture, not a map. That is M16.
+
+### Recording and the upload
+
+Recording is **1 Hz at best accuracy**, every fix within 30 m and every barometer reading kept, into an
+**append-only journal** on disk — one file per ride under Application Support, excluded from backups — which is
+also the ride's place in the upload queue. It flushes every five seconds and on every change of state; a line
+torn by a kill is dropped on read. If iOS kills the app, it reopens offering to continue. Background location is
+*When In Use* with the `location` background mode and a background activity session — not *Always*. There is no
+auto-pause, because a slow push up a steep ramp looks exactly like a stop; a manual pause exists.
+
+The tally is the app's own. **Distance** counts only while the fix's own speed says moving and the fix is further
+from the last counted point than its accuracy; **moving time** is time at 1 km/h or more with no gap over ten
+seconds; **climb comes from the barometer** with 3 m of hysteresis, and it counts stairs, deliberately. Altitude is
+the barometer anchored to GPS by the median offset between them, rounded to 1 m, and without a barometer the ascent
+is left empty. The app sends that gain as `elevationGainM`. That is not the self-computed metric rejected twice
+above: for a ride recorded here, the app *is* the service reporting it.
+
+Stop asks **Save ride?** with a sheet already filled in — the plan's name, or the date for a ride with no plan, and
+a sport from the plan's profile (road, trekking, gravel and MTB are `sport:bike`, hiking is `sport:hike`), shown as
+figures to toggle, with run chosen only by hand. **Continue** on that sheet takes back a Stop pressed by mistake;
+the time spent on the sheet counts as a pause. Saved rides upload whenever there is a network, quietly and with
+backoff, through the import frame as it is, as **`source: tracks`**: `POST /api/session`, then `select`, then one
+`POST /api/import` per ride, and the journal is deleted only once Tracks has the ride. Altitude is rounded to 1 m;
+nothing else is shrunk, because a ten-hour ride is under a megabyte and requests of 10 MB are known to go through.
+
+Signing in is the web's: email and password against `POST /api/session`, with the session kept in the Keychain and
+sent back as a `Cookie` header written by hand rather than through a cookie jar, so a password change on the web
+signs the phone out too — M6's revocation, unchanged. A 401 forgets the session and holds the rides; a warning comes
+three days before the thirty. Sign-in and upload status live on home.
+
+**Home is the map, centred on you**, under a sheet listing the stored plans newest first — swipe to delete, the +
+for a new one — and *Ride*, with Navigate's arrow, for a ride with no plan. There is no GPX export and no Apple Watch
+app.
+
+### Battery
+
+**The target is ≤5 %/h in real riding** — screen on, outdoors, auto-brightness — measured in M16. It may not be
+reachable: at outdoor brightness the display alone can cost more than that, and the app cannot make sunlight
+cheaper. What the app can do is known: redraw the map a few times a second rather than at the display's 60–120 Hz,
+since the position only moves once a second; offer a dimmer riding style; and refresh the lock-screen snapshot
+less often. The screen being on only while a ride is recording, and the area around you re-centring only every 25
+km, are already on the cheap side of both.
+
+---
+
 ## Stack
 
 ```
@@ -1306,6 +1662,7 @@ tracks/
 ├─ packages/server   # schema · timezone · simplifier · Hono REST API · ingest
 ├─ packages/routing  # the Router & Geocoder interfaces · BRouter · Photon
 ├─ packages/web      # React · MapLibre · ECharts · ActivitySources
+├─ app/              # Kotlin Multiplatform: the iPhone app, its desktop harness, BRouter in Kotlin
 ├─ migrations/       # drizzle-kit
 ├─ fixtures/         # recorded Strava, Komoot, BRouter & Photon responses
 └─ data/             # gitignored: tracks.db
@@ -1331,7 +1688,7 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 
 | | |
 |---|---|
-| **Language** | TypeScript end to end. Every heavy-geo case that would have justified Python — FIT parsing, segment matching, performance analysis — is an explicit non-goal, and a shared filter package is worth more than a stronger geo ecosystem. |
+| **Language** | TypeScript end to end. Every heavy-geo case that would have justified Python — FIT parsing, segment matching, performance analysis — is an explicit non-goal, and a shared filter package is worth more than a stronger geo ecosystem. The iPhone app is the exception, and a deliberate one: it is Kotlin Multiplatform so that one codebase runs both on iOS and in a Linux desktop harness, and because BRouter converts to Kotlin. TypeScript and Kotlin share only the plan fragment, the codecs and the import frame, pinned together by fixtures. |
 | **Driver** | `@libsql/client`, one client for two destinations: `file:` opens the embedded libSQL in-process, an `https:` URL is Bunny Database. It replaced `better-sqlite3` in M7 because a native addon cannot follow the app to an edge runtime — and because keeping both would have meant two code paths that could not share a line, one being synchronous and the other not. |
 | **Query layer** | Drizzle for schema, migrations and CRUD; hand-written SQL for spatial queries and aggregations, where query builders are worse than the SQL they generate. |
 | **Migrations** | Always generated with an explicit name: `pnpm db:generate --name add-elapsed`. Without `--name`, drizzle-kit invents one like `0000_sharp_lily_hollister`, which tells a future reader nothing. |
@@ -1476,6 +1833,13 @@ inspected through a SQLite browser.
 | **M7** | Hosted on bunny.net | The move off the laptop. Bunny Database — managed libSQL — as one Frankfurt primary, and one Edge Script serving both the browser bundle and the API at `tracks.stho.net`, applied and deployed from CI. `better-sqlite3` goes, and with it the synchronous data layer; the import becomes one activity per request, one `batch()`, one transaction, which is what finally retires the run-long transaction and the module-level lock that guarded it. |
 | **M8** | Planning | A third mode, and the first new *kind* of data since M1 — which took no schema at all. A plan is a fragment in the address bar, so the milestone adds no migration, no route and no server code; `useUrlState` widens from `search` to `search + hash` and that is the whole of the plumbing. `packages/routing` gives the router and the geocoder the treatment `ActivitySource` got in M1, with BRouter and Photon behind them, and the POI/ROUTING split turns out to be BRouter's own `via`/`shaping` distinction wearing different names. Four commits — the interfaces, the mode shell, the map editing, the panels. |
 | **M9** | Reference files | A GPX dropped on the map while you plan, drawn with its tracks, its routes and its waypoints over the rides underneath — and nothing else: not routed, not converted, not a plan. The milestone that took the parser apart instead. `DOMParser` goes, because measured on a 100 MB file it blocks the main thread for seven seconds and cannot yield; `saxes` streamed off the file replaces it, which also took peak memory from ~470 MB to ~55 MB and removed the reason for the size limit this was going to need. `simplify` moves to core so a reference is thinned to the same 10 m as everything it is drawn beside. Three commits — the parser, the map and the drop, the panel. |
+| **M10** | The skeleton and the engine | The iPhone app's foundation, and nothing a user sees. `app/` becomes a Kotlin Multiplatform project; `shared` ports the polyline and scalar codecs, the plan fragment and the import frame, pinned by fixtures generated from the TypeScript so drift fails from either side. `app/brouter` is BRouter v1.7.10's core converted by J2K from JetBrains' open-source IntelliJ build plus 14 fix passes, the last making the peninsula walk a loop, with `replay.sh --check` proving the committed tree is exactly that. The parity gate is 17 routes byte-identical to brouter.de on the JVM and native Linux, against a tile snapshot published as a release. A minimal iOS shell routes all 17 byte-identically on an iPhone SE2 — 306 km in 17.3 s at a 92 MB peak, 43% slower when hot. |
+| **M11** | The map and the harness | The first screen. A `:ui` Compose Multiplatform module, kept apart so `:shared` and `:brouter` stay free of a library with no native Linux build. `TracksMap` wraps maplibre-compose 0.16.0 behind app types; the style is the web's own washed `colorful`, committed and drift-tested; the rider is an ink dot and the camera follows course or compass, with north-up a button and no tilt. A `Sensors` interface serves a GPX replay with a standard-atmosphere barometer on the desktop and CoreLocation on the phone. The never-shipped desktop harness, and CI screenshots of the real map on lavapipe from a committed tile fixture. JDK 25 throughout. |
+| **M12** | Plans | Plans from the web on the phone. A planning link lands by universal link, is kept at once as a JSON file and routes; the edge serves the `apple-app-site-association` file, the programme's only server change. Home lists the plans, a tap opens one read-only, and the editor ports the web's rules and measurements under fixtures from the TypeScript — legs routed as you watch, only the ones an edit touches, cancelled when superseded. Photon online, map labels offline. It shipped routing on the phone only, which M13 reversed. Undo and redo, icon menus and a plan started from nothing followed in their own pull requests. |
+| **M13** | Offline data | The whole ride in airplane mode. Each stored plan's box plus 25 km and the 100 km around you, with every `rd5` tile under them; missing data on any network, refreshes on Wi-Fi at each source's cadence, and a 1 GB reserve. `rd5` through an iOS background session, map packs as MapLibre ships them under a `tracks://` style, glyphs shared, a new VersaTiles planet noticed by ETag. brouter.de's profiles follow the server weekly. Routing becomes online first — brouter.de while there is a network, the phone without — and a plan's legs route the moment its tiles land. The VersaTiles maintainers were not asked; see *Still undecided*. |
+| **M14** | Riding | The screen you ride with. Navigate in a plan's ⋯ menu starts a recording that follows it, *Ride* one with no plan, and while a ride is on the riding screen is the app. Where you are is the nearest point on the route with the last match as the tie-break — forward-only snapping lost on the first out-and-back. A long press, not a tap, re-plans mid-ride; Edit plan opens the editor over the ride; recording never pauses. The screen stays on only while riding. Riding it reshaped the screen in the next pull request: one collapsing sheet with a page per stop ahead, average speed, controls behind ⋯, a three-state compass, and a Stop that Save ride? can take back. |
+| **M15** | Recording and the upload | A ride recorded on the phone lands in Tracks. The append-only journal that is also the upload queue, recording with the phone locked, the barometer, and a tally of distance, moving time and climb. Sign-in through the web's own session route with the cookie in the Keychain, and a queue that uploads saved rides through the unchanged import frame as `source: tracks`. CI records a replayed ride and uploads it to a dev server on every run. Shipped beside M12–M13 rather than after them, because it needed only the sensors and the import route. |
+| **M16** | *Planned* — the lock screen and the device | The Live Activity and its map snapshot, fed by the riding screen's next stop and finish. The battery target measured and its levers pulled; Live Activity throttling, garbage-collector pauses and the peak that crept over M10's long routing series. The VersaTiles question answered, the local-network ATS exception checked against review, and TestFlight opened to every account. |
 
 ---
 
@@ -1594,6 +1958,52 @@ will otherwise propose all of these again.
 | Seeding a plan from a ride | *Plan something like this* means choosing which of a ride's 34k points become waypoints — a simplification-tuning problem, dropped into a milestone already carrying a router, a geocoder, a dialog and two panels. The dimmed tracks underneath give most of the value by eye, for none of it. |
 | GPX export, in M8 | The legs are already coordinates with elevation, so it is a string builder and a Blob whenever it lands — and it does not touch the *no writing back upstream* non-goal, which forbids pushing to Strava and Komoot, not handing you a file. Held back only to keep the milestone to one idea. |
 
+| Rejected | Why |
+|---|---|
+| A native Swift app | Where the design started, and it would have been the smoothest iOS app of the options. It can only ever be run on a Mac — every screen, every replayed ride and every screenshot test behind a macOS runner. Kotlin Multiplatform puts the same app in a Linux window. |
+| Capacitor over the web code | Reuses the most code and fails at exactly the parts that make a ride work: iOS suspends a WebView's JavaScript in the background, kills its content process under memory pressure, and MapLibre GL JS has no offline pack manager. |
+| React Native | Shares the TypeScript, and still needs a native module for background location, offline tiles and the router — the three things that matter. |
+| Shared logic with native UIs | SnapSync's shape: Kotlin for the logic, SwiftUI for the screens. Linux would test the logic and never see a screen, which is where a navigation app goes wrong. |
+| An Android app | Nobody asked for one. The desktop harness is what Linux needed, and it is not shipped. |
+| Valhalla on the phone | Runs on iOS today and was the fallback for most of the design. A leg re-planned with it takes different roads and reports a different ascent than the web beside it, and its tiles are ours to build. |
+| J2ObjC | Measured: 42 s for 176 km and a 3.2 GB peak that grows by 144 MB every route, because reference counting never frees BRouter's cyclic graph. A 64-line patch that tore the graph down helped short routes and made long ones worse; an autorelease pool per search step crashed. |
+| MobiVM | Measured, and it works: byte parity, 10.9 s and 107 MB for 176 km, +7.6 MB. It puts a JVM in the app, is essentially one maintainer and has no watchOS target, and the Kotlin conversion beat it on every number. Kept as the written fallback, not as a build. |
+| GraalVM Native Image through Gluon | Needs Gluon's patched GraalVM, is GPL-2.0, and has no documented way to be a library called from an app. |
+| BRouter through WebAssembly or JavaScriptCore | An iOS app gets no JIT, which makes either 10–100× slower. |
+| Letting a model translate BRouter | The fastest way to a port, and a different port every time — a new release would mean translating again with nothing to replay. J2K plus scripted passes is the same output every run. |
+| Catching the overflow on a 16 MB stack | Kotlin/Native cannot catch `StackOverflowError`. A big enough stack only makes the crash rarer, so the recursion became a loop. |
+| Online-only re-planning | Keeps brouter.de as the only router and needs signal to change a plan, which is the moment on a ride when there usually is none. |
+| A corridor around the plan | Much smaller than a region, and a re-plan cannot leave it — which is what a closed pass asks for. |
+| A region picker and a Downloads screen | The app knows what a plan needs and where you are; a screen for choosing it is a screen for getting it wrong. |
+| Wi-Fi-only downloads | A plan loaded at the trailhead would not be offline until the evening. Only refreshes wait for Wi-Fi. |
+| Downloading tiles gently ourselves | Eight at a time with a User-Agent that says who we are, through an on-device proxy or a downloader writing MBTiles. MapLibre's packs cannot be throttled, so it means a second tile pipeline, for a courtesy the tile server has not asked for. The maintainers were not asked; see *Still undecided*. |
+| Glyphs inside every pack, or bundled in the app | Per pack they were 92% of every download. Bundled, they ship with every update whether a map changed or not. Downloaded once into a shared cache instead. |
+| Satellite imagery offline | 10–50× the size of vector tiles for a view nobody navigates by. |
+| An offline place index | The map already carries the names of the places you would search for, under your finger. |
+| One-tap *back to route* and *skip to next stop* | Both are a long press on the riding map and the editor over the ride, which riding already has. |
+| An off-route cue | A banner, a dashed line or a vibration each argue that you took a wrong turn, on a ride where turning off is usually the point. The map shows it. |
+| Heading from the compass alone | Where the phone points, which on a handlebar mount is the mount's magnetism and every bump. GPS course while moving, compass when slow. |
+| Forward-only snapping | The design's rule: distance along the route only moves ahead, so an out-and-back never jumps you to the way home. It also never lets you turn around, which the first real out-and-back found. The nearest point with the last match as the tie-break keeps the first property and drops the second. |
+| Auto-pause | A slow push up a steep ramp looks like a stop, and the metres it drops are the ones that cost the most. |
+| An adaptive sampling rate | Rounds the corners off the hairpins it slows down on, and saves bytes rather than battery — GPS at best accuracy costs the same whichever fixes are kept. |
+| Ascent from the elevation model, or none | Consistent with the rule against self-computed metrics, and wrong about a ride the barometer measured. For a ride recorded here the app is the reporting service. |
+| A device token | Revocable per phone, and a sessions table's worth of lifecycle for a handful of accounts. The cookie and its per-user key already revoke on a password change. |
+| A screen-on toggle, or locking by default | Always-on is what a ride on a map wants, and the lock button is already on the phone. |
+| A live map on the lock screen | A Live Activity cannot host a map view. A snapshot redrawn every few seconds is what it can hold. |
+| Shrinking the upload | Rounding altitude to 0.1 m, sending the scalar encoding, gzipping the body: 950 KB for ten hours became as little as 89 KB. Requests of 10 MB are known to work, so only the altitude is rounded, to 1 m. |
+| GPX export from the phone | The ride lands in Tracks, and the plan travels as a link. |
+| An Apple Watch app | MobiVM had no watchOS target, and nothing asked for one after it was gone. If one comes it mirrors the phone and routes nothing. |
+| The unified IntelliJ download for J2K | What the spike ran. Its terms allow running it headless, but not clearly caching it in CI or baking it into an image, and it is 740 MB larger. JetBrains' Apache-2.0 open-source build of the same version converts BRouter to the identical tree. |
+| BRouter v1.7.10's own profiles | brouter.de runs modified ones — `hiking-mountain.brf` sets `SAC_access_penalty` to 999, not 9000 — and the phone has to route the way the web does. |
+| The parity tiles in git | Two tiles are 450 MB and brouter.de rebuilds them weekly. A release asset with a checksum pins the snapshot the fixtures were answered from instead. |
+| Routing only on the phone | What M12 shipped: one router, offline or not. A freshly arrived plan stayed unrouted until its tiles had downloaded, and online the phone's line differed from the web's by however old its tiles were. Online first gives the web's own answer whenever it can be had. |
+| A share sheet and a Paste link button | Both shipped. A plan's link opened on the phone already lands in the app, so they were two more ways into the same place, and Paste read the clipboard. |
+| A tap to start a detour | On a moving map on a handlebar, a tap is a bump as often as a wish. A long press is deliberate, and it is already how the editor shapes a line. |
+| A tap on a plan starts navigating | The design had it. A tap is how you look at a plan, and starting a recording by looking was the wrong default; Navigate lives in the ⋯ menu. |
+| A top card of stops and a separate bottom panel | What M14 shipped: stops on top, *To finish* and *To next stop* below, independent of each other. Two things to swipe for one question. One sheet with a page per stop ahead, the finish last, answers both with the same swipe. |
+| Profiles shipped with the app | brouter.de changes profiles without a release, so a phone routing with the bundled files would draw legs the web does not until the next app update. They follow brouter.de weekly instead. |
+| Routing tiles along the plan's line only | Smaller, and a re-plan that leaves the line — which is what re-planning is for — would have no data. The plan's box plus 25 km instead. |
+
 ---
 
 ## Still undecided
@@ -1635,3 +2045,33 @@ cheap. So a type added to the registry later does not reach existing rows by re-
 import; it needs a one-off rewrite — and since M6 a registry belongs to a user, so that
 rewrite is one per person, scoped by `user_id`. Not a problem yet: `source:` is handled by
 M2.5's own migration.
+
+**VersaTiles and offline packs** — the maps are MapLibre offline packs from tiles.versatiles.org, at the 20
+parallel requests and the User-Agent MapLibre gives them. VersaTiles publishes no policy either way, and the
+maintainers were not asked, because for one person's phone it was judged fine. TestFlight for every account
+(M16) makes it more than one phone. If they would rather not, the fallback is regional extracts cut from
+`download.versatiles.org` and hosted by us — a pipeline and a bill.
+
+**Whether ≤5 %/h survives the sun** — outdoors, the display alone may cost more than the target,
+and nothing the app does changes that. The levers are written down above; which of them is pulled,
+or whether the target moves, waits for the first TestFlight build.
+
+**What the phone still has to say** — M10 answered memory and routing speed on a real phone: an
+iPhone SE2 with 3 GB never had less than 2 GB left, and routed 43% slower when hot. Still
+unmeasured: garbage-collector pauses, how often iOS lets a Live Activity refresh, what a snapshot
+costs, and the peak that crept from 87 to 108 MB over ten 306 km routes back to back. M16 looks at
+all of it.
+
+**maplibre-compose in CI** — the desktop runtime is Alpha on an experimental binding, and the headless CI render
+depends on overriding Skiko's `llvmpipe` blocklist, which Skiko may change. The spike's flat tilt on iOS stopped
+mattering when the camera lost its tilt.
+
+**Light only, or dark too** — the design said light or dark follows iOS; M11 shipped light only, and every
+milestone since has kept it. Whether dark mode is dropped or becomes work of its own is not decided.
+
+**The cost of carrying BRouter** — 14 fix passes, one of them a rewritten routine, replayed for
+every release with byte parity as the gate. How much of that replays cleanly depends on how much
+upstream changes, and nobody knows that until the next release.
+
+**Cartograph Maps 3** — the one app known to run BRouter on iOS, on the watch too, and following
+upstream releases. How it does that is not public; nobody has asked.
