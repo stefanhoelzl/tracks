@@ -79,10 +79,10 @@ const val RIDING_ZOOM = 15.0
 private val COLLAPSED_PAGE = 54.dp
 
 /** A page open, fixed: the same line, over a profile with room to read the climbs. */
-private val OPEN_PAGE = 146.dp
+private val OPEN_PAGE = 204.dp
 
 private val STRIP_HEIGHT = 30.dp
-private val OPEN_PROFILE_HEIGHT = 122.dp
+private val OPEN_PROFILE_HEIGHT = 180.dp
 
 /** A drag on the sheet further than this, or a fling, opens or collapses it. */
 private val SNAP_DRAG = 24.dp
