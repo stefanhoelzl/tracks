@@ -3359,6 +3359,220 @@
    "minzoom": 15
   },
   {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-way-hiking",
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "tunnel"
+     ],
+     true
+    ],
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "any",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "steps"
+       ],
+       true,
+       false
+      ],
+      [
+       "all",
+       [
+        "==",
+        [
+         "get",
+         "kind"
+        ],
+        "footway"
+       ],
+       [
+        "==",
+        [
+         "get",
+         "surface"
+        ],
+        "unpaved"
+       ]
+      ]
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": [
+     "step",
+     [
+      "zoom"
+     ],
+     "#a39e98",
+     14,
+     "#b5523b"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 0.5
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-way-hiking:unpaved",
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "tunnel"
+     ],
+     true
+    ],
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "any",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "steps"
+       ],
+       true,
+       false
+      ],
+      [
+       "all",
+       [
+        "==",
+        [
+         "get",
+         "kind"
+        ],
+        "footway"
+       ],
+       [
+        "==",
+        [
+         "get",
+         "surface"
+        ],
+        "unpaved"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": [
+     "step",
+     [
+      "zoom"
+     ],
+     "#a39e98",
+     14,
+     "#b5523b"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
    "source": "versatiles-shortbread",
    "id": "tunnel-way-cycleway",
    "type": "line",
@@ -3417,6 +3631,184 @@
     ]
    },
    "minzoom": 15
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-way-bicycle",
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "tunnel"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "cycleway"
+     ],
+     [
+      "all",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "footway",
+        "bridleway"
+       ],
+       true,
+       false
+      ],
+      [
+       "==",
+       [
+        "get",
+        "bicycle"
+       ],
+       "designated"
+      ]
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 0.5
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-way-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "tunnel"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "cycleway"
+     ],
+     [
+      "all",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "footway",
+        "bridleway"
+       ],
+       true,
+       false
+      ],
+      [
+       "==",
+       [
+        "get",
+        "bicycle"
+       ],
+       "designated"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
   },
   {
    "source": "versatiles-shortbread",
@@ -3979,403 +4371,867 @@
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "tunnel-street-track-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "track"
      ],
-     "track"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(247,247,247)"
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 0.5
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-street-track-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "track"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "tunnel-street-pedestrian-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "pedestrian"
      ],
-     "pedestrian"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 0.5
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-street-pedestrian-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "pedestrian"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "tunnel-street-service-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "service"
      ],
-     "service"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(247,247,247)"
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 0.5
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-street-service-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "service"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "tunnel-street-livingstreet-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "living_street"
      ],
-     "living_street"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 0.5
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-street-livingstreet-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "living_street"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "tunnel-street-residential-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "residential"
      ],
-     "residential"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 0.5
    }
   },
   {
-   "source": "versatiles-shortbread",
-   "id": "tunnel-street-unclassified-bicycle",
    "type": "line",
+   "source": "versatiles-shortbread",
    "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-street-residential-bicycle:unpaved",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "residential"
      ],
-     "unclassified"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
      "==",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
    "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-street-unclassified-bicycle",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "unclassified"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 0.5
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "tunnel-street-unclassified-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "unclassified"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     0,
+     2
+    ]
    }
   },
   {
@@ -8188,6 +9044,236 @@
    "minzoom": 15
   },
   {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "way-hiking",
+   "filter": [
+    "all",
+    [
+     "!=",
+     [
+      "get",
+      "bridge"
+     ],
+     true
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "tunnel"
+     ],
+     true
+    ],
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "any",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "steps"
+       ],
+       true,
+       false
+      ],
+      [
+       "all",
+       [
+        "==",
+        [
+         "get",
+         "kind"
+        ],
+        "footway"
+       ],
+       [
+        "==",
+        [
+         "get",
+         "surface"
+        ],
+        "unpaved"
+       ]
+      ]
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": [
+     "step",
+     [
+      "zoom"
+     ],
+     "#a39e98",
+     14,
+     "#b5523b"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "way-hiking:unpaved",
+   "filter": [
+    "all",
+    [
+     "!=",
+     [
+      "get",
+      "bridge"
+     ],
+     true
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "tunnel"
+     ],
+     true
+    ],
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "any",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "steps"
+       ],
+       true,
+       false
+      ],
+      [
+       "all",
+       [
+        "==",
+        [
+         "get",
+         "kind"
+        ],
+        "footway"
+       ],
+       [
+        "==",
+        [
+         "get",
+         "surface"
+        ],
+        "unpaved"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": [
+     "step",
+     [
+      "zoom"
+     ],
+     "#a39e98",
+     14,
+     "#b5523b"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
    "source": "versatiles-shortbread",
    "id": "way-cycleway",
    "type": "line",
@@ -8250,6 +9336,200 @@
     "line-color": "rgb(239,248,254)"
    },
    "minzoom": 15
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "way-bicycle",
+   "filter": [
+    "all",
+    [
+     "!=",
+     [
+      "get",
+      "bridge"
+     ],
+     true
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "tunnel"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "cycleway"
+     ],
+     [
+      "all",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "footway",
+        "bridleway"
+       ],
+       true,
+       false
+      ],
+      [
+       "==",
+       [
+        "get",
+        "bicycle"
+       ],
+       "designated"
+      ]
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "way-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "!=",
+     [
+      "get",
+      "bridge"
+     ],
+     true
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "tunnel"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "cycleway"
+     ],
+     [
+      "all",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "footway",
+        "bridleway"
+       ],
+       true,
+       false
+      ],
+      [
+       "==",
+       [
+        "get",
+        "bicycle"
+       ],
+       "designated"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
   },
   {
    "source": "versatiles-shortbread",
@@ -8880,451 +10160,963 @@
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "street-track-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "track"
      ],
-     "track"
-    ],
-    [
-     "==",
      [
-      "get",
-      "bicycle"
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
      ],
-     "designated"
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
      "!=",
      [
       "get",
-      "bridge"
+      "surface"
      ],
-     true
-    ],
-    [
-     "!=",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(254,254,254)"
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "street-track-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "track"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "street-pedestrian-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "pedestrian"
      ],
-     "pedestrian"
-    ],
-    [
-     "==",
      [
-      "get",
-      "bicycle"
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
      ],
-     "designated"
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
      "!=",
      [
       "get",
-      "bridge"
+      "surface"
      ],
-     true
-    ],
-    [
-     "!=",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "street-pedestrian-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "pedestrian"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "street-service-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "service"
      ],
-     "service"
-    ],
-    [
-     "==",
      [
-      "get",
-      "bicycle"
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
      ],
-     "designated"
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
      "!=",
      [
       "get",
-      "bridge"
+      "surface"
      ],
-     true
-    ],
-    [
-     "!=",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(254,254,254)"
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "street-service-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "service"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "street-livingstreet-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "living_street"
      ],
-     "living_street"
-    ],
-    [
-     "==",
      [
-      "get",
-      "bicycle"
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
      ],
-     "designated"
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
      "!=",
      [
       "get",
-      "bridge"
+      "surface"
      ],
-     true
-    ],
-    [
-     "!=",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "street-livingstreet-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "living_street"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "street-residential-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "residential"
      ],
-     "residential"
-    ],
-    [
-     "==",
      [
-      "get",
-      "bicycle"
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
      ],
-     "designated"
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
      "!=",
      [
       "get",
-      "bridge"
+      "surface"
      ],
-     true
-    ],
-    [
-     "!=",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
-   "source": "versatiles-shortbread",
-   "id": "street-unclassified-bicycle",
    "type": "line",
+   "source": "versatiles-shortbread",
    "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "street-residential-bicycle:unpaved",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "residential"
      ],
-     "unclassified"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
     ],
     [
      "==",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "!=",
-     [
-      "get",
-      "bridge"
-     ],
-     true
-    ],
-    [
-     "!=",
-     [
-      "get",
-      "tunnel"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
    "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "street-unclassified-bicycle",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "unclassified"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "street-unclassified-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "unclassified"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
    }
   },
   {
@@ -14641,6 +16433,220 @@
    "minzoom": 15
   },
   {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-way-hiking",
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "bridge"
+     ],
+     true
+    ],
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "any",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "steps"
+       ],
+       true,
+       false
+      ],
+      [
+       "all",
+       [
+        "==",
+        [
+         "get",
+         "kind"
+        ],
+        "footway"
+       ],
+       [
+        "==",
+        [
+         "get",
+         "surface"
+        ],
+        "unpaved"
+       ]
+      ]
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": [
+     "step",
+     [
+      "zoom"
+     ],
+     "#a39e98",
+     14,
+     "#b5523b"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-way-hiking:unpaved",
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "bridge"
+     ],
+     true
+    ],
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "any",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "steps"
+       ],
+       true,
+       false
+      ],
+      [
+       "all",
+       [
+        "==",
+        [
+         "get",
+         "kind"
+        ],
+        "footway"
+       ],
+       [
+        "==",
+        [
+         "get",
+         "surface"
+        ],
+        "unpaved"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": [
+     "step",
+     [
+      "zoom"
+     ],
+     "#a39e98",
+     14,
+     "#b5523b"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
    "source": "versatiles-shortbread",
    "id": "bridge-way-cycleway",
    "type": "line",
@@ -14695,6 +16701,184 @@
     "line-color": "rgb(239,248,254)"
    },
    "minzoom": 15
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-way-bicycle",
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "bridge"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "cycleway"
+     ],
+     [
+      "all",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "footway",
+        "bridleway"
+       ],
+       true,
+       false
+      ],
+      [
+       "==",
+       [
+        "get",
+        "bicycle"
+       ],
+       "designated"
+      ]
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-way-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "bridge"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "cycleway"
+     ],
+     [
+      "all",
+      [
+       "match",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "path",
+        "footway",
+        "bridleway"
+       ],
+       true,
+       false
+      ],
+      [
+       "==",
+       [
+        "get",
+        "bicycle"
+       ],
+       "designated"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
   },
   {
    "source": "versatiles-shortbread",
@@ -15257,403 +17441,867 @@
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "bridge-street-track-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "track"
      ],
-     "track"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "bridge"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(254,254,254)"
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "butt"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-street-track-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "track"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "bridge-street-pedestrian-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "pedestrian"
      ],
-     "pedestrian"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "bridge"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-street-pedestrian-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "pedestrian"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "bridge-street-service-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "service"
      ],
-     "service"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "bridge"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(254,254,254)"
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "butt"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-street-service-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "service"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "bridge-street-livingstreet-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "living_street"
      ],
-     "living_street"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "bridge"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
+   "type": "line",
    "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-street-livingstreet-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "living_street"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
    "id": "bridge-street-residential-bicycle",
-   "type": "line",
-   "source-layer": "streets",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "residential"
      ],
-     "residential"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
     ],
     [
-     "==",
+     "!=",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "bridge"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
-   "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
    }
   },
   {
-   "source": "versatiles-shortbread",
-   "id": "bridge-street-unclassified-bicycle",
    "type": "line",
+   "source": "versatiles-shortbread",
    "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-street-residential-bicycle:unpaved",
    "filter": [
     "all",
     [
-     "==",
+     "all",
      [
-      "get",
-      "kind"
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "residential"
      ],
-     "unclassified"
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
     ],
     [
      "==",
      [
       "get",
-      "bicycle"
+      "surface"
      ],
-     "designated"
-    ],
-    [
-     "==",
-     [
-      "get",
-      "bridge"
-     ],
-     true
+     "unpaved"
     ]
    ],
    "paint": {
-    "line-color": "rgb(239,248,254)",
-    "line-width": {
-     "stops": [
-      [
-       12,
-       1
-      ],
-      [
-       14,
-       2
-      ],
-      [
-       16,
-       5
-      ],
-      [
-       18,
-       24
-      ],
-      [
-       19,
-       60
-      ],
-      [
-       20,
-       120
-      ]
-     ]
-    },
-    "line-opacity": {
-     "stops": [
-      [
-       12,
-       0
-      ],
-      [
-       13,
-       1
-      ]
-     ]
-    }
-   },
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
    "layout": {
-    "line-join": "round",
-    "line-cap": "round"
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-street-unclassified-bicycle",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "unclassified"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.8,
+     15,
+     1.4,
+     17,
+     2.2,
+     20,
+     3
+    ],
+    "line-opacity": 1
+   }
+  },
+  {
+   "type": "line",
+   "source": "versatiles-shortbread",
+   "source-layer": "streets",
+   "minzoom": 13,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "id": "bridge-street-unclassified-bicycle:unpaved",
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "unclassified"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bridge"
+      ],
+      true
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "surface"
+     ],
+     "unpaved"
+    ]
+   ],
+   "paint": {
+    "line-color": "#72b89f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.4,
+     15,
+     2,
+     17,
+     2.8,
+     20,
+     3.6
+    ],
+    "line-opacity": 1,
+    "line-dasharray": [
+     0,
+     2
+    ]
    }
   },
   {
