@@ -33,6 +33,8 @@ sealed interface RecorderState {
         val distanceM: Double,
         /** Null without a barometer. */
         val climbedM: Double?,
+        /** The time spent moving, as the odometer counts it: what the average speed is over. */
+        val movingMillis: Long = 0,
         /** The id of the plan the ride follows; null for a ride with no plan. */
         val planId: String? = null,
     ) : RecorderState
@@ -40,7 +42,7 @@ sealed interface RecorderState {
     /** A ride the app died during, found when it started again: continue it, or stop it here. */
     data class Interrupted(val id: String, val distanceM: Double) : RecorderState
 
-    /** Stopped, and the Save sheet is up, filled in with what the ride was started from. */
+    /** Stopped, and the Save sheet is up, filled in with what the ride was started from; it can still be continued. */
     data class Stopped(val id: String, val title: String, val sport: String) : RecorderState
 }
 
@@ -143,6 +145,22 @@ class Recorder(
         }
     }
 
+    /**
+     * Takes a stopped ride up again, from the Save sheet: a Stop pressed by mistake. It goes on as it was before the
+     * stop — paused if it was paused — and the time it stood stopped is neither distance nor moving time.
+     */
+    fun continueStopped() {
+        val stopped = state.value as? RecorderState.Stopped ?: error("nothing to continue")
+        val ride = rides.get(stopped.id)
+        val paused = ride.entries.lastOrNull { it is Entry.Paused || it is Entry.Resumed } is Entry.Paused
+        val again = if (paused) Entry.Paused(clock()) else Entry.Resumed(clock())
+        writer = rides.reopen(ride.id).apply {
+            append(again)
+            flush()
+        }
+        record(ride.id, Tally.of(ride.entries + again), ride.fixes.map { it.fix.at }, paused = paused, planId = ride.following)
+    }
+
     /** Picks an interrupted ride up where the journal left it, paused if it was paused. */
     fun continueRide() {
         val interrupted = state.value as? RecorderState.Interrupted ?: error("nothing to continue")
@@ -220,6 +238,7 @@ class Recorder(
             paused = paused,
             distanceM = tally.odometer.distanceM,
             climbedM = tally.climb.gainM.takeIf { tally.barometric },
+            movingMillis = tally.odometer.movingMillis,
             planId = following,
         )
         // Measured again only when there is a new height: every 25 m, not every second.
