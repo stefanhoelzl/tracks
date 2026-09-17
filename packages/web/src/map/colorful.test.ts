@@ -1,6 +1,7 @@
 import { featureFilter, validateStyleMin } from '@maplibre/maplibre-gl-style-spec'
 import type { FilterSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl'
-import { describe, expect, it } from 'vitest'
+import { setupServer } from 'msw/node'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   BIKE_COLOUR,
   HIKING_COLOUR,
@@ -9,11 +10,23 @@ import {
   WAY_NETWORK,
   washedColorful,
 } from './colorful.ts'
+import { elevationTileJson } from './elevation-fixture.ts'
 
 type LineLayer = Extract<LayerSpecification, { type: 'line' }>
 
-const style = (await washedColorful()) as StyleSpecification
-const ids = style.layers.map((l) => l.id)
+// The elevation TileJSON comes from the committed fixture: this suite stays offline.
+const server = setupServer(elevationTileJson)
+
+let style: StyleSpecification
+let ids: string[]
+
+// Built here rather than at the top level, which would run before the server listens.
+beforeAll(async () => {
+  server.listen({ onUnhandledRequest: 'error' })
+  style = (await washedColorful()) as StyleSpecification
+  ids = style.layers.map((l) => l.id)
+})
+afterAll(() => server.close())
 
 const layer = (id: string) => {
   const found = style.layers.find((l) => l.id === id)
