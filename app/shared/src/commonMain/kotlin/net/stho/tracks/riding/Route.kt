@@ -122,7 +122,7 @@ class Route(waypoints: List<Waypoint>, legs: List<Leg?>) {
     /**
      * The nearest point on the route to [at]. Where more than one stretch of the route is about as near — within
      * [SAME_DISTANCE_M] of the nearest — the one nearest along the route to [previousM] wins, when there is one; and
-     * of passes about as far along from it as each other, the nearer.
+     * of passes about as far along from it as each other, one ahead of it, the nearer first.
      * Null for a route with nothing to match against.
      */
     fun locate(at: Coordinate, previousM: Double? = null): Position? {
@@ -157,9 +157,11 @@ class Route(waypoints: List<Waypoint>, legs: List<Leg?>) {
         val chosen = if (previousM == null) {
             passes.minBy { off[it] }
         } else {
-            // At a turnaround both passes are about as far along from where you were: the one you are nearer then.
+            // At a turnaround both passes are about as far along from where you were — on a road ridden both ways, as
+            // near as each other too. The way on wins then: coming back from a turnaround is going on, not back.
             val closest = passes.minOf { abs(alongAt(it) - previousM) }
-            passes.filter { abs(alongAt(it) - previousM) <= closest + SAME_DISTANCE_M }.minBy { off[it] }
+            val tied = passes.filter { abs(alongAt(it) - previousM) <= closest + SAME_DISTANCE_M }
+            (tied.filter { alongAt(it) >= previousM }.ifEmpty { tied }).minBy { off[it] }
         }
         val a = points[chosen]
         val b = points[chosen + 1]
