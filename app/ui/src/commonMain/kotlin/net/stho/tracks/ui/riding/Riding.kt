@@ -160,7 +160,7 @@ fun Riding(
     ) {
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().safeDrawingPadding().padding(12.dp)) {
             when (val asked = state) {
-                is RecorderState.Stopped -> SaveRideSheet(asked, onSave = recorder::save, onDiscard = recorder::discard)
+                is RecorderState.Stopped -> SaveRideSheet(asked, onSave = recorder::save, onContinue = recorder::continueStopped, onDiscard = recorder::discard)
                 is RecorderState.Interrupted -> InterruptedSheet(asked, onContinue = recorder::continueRide, onStop = recorder::stop)
                 else -> target?.let { chosen ->
                     DetourDialog(chosen, onDetour = { place(chosen, it) }, onClose = { target = null })

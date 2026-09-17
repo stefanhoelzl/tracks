@@ -108,6 +108,49 @@ class RecorderTest {
     }
 
     @Test
+    fun aStopPressedByMistakeIsContinuedAsItWas() = runTest {
+        val sensors = FakeSensors()
+        val recorder = recorder(sensors)
+        recorder.start()
+        runCurrent()
+        (0..20).forEach { ride(sensors, it) }
+        recorder.stop()
+        val stopped = assertIs<RecorderState.Stopped>(recorder.state.value)
+        // Standing at the Save sheet: nothing that arrives is kept, and the distance does not jump across it.
+        (21..80).forEach { ride(sensors, it) }
+
+        recorder.continueStopped()
+        runCurrent()
+        val continued = assertIs<RecorderState.Recording>(recorder.state.value)
+        assertEquals(stopped.id, continued.id)
+        assertEquals(false, continued.paused)
+        assertEquals(21, recorder.track.value.size)
+        (81..90).forEach { ride(sensors, it) }
+
+        val recording = assertIs<RecorderState.Recording>(recorder.state.value)
+        assertEquals(145.0, recording.distanceM, 1.0)
+        assertEquals(29_000L, recording.movingMillis)
+        recorder.flush()
+        assertEquals(31, Rides(dir).get(stopped.id).fixes.size)
+    }
+
+    @Test
+    fun aPausedRideStoppedAndContinuedIsStillPaused() = runTest {
+        val sensors = FakeSensors()
+        val recorder = recorder(sensors)
+        recorder.start()
+        runCurrent()
+        (0..5).forEach { ride(sensors, it) }
+        recorder.pause()
+        recorder.stop()
+        recorder.continueStopped()
+        runCurrent()
+        assertTrue(assertIs<RecorderState.Recording>(recorder.state.value).paused)
+        (6..10).forEach { ride(sensors, it) }
+        assertEquals(6, recorder.track.value.size)
+    }
+
+    @Test
     fun aRideTheAppDiedDuringIsOfferedAndContinued() = runTest {
         val sensors = FakeSensors()
         val dying = CoroutineScope(backgroundScope.coroutineContext + kotlinx.coroutines.Job())
