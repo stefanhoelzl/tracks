@@ -173,7 +173,8 @@ class Tally(climbThreshold: Double = CLIMB_HYSTERESIS_M) {
                 climb.add(altitude)
                 elevation.pressure(altitude)
             }
-            is Entry.Paused -> {
+            // A stop is a pause too: a ride continued after one counts nothing across the time it stood stopped.
+            is Entry.Paused, is Entry.Stopped -> {
                 odometer.pause()
                 climb.pause()
             }

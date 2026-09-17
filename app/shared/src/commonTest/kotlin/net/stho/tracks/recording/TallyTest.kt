@@ -71,6 +71,19 @@ class TallyTest {
     }
 
     @Test
+    fun aStopContinuedIsAPauseToo() {
+        val tally = Tally()
+        tally.add(Entry.Located(fix(0, 0.0, 6.0)))
+        tally.add(Entry.Located(fix(1, 6.0, 6.0)))
+        tally.add(Entry.Stopped(t0 + 2000))
+        tally.add(Entry.Resumed(t0 + 60_000))
+        tally.add(Entry.Located(fix(600, 3000.0, 6.0)))
+        tally.add(Entry.Located(fix(601, 3006.0, 6.0)))
+        near(12.0, tally.odometer.distanceM, 0.5)
+        assertEquals(2_000, tally.odometer.movingMillis)
+    }
+
+    @Test
     fun noiseIsNotAClimb() {
         val random = Random(3)
         val climb = Climb()
