@@ -391,6 +391,8 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             undo = UndoControls(canUndo = true, canRedo = false, onUndo = {}, onRedo = {}).takeIf { scene.screen == Screen.RidingDetour },
                             pulse = false,
                             menuOpen = scene.screen == Screen.RidingMenu,
+                            // Open, a place picked a little way up the profile: the map shows it.
+                            initiallyPickedM = navigation?.progress?.takeIf { scene.screen == Screen.RidingOpen }?.let { it.alongM + 250.0 },
                             onIdle = onIdle,
                         ) {
                             if (scene.screen == Screen.SaveRide) {

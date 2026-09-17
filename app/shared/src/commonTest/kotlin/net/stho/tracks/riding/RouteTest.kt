@@ -220,6 +220,17 @@ class RouteTest {
     }
 
     @Test
+    fun aPointAlongTheRouteIsWhereThatDistanceLands() {
+        val legs = listOf(leg(listOf(at(0.0), at(1000.0))), leg(listOf(at(1000.0), at(1000.0, 600.0))))
+        val route = Route(listOf(stop(at(0.0)), stop(at(1000.0)), stop(at(1000.0, 600.0))), legs)
+
+        near(0.0, net.stho.tracks.sensors.distanceM(at(400.0), assertNotNull(route.pointAt(400.0))), 1.0)
+        near(0.0, net.stho.tracks.sensors.distanceM(at(1000.0, 250.0), assertNotNull(route.pointAt(1250.0))), 1.0)
+        near(0.0, net.stho.tracks.sensors.distanceM(at(1000.0, 600.0), assertNotNull(route.pointAt(99_999.0))), 1.0)
+        assertNull(Route(emptyList(), emptyList()).pointAt(10.0))
+    }
+
+    @Test
     fun aDetourAheadKeepsWhereYouAre() {
         val waypoints = listOf(stop(at(0.0)), stop(at(2000.0)))
         val follower = Follower(Route(waypoints, listOf(leg(listOf(at(0.0), at(2000.0))))))

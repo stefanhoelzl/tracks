@@ -1,6 +1,7 @@
 package net.stho.tracks.ui.plans
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -20,8 +23,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.ceil
+import kotlin.math.max
 import net.stho.tracks.plan.Format
 import net.stho.tracks.plan.Terrain
 import net.stho.tracks.ui.theme.Tokens
@@ -39,6 +45,9 @@ private const val AREA_OPACITY = 0.16f
  * The plan editor draws it, and the riding panel draws the same thing with you on it: [youM] metres along, a dot on the
  * line and a dashed rule down to the axis. [marksM] are stops along it, each a faint dashed rule. Without [axes] it is
  * the line alone, edge to edge: a strip under a line of text.
+ *
+ * The y axis is at least [minSpanM] tall. With [onPick], a tap on the profile reports how far along it landed, and
+ * [pickedM] is drawn as a solid rule in the accent.
  */
 @Composable
 fun ElevationProfile(
@@ -48,15 +57,26 @@ fun ElevationProfile(
     youM: Double? = null,
     marksM: List<Double> = emptyList(),
     axes: Boolean = true,
+    minSpanM: Double = Terrain.MIN_SPAN_M,
+    pickedM: Double? = null,
+    onPick: ((Double) -> Unit)? = null,
 ) {
     val stops = remember(terrain) { terrain.rampStops() }
     val floorM = terrain.floorM
-    val topM = terrain.topM
+    val topM = if (minSpanM == Terrain.MIN_SPAN_M) terrain.topM else floorM + max(ceil(terrain.altitudeM.filterNotNull().max()) - floorM, minSpanM)
+    val currentOnPick by rememberUpdatedState(onPick)
+    val picking = if (onPick == null) {
+        Modifier
+    } else {
+        Modifier.pointerInput(terrain) {
+            detectTapGestures { tap -> currentOnPick?.invoke((tap.x / size.width).coerceIn(0f, 1f) * terrain.totalM) }
+        }
+    }
 
     Column(modifier) {
         Box(Modifier.fillMaxWidth().height(height)) {
             val plotPadding = if (axes) Modifier.padding(start = 34.dp, end = 8.dp, top = 8.dp, bottom = 6.dp) else Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-            Canvas(Modifier.fillMaxWidth().height(height).then(plotPadding)) {
+            Canvas(Modifier.fillMaxWidth().height(height).then(plotPadding).then(picking)) {
                 val width = size.width
                 val plot = size.height
                 fun x(distance: Double) = (distance / terrain.totalM * width).toFloat()
@@ -116,6 +136,15 @@ fun ElevationProfile(
                         strokeWidth = 1.dp.toPx(),
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 2.dp.toPx())),
                     )
+                }
+
+                pickedM?.takeIf { it in 0.0..terrain.totalM }?.let { along ->
+                    val px = x(along)
+                    drawLine(Tokens.accent, Offset(px, 0f), Offset(px, plot), strokeWidth = 2.dp.toPx())
+                    altitudeAlong(terrain, along)?.let { altitude ->
+                        drawCircle(Color.White, radius = 5.5.dp.toPx(), center = Offset(px, y(altitude)))
+                        drawCircle(Tokens.accent, radius = 4.dp.toPx(), center = Offset(px, y(altitude)))
+                    }
                 }
 
                 youM?.let { along ->

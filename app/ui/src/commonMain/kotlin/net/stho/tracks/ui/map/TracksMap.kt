@@ -126,6 +126,9 @@ sealed interface MapCamera {
     /** Wherever the person using the map has put it: nothing moves the camera until another camera is asked for. */
     data object Free : MapCamera
 
+    /** [at] brought to the middle of what [inset] leaves, as the map is zoomed and turned, and then left as [Free] is. */
+    data class Show(val at: Coordinate, val inset: PaddingValues = PaddingValues(0.dp)) : MapCamera
+
     /** Fit [points], north-up, clear of [inset] — whatever is drawn over the map's edges. */
     data class Overview(val points: List<Coordinate>, val inset: PaddingValues = PaddingValues(32.dp)) : MapCamera
 }
@@ -167,7 +170,8 @@ data class PlanDrawing(
  * A [drawing]'s waypoints can be tapped ([onWaypointTap]) and, once a long press picks one up, dragged ([onWaypointDrag],
  * reported as they move and once more, `done`, where they are let go). [onIdle] is called whenever the map has finished
  * drawing what it was asked for — what a screenshot waits for. [onGesture] is called when a finger pans, pinches or turns
- * the map — not for a tap or a long press — for a screen to stop moving the camera itself.
+ * the map — not for a tap or a long press — for a screen to stop moving the camera itself. [marker] is a place picked
+ * off the map, drawn as a ring.
  */
 @Composable
 fun TracksMap(
@@ -186,13 +190,14 @@ fun TracksMap(
     onWaypointTap: (Int) -> Unit = {},
     onWaypointDrag: (index: Int, at: Coordinate, done: Boolean) -> Unit = { _, _, _ -> },
     onGesture: () -> Unit = {},
+    marker: Coordinate? = null,
     onIdle: () -> Unit = {},
 ) {
     // A Metal or Vulkan surface created at 0×0 never recovers (the KRAIL pitfalls): wait for a size, once.
     var sized by remember { mutableStateOf(false) }
     Box(modifier.onSizeChanged { if (it.width > 0 && it.height > 0) sized = true }) {
         if (sized) {
-            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onGesture, onIdle)
+            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onGesture, marker, onIdle)
         }
     }
 }
@@ -312,6 +317,7 @@ private fun MapLibreMap(
     onWaypointTap: (Int) -> Unit,
     onWaypointDrag: (Int, Coordinate, Boolean) -> Unit,
     onGesture: () -> Unit,
+    marker: Coordinate?,
     onIdle: () -> Unit,
 ) {
     val currentCamera by rememberUpdatedState(camera)
@@ -370,7 +376,7 @@ private fun MapLibreMap(
                 zoom = camera.zoom,
                 bearing = mapBearing(camera.orientation, fix, heading, previous = 0.0),
             )
-            is MapCamera.Overview, MapCamera.Free -> CameraPosition(target = Position(at.lon, at.lat), zoom = 13.0)
+            is MapCamera.Overview, MapCamera.Free, is MapCamera.Show -> CameraPosition(target = Position(at.lon, at.lat), zoom = 13.0)
             is MapCamera.Centre -> CameraPosition(target = Position(at.lon, at.lat), zoom = camera.zoom)
         }
     }
@@ -482,6 +488,16 @@ private fun MapLibreMap(
             textHaloWidth = const(1.6.dp),
         )
 
+        // A place picked off the map, as a profile tap picks one: a ring in ink, which neither the plan nor the ride is.
+        CircleLayer(
+            id = "picked",
+            source = rememberGeoJsonSource(GeoJsonData.JsonString(pointJson(marker))),
+            color = const(Color.White),
+            radius = const(7.dp),
+            strokeWidth = const(3.dp),
+            strokeColor = const(Tokens.ink),
+        )
+
         // Where the phone faces: a fading cone out of the dot, FIELD_OF_VIEW_DEG wide, from the compass rather than the
         // course. It is what you are looking at, which a rider stopped at a junction wants to know and a course cannot
         // say. Turned with the map, so it points the same way whichever way up the map is. Under the dot, so the dot
@@ -549,6 +565,11 @@ private fun MapLibreMap(
                     )
                 }
                 MapCamera.Free -> Unit
+                is MapCamera.Show -> {
+                    val position = state.cameraPosition
+                    val aim = insetTarget(camera.at, position.zoom, position.bearing, camera.inset, layoutDirection)
+                    state.animateCameraPosition(position.copy(target = Position(aim.lon, aim.lat)), duration = FOLLOW_MS.milliseconds)
+                }
                 is MapCamera.Overview -> if (camera.points.isNotEmpty()) {
                     state.animateCameraToBounds(
                         BoundingBox(
