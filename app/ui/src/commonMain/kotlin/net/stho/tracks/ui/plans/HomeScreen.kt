@@ -61,7 +61,6 @@ import net.stho.tracks.ui.offline.OfflineState
 import net.stho.tracks.ui.offline.PlanOffline
 import net.stho.tracks.ui.theme.IconButton
 import net.stho.tracks.ui.theme.Icons
-import net.stho.tracks.ui.theme.Pill
 import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
@@ -76,8 +75,9 @@ private val SHEET_PEEK = 150.dp
  * Home: the map centred on you, under a sheet of the plans on this phone, newest first.
  *
  * + starts a plan from nothing, in the editor. A tap on a plan opens it. Its ⋯ menu navigates it — a ride that follows
- * it — edits it, copies it, shares its link or deletes it. Ride starts a ride with no plan. What the upload queue has to
- * say, and signing in, sit under the buttons.
+ * it — edits it, copies it, shares its link or deletes it. Ride starts a ride with no plan, under the same arrow as
+ * Navigate. A plan arrives from outside by its link, opened on the phone. What the upload queue has to say, and
+ * signing in, sit under the buttons.
  */
 @Composable
 fun HomeScreen(
@@ -87,7 +87,6 @@ fun HomeScreen(
     routing: Map<String, PlanRouting>,
     notice: String?,
     onNew: () -> Unit,
-    onPaste: () -> Unit,
     /** Starts a ride with no plan; without one, there is no Ride button. */
     onRide: (() -> Unit)? = null,
     /** Starts a ride that follows a plan; without one, no menu has Navigate. */
@@ -156,12 +155,10 @@ fun HomeScreen(
                 ) {
                     BasicText("Plans", style = Type.title, modifier = Modifier.weight(1f))
                     if (onRide != null) {
-                        IconButton(Icons.Ride, "Ride", onClick = onRide)
+                        IconButton(Icons.Navigate, "Ride", onClick = onRide)
                         Spacer(Modifier.width(8.dp))
                     }
                     IconButton(Icons.New, "New plan", onClick = onNew)
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(Icons.Paste, "Paste link", onClick = onPaste)
                 }
                 notice?.let { BasicText(it, style = Type.note, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) }
                 upload?.let { Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) { UploadStatus(it) } }
@@ -169,7 +166,7 @@ fun HomeScreen(
 
             if (plans.isEmpty()) {
                 BasicText(
-                    "No plans yet. Tap + to plan one, or paste a link from tracks.stho.net.",
+                    "No plans yet. Tap + to plan one, or open a plan's link from tracks.stho.net.",
                     style = Type.note,
                     modifier = Modifier.padding(16.dp),
                 )
@@ -221,11 +218,14 @@ private fun PlanRow(
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 BasicText(titleOf(stored.plan), style = Type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                BasicText(numbersOf(stored), style = Type.mono, maxLines = 1)
+                // Where the plan stands offline leads its numbers, small, so the marks line up down the list.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    OfflineBadge(offline)
+                    BasicText(numbersOf(stored), style = Type.mono, maxLines = 1)
+                }
                 statusOf(stored, routing)?.let { BasicText(it, style = Type.note, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
 
-            OfflineBadge(offline, Modifier.padding(start = 12.dp))
             PlanMenu(onEdit = onEdit, onCopy = onCopy, onShare = onShare, onDelete = onDelete, onNavigate = onNavigate, initiallyOpen = menuOpen)
         }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Tokens.line))

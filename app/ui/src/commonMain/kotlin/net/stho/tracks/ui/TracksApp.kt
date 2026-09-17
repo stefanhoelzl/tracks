@@ -38,9 +38,6 @@ import kotlinx.coroutines.flow.flowOf
 
 /** What the app needs from the platform it runs on. */
 interface AppPlatform {
-    /** The text on the clipboard, for Paste link. */
-    fun clipboardText(): String?
-
     /** Hands [url] to whatever the platform shares with: the share sheet on the phone. */
     fun share(url: String)
 
@@ -57,7 +54,7 @@ sealed interface Intake {
     data class Broken(val reason: String) : Intake
 }
 
-/** Keeps the plan in [text], if it holds a Tracks plan link. However it arrived — pasted, shared, opened — it lands here. */
+/** Keeps the plan in [text], if it holds a Tracks plan link. However it arrived — shared, opened — it lands here. */
 suspend fun PlanLibrary.receiveLink(text: String?): Intake {
     val plan = try {
         PlanLink.find(text ?: "")
@@ -77,7 +74,7 @@ suspend fun PlanLibrary.receiveLink(text: String?): Intake {
  *
  * [router] must be the one the [library] routes with — there is one engine, and one route runs at a time. [sensors]
  * must be shared when there is a [recorder]: the map and the recorder read one stream, or a replay would be two rides.
- * [links] is text arriving from outside: a universal link, or the harness's `--paste`. Loading a plan never starts
+ * [links] is text arriving from outside: a universal link, or the harness's `--link`. Loading a plan never starts
  * anything: it lands in the list.
  */
 @Composable
@@ -111,7 +108,7 @@ fun TracksApp(
         scope.launch {
             notice = when (val result = library.receiveLink(text)) {
                 is Intake.Kept -> null
-                Intake.NoLink -> "There is no Tracks plan link on the clipboard."
+                Intake.NoLink -> "That link is not a Tracks plan link."
                 is Intake.Broken -> "That plan link is broken: ${result.reason}"
             }
         }
@@ -209,7 +206,6 @@ fun TracksApp(
             routing = routing,
             notice = notice,
             onNew = { editing = PlanEditor.blank(router, scope) },
-            onPaste = { intake(platform.clipboardText()) },
             onRide = recorder?.let { ride -> { ride.start() } },
             onNavigate = recorder?.let { ::navigate },
             onOpen = { open = it },

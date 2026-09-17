@@ -54,7 +54,6 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSUserDomainMask
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
-import platform.UIKit.UIPasteboard
 import platform.UIKit.UIViewController
 
 /**
@@ -173,8 +172,6 @@ private fun directory(name: String, base: ULong): String {
 }
 
 private object IosPlatform : AppPlatform {
-    override fun clipboardText(): String? = UIPasteboard.generalPasteboard.string
-
     override fun share(url: String) {
         val link = NSURL.URLWithString(url) ?: return
         val sheet = UIActivityViewController(activityItems = listOf(link), applicationActivities = null)

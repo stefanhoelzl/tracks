@@ -11,7 +11,6 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import java.awt.Toolkit
-import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.io.File
 import java.time.Instant
@@ -62,7 +61,7 @@ val PHONE = DpSize(393.dp, 852.dp)
  *     --gpx <file>        the ride to replay (default: the bundled Garmisch ride)
  *     --from <s>          start that many seconds into it
  *     --speed <x>         replay x times faster than real time
- *     --paste <link>      receive a plan link at launch, as a paste would; may be given more than once
+ *     --link <link>       receive a plan link at launch, as opening it on the phone would; may be given more than once
  *     --data <dir>        where plans are kept (default: ~/.local/share/tracks-harness)
  *     --segments <dir>    the rd5 tiles to route over (default: the newest snapshot in ~/.cache/tracks/segments)
  *     --route-on-device   route on the engine only, as the phone does with no network (default: brouter.de, and the
@@ -92,7 +91,7 @@ fun main(args: Array<String>) {
     val gpx = option("--gpx")?.let { File(it).readText() }
     val from = option("--from")?.toInt() ?: 0
     val speedup = option("--speed")?.toDouble() ?: 1.0
-    val pastes = args.indices.filter { args[it] == "--paste" }.mapNotNull { args.getOrNull(it + 1) }
+    val links = args.indices.filter { args[it] == "--link" }.mapNotNull { args.getOrNull(it + 1) }
     val data = option("--data")?.let(::File) ?: File(System.getProperty("user.home"), ".local/share/tracks-harness")
     val offlineDirectory = option("--offline")?.let(::File)?.also { it.mkdirs() }
     val segments = option("--segments") ?: offlineDirectory?.resolve("segments")?.absolutePath ?: newestSnapshot()
@@ -170,7 +169,7 @@ fun main(args: Array<String>) {
                         recorder = recorder,
                         upload = queue,
                         offline = offline,
-                        links = remember { pastes.asFlow() },
+                        links = remember { links.asFlow() },
                     )
                 }
             }
@@ -206,11 +205,8 @@ private fun newestSnapshot(): String {
     return cache.listFiles { file -> file.isDirectory }?.maxByOrNull { it.name }?.absolutePath ?: cache.absolutePath
 }
 
-/** The desktop's clipboard stands in for both the phone's pasteboard and its share sheet. */
+/** The desktop's clipboard stands in for the phone's share sheet. */
 object DesktopPlatform : AppPlatform {
-    override fun clipboardText(): String? =
-        runCatching { Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as String }.getOrNull()
-
     override fun share(url: String) {
         runCatching { Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(url), null) }
         println("share $url")

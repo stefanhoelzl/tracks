@@ -268,7 +268,6 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         routing = emptyMap(),
                         notice = null,
                         onNew = {},
-                        onPaste = {},
                         onOpen = {},
                         onNavigate = {},
                         onEdit = {},

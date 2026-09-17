@@ -37,13 +37,6 @@ object Icons {
         "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
     )
 
-    val Ride: ImageVector = lucide(
-        "bike",
-        "M22 17.5a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0z",
-        "M9 17.5a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0z",
-        "M16 5a1 1 0 1 1-2 0a1 1 0 1 1 2 0z",
-        "M12 17.5V14l-3-3 4-3 2 3h2",
-    )
     val Navigate: ImageVector = lucide("navigation", "M3 11l19-9-9 19-2-8-8-2z")
     val NorthUp: ImageVector = lucide("compass", "M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0z", "M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z")
     val Undo: ImageVector = lucide("undo-2", "M9 14L4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11")
@@ -51,13 +44,14 @@ object Icons {
     val New: ImageVector = lucide("plus", "M5 12h14", "M12 5v14")
     val Close: ImageVector = lucide("x", "M18 6L6 18", "M6 6l12 12")
     val Save: ImageVector = lucide("check", "M20 6L9 17l-5-5")
-    val Paste: ImageVector = lucide(
-        "clipboard-paste",
-        "M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z",
-        "M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113",
-        "M16 4h2a2 2 0 0 1 2 2v1.344",
-        "M11 14h10",
-        "M17 10l4 4-4 4",
+    val Back: ImageVector = lucide("chevron-left", "M15 18l-6-6 6-6")
+
+    /** A plan all on the phone: what the list marks it with, in the accent. */
+    val Offline: ImageVector = lucide(
+        "cloud-download",
+        "M12 13v8",
+        "M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242",
+        "M8 17l4 4 4-4",
     )
 
     val Delete: ImageVector = lucide(
