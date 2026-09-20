@@ -59,6 +59,7 @@ function setup() {
       error={null}
       cursor={null}
       onCursor={vi.fn()}
+      onRange={vi.fn()}
       onTags={onTags}
       onBack={vi.fn()}
     />,

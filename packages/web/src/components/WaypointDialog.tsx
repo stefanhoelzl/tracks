@@ -2,6 +2,7 @@ import type { Waypoint } from '@tracks/routing'
 import { X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { Placement } from '../lib/plan-ops.ts'
+import { WAYPOINT_LABELS, type WaypointGlyph, WaypointMark } from './ui/Waypoint.tsx'
 import styles from './WaypointDialog.module.css'
 
 /**
@@ -80,22 +81,15 @@ export function WaypointDialog({
             <div className={styles.row}>
               {/* Splitting a leg is on offer as soon as there is a leg to split. */}
               {target.leg !== null ? (
-                <button type="button" className={styles.go} onClick={() => onAdd('poi', 'nearest')}>
-                  Insert
-                </button>
+                <GlyphButton glyph="mid" label="Insert" onClick={() => onAdd('poi', 'nearest')} />
               ) : null}
               {count === 0 ? (
-                <button type="button" className={styles.go} onClick={() => onAdd('poi', 'end')}>
-                  Add
-                </button>
+                // The first waypoint is where the line starts, whatever the button is called.
+                <GlyphButton glyph="start" label="Add" onClick={() => onAdd('poi', 'end')} />
               ) : (
                 <>
-                  <button type="button" className={styles.go} onClick={() => onAdd('poi', 'start')}>
-                    Start
-                  </button>
-                  <button type="button" className={styles.go} onClick={() => onAdd('poi', 'end')}>
-                    End
-                  </button>
+                  <GlyphButton glyph="start" label="Start" onClick={() => onAdd('poi', 'start')} />
+                  <GlyphButton glyph="end" label="End" onClick={() => onAdd('poi', 'end')} />
                 </>
               )}
             </div>
@@ -105,13 +99,12 @@ export function WaypointDialog({
               and the end exist there is no leg at all. */}
           {kindIsAChoice && target.leg !== null ? (
             <div className={styles.group}>
-              <button
-                type="button"
-                className={styles.quiet}
+              <GlyphButton
+                glyph="shape"
+                label="Shaping point"
+                quiet
                 onClick={() => onAdd('routing', 'nearest')}
-              >
-                Shaping point
-              </button>
+              />
               <span className={styles.hint}>
                 {target.between
                   ? `Bends ${target.between} without stopping there`
@@ -139,13 +132,12 @@ export function WaypointDialog({
 
           <div className={styles.row}>
             {kindIsAChoice ? (
-              <button
-                type="button"
-                className={styles.quiet}
+              <GlyphButton
+                glyph={target.waypoint.kind === 'poi' ? 'shape' : 'mid'}
+                label={target.waypoint.kind === 'poi' ? 'Make shaping' : 'Make a stop'}
+                quiet={target.waypoint.kind === 'poi'}
                 onClick={() => onKind(target.waypoint.kind === 'poi' ? 'routing' : 'poi')}
-              >
-                {target.waypoint.kind === 'poi' ? 'Make shaping' : 'Make a stop'}
-              </button>
+              />
             ) : null}
             <button type="button" className={styles.remove} onClick={onRemove}>
               Remove
@@ -161,5 +153,36 @@ export function WaypointDialog({
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * One of the four marks, as the button that puts that kind of waypoint there.
+ *
+ * The word stays — as the accessible name and as the tooltip — because a glyph nobody has met
+ * yet is a puzzle, and a title is cheaper than a legend. [quiet] is the shaping point, which is
+ * the only one of the four that is not green.
+ */
+function GlyphButton({
+  glyph,
+  label,
+  quiet = false,
+  onClick,
+}: {
+  glyph: WaypointGlyph
+  label: string
+  quiet?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={quiet ? styles.glyphQuiet : styles.glyph}
+      aria-label={label}
+      title={label === WAYPOINT_LABELS[glyph] ? label : `${label} · ${WAYPOINT_LABELS[glyph]}`}
+      onClick={onClick}
+    >
+      <WaypointMark glyph={glyph} size={22} />
+    </button>
   )
 }

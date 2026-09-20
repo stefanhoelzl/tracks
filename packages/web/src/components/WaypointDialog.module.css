@@ -95,6 +95,28 @@
   font-weight: 600;
 }
 
+/* Nothing behind an icon: the four marks draw straight on the card, green for the three that
+   are stops and ink for the shaping point, with a 32px target around each. */
+.glyph,
+.glyphQuiet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  color: var(--accent);
+}
+
+.glyphQuiet {
+  color: var(--ink);
+}
+
+.glyph:hover,
+.glyphQuiet:hover {
+  background: var(--sunk);
+}
+
 .go {
   background: var(--accent);
   color: #fff;

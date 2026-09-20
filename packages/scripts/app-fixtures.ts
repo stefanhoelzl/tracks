@@ -63,6 +63,15 @@ import {
   planTrack,
   readingsFrom,
 } from '../web/src/lib/plan-track.ts'
+import {
+  alongAt,
+  altitudeAt,
+  distanceAxis,
+  heightAxis,
+  sliceBetween,
+  splitAt,
+  statsBetween,
+} from '../web/src/lib/profile.ts'
 
 export const FIXTURE_DIR = fileURLToPath(
   new URL('../../app/shared/src/commonTest/fixtures/', import.meta.url),
@@ -1037,6 +1046,88 @@ function terrainFixture() {
   }
 }
 
+/**
+ * The profile's axes, its two-bar figures and its flanking split, so the phone draws a plan's
+ * terrain against the same scale and reports the same numbers under it.
+ *
+ * The tracks are the shapes that break each rule in turn: a long climb with dropouts in it, a
+ * flat ride that the minimum span has to rescue, and a short one whose axis lands on a small
+ * step. The ranges include ones that start and end inside a gap in the data, which is where
+ * "count nothing across a dropout" either holds or quietly invents a wall.
+ */
+function profileFixture() {
+  const drawn = terrainFixture().tracks.map((track) => {
+    const distances = track.drawn.map((at) => track.distances[at]!)
+    const altitudeM = track.drawn.map((at) => track.altitudeM[at] ?? null)
+    return { name: track.name, distances, altitudeM }
+  })
+
+  const axes: Array<[number, number, number]> = [
+    [612, 688, 200],
+    [612, 688, 100],
+    [620, 1284, 200],
+    [0, 8848, 200],
+    [497.4, 503.1, 0],
+    [1200, 1200, 200],
+  ]
+
+  const totals = [420, 1000, 4200, 42_100, 236_000]
+
+  return {
+    axes: axes.map(([lowM, highM, minSpanM]) => ({
+      lowM,
+      highM,
+      minSpanM,
+      axis: heightAxis(lowM, highM, minSpanM),
+    })),
+    distances: totals.map((totalM) => ({ totalM, axis: distanceAxis(totalM) })),
+    tracks: drawn.map(({ name, distances, altitudeM }) => {
+      const totalM = distances[distances.length - 1] ?? 0
+      const fractions = [0, 0.25, 0.5, 0.73, 1]
+      const cuts = fractions.map((fraction) => alongAt(totalM, fraction))
+      return {
+        name,
+        totalM,
+        distances,
+        altitudeM,
+        altitudes: cuts.map((alongM) => ({
+          alongM,
+          altitudeM: altitudeAt(distances, altitudeM, alongM),
+        })),
+        ranges: [
+          [cuts[0]!, cuts[4]!],
+          [cuts[1]!, cuts[3]!],
+          [cuts[2]!, cuts[2]!],
+          [cuts[3]!, cuts[1]!],
+        ].map(([fromM, toM]) => ({
+          fromM,
+          toM,
+          stats: statsBetween(distances, altitudeM, fromM!, toM!),
+        })),
+        splits: cuts.map((atM) => ({ atM, split: splitAt(distances, altitudeM, atM) })),
+        // A line to draw on the map for each of those ranges: the ends interpolated, the points between kept.
+        slices: [
+          [cuts[1]!, cuts[3]!],
+          [cuts[0]!, cuts[2]!],
+          [cuts[2]!, cuts[2]!],
+        ].map(([fromM, toM]) => ({
+          fromM,
+          toM,
+          points: sliceBetween(
+            distances.map((along): [number, number] => [
+              11 + along / 100_000,
+              47 + along / 200_000,
+            ]),
+            distances,
+            fromM!,
+            toM!,
+          ),
+        })),
+      }
+    }),
+  }
+}
+
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
 
 export function generateAppFixtures(): Record<string, string> {
@@ -1051,6 +1142,7 @@ export function generateAppFixtures(): Record<string, string> {
     'numbers.json': json(numbersFixture()),
     'format.json': json(formatFixture()),
     'terrain.json': json(terrainFixture()),
+    'profile.json': json(profileFixture()),
   }
 }
 

@@ -55,6 +55,9 @@ import net.stho.tracks.plan.nearestLeg
 import net.stho.tracks.plan.placementAt
 import net.stho.tracks.plan.planBounds
 import net.stho.tracks.plan.planTotals
+import net.stho.tracks.plan.Range
+import net.stho.tracks.plan.sliceBetween
+import net.stho.tracks.plan.nearestDrawn
 import net.stho.tracks.plan.planTrack
 import net.stho.tracks.plan.removeWaypoint
 import net.stho.tracks.plan.setKind
@@ -122,6 +125,30 @@ fun PlanEditorScreen(
     var dialog by remember { mutableStateOf(initialDialog) }
     var base by remember { mutableIntStateOf(0) }
     var dragging by remember { mutableStateOf<Pair<Int, Coordinate>?>(null) }
+    /** Where the profile's bar stands, in metres along the plan; the map rings that place. */
+    var pickedM by remember { mutableStateOf<Double?>(null) }
+    /** The stretch two bars enclose, which the map draws at full strength over a line held back. */
+    var selected by remember { mutableStateOf<Range?>(null) }
+    // The place under the bar, found through the profile's own drawn points so the ring lands where the dot does.
+    val editorTrack = remember(legs) { planTrack(legs) }
+    val editorTerrain = remember(editorTrack, legs) {
+        terrainOf(editorTrack, planTotals(legs).distanceM.takeIf { it > 0 })
+    }
+    val picked = pickedM?.let { alongM ->
+        editorTerrain?.let { terrain ->
+            editorTrack.coordinates.getOrNull(terrain.trackIndex[nearestDrawn(terrain.distances, alongM)])
+        }
+    }
+    // Measured along the drawn points, which is what the profile's own distances are measured along.
+    val highlighted = remember(editorTerrain, selected) {
+        val range = selected
+        val terrain = editorTerrain
+        if (range == null || terrain == null) {
+            emptyList()
+        } else {
+            sliceBetween(terrain.trackIndex.map { editorTrack.coordinates[it] }, terrain.distances, range.fromM, range.toM)
+        }
+    }
     val scope = rememberCoroutineScope()
 
     // Where the camera looks is decided once, as the editor opens: an edit must not move the map under a finger.
@@ -212,6 +239,8 @@ fun PlanEditorScreen(
                         dragging = index to at
                     }
                 },
+                marker = picked,
+                highlight = highlighted,
                 onIdle = onIdle,
             )
         }
@@ -223,8 +252,8 @@ fun PlanEditorScreen(
                 Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, top = UNDER_MAP_CREDIT),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Box(Modifier.size(44.dp)) { if (state.canUndo) IconButton(Icons.Undo, "Undo", editor::undo) }
-                Box(Modifier.size(44.dp)) { if (state.canRedo) IconButton(Icons.Redo, "Redo", editor::redo) }
+                Box(Modifier.size(44.dp)) { if (state.canUndo) IconButton(Icons.Undo, "Undo", editor::undo, tint = Tokens.bad) }
+                Box(Modifier.size(44.dp)) { if (state.canRedo) IconButton(Icons.Redo, "Redo", editor::redo, tint = Tokens.accent) }
             }
         }
 
@@ -239,7 +268,7 @@ fun PlanEditorScreen(
             header = {
                 // Save is offered once there is something to save; Cancel always is, and Copy whenever there is a plan to keep.
                 val actions = listOfNotNull(
-                    MenuEntry(Icons.Save, "Save", onSave).takeIf { state.saveable },
+                    MenuEntry(Icons.Save, "Save", onSave, tint = Tokens.accent).takeIf { state.saveable },
                     MenuEntry(Icons.Copy, "Copy", onCopy).takeUnless { editor.new },
                     MenuEntry(Icons.Close, "Cancel", onCancel),
                 )
@@ -254,7 +283,15 @@ fun PlanEditorScreen(
             } else {
                 val totals = planTotals(legs)
                 PlanTiles(legs)
-                terrainOf(planTrack(legs), totals.distanceM.takeIf { it > 0 })?.let { ElevationProfile(it) }
+                editorTerrain?.let { terrain ->
+                    // The same bar and the same stretch the riding sheet has: a plan is read the way a ride is.
+                    ElevationProfile(
+                        terrain,
+                        pickedM = pickedM,
+                        onPick = { alongM -> pickedM = alongM },
+                        onRange = { selected = it },
+                    )
+                }
             }
 
             BasicText("PROFILE", style = Type.label)

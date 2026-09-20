@@ -35,7 +35,7 @@ internal fun haversine(a: Coordinate, b: Coordinate): Double {
 }
 
 /** Metres along the track at each point, scaled so the last lands on [reportedM] when there is one. */
-internal fun cumulativeDistances(coordinates: List<Coordinate>, reportedM: Double?): List<Double> {
+fun cumulativeDistances(coordinates: List<Coordinate>, reportedM: Double?): List<Double> {
     val out = DoubleArray(coordinates.size)
     var running = 0.0
     for (i in coordinates.indices) {

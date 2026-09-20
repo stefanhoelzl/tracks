@@ -50,6 +50,12 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
         }
+        // Compose's own test harness, on the JVM only: it is what says a gesture on a profile still reaches the
+        // handler under it, which compiling cannot and a screenshot does not.
+        jvmTest.dependencies {
+            implementation(compose.desktop.currentOs)
+            implementation(compose.desktop.uiTestJUnit4)
+        }
     }
 }
 

@@ -2,6 +2,7 @@ package net.stho.tracks.ui.plans
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation as DragOrientation
 import androidx.compose.foundation.gestures.draggable
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -69,6 +71,7 @@ import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
 import net.stho.tracks.ui.upload.UploadQueue
+import net.stho.tracks.ui.upload.SignInSheet
 import net.stho.tracks.ui.upload.UploadStatus
 
 /** How much of the screen the open sheet takes, and how much of it stays when it is pulled down. */
@@ -108,6 +111,11 @@ fun HomeScreen(
     upload: UploadQueue? = null,
     onIdle: () -> Unit = {},
 ) {
+    // Signing in belongs to the screen, not to the status line that asks for it: the sheet has to
+    // sit at the bottom of the *screen* to rise above the keyboard, and the status line lives in a
+    // header that neither scrolls nor moves.
+    var signingIn by remember { mutableStateOf(false) }
+
     BoxWithConstraints(modifier.fillMaxSize().background(Tokens.ground)) {
         style?.let {
             TracksMap(
@@ -159,13 +167,13 @@ fun HomeScreen(
                 ) {
                     BasicText("Plans", style = Type.title, modifier = Modifier.weight(1f))
                     if (onRide != null) {
-                        IconButton(Icons.Navigate, "Ride", onClick = onRide)
+                        IconButton(Icons.Navigate, "Ride", onClick = onRide, tint = Tokens.accent)
                         Spacer(Modifier.width(8.dp))
                     }
-                    IconButton(Icons.New, "New plan", onClick = onNew)
+                    IconButton(Icons.New, "New plan", onClick = onNew, tint = Tokens.accent)
                 }
                 notice?.let { BasicText(it, style = Type.note, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) }
-                upload?.let { Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) { UploadStatus(it) } }
+                upload?.let { Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) { UploadStatus(it, onSignIn = { signingIn = true }) } }
             }
 
             if (plans.isEmpty()) {
@@ -193,6 +201,18 @@ fun HomeScreen(
                         )
                     }
                 }
+            }
+        }
+
+        if (signingIn && upload != null) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(Tokens.scrim)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { signingIn = false },
+            )
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().safeDrawingPadding().padding(12.dp)) {
+                SignInSheet(upload, onClose = { signingIn = false })
             }
         }
     }
@@ -237,10 +257,10 @@ private fun PlanRow(
 }
 
 /**
- * One thing a ⋯ menu offers: its icon, and the word a screen reader says for it. [fill] sets one apart — the thing to
- * do, or the one that ends something — drawing its icon in white on it.
+ * One thing a ⋯ menu offers: its icon, and the word a screen reader says for it. [tint] is what it does rather than how
+ * much it matters — green goes forward, red takes something away, black is neutral.
  */
-internal class MenuEntry(val icon: ImageVector, val label: String, val onClick: () -> Unit, val fill: Color? = null)
+internal class MenuEntry(val icon: ImageVector, val label: String, val onClick: () -> Unit, val tint: Color = Tokens.ink)
 
 /**
  * A plan's ⋯ menu: Navigate, Edit, Copy, Share link and Delete, the same wherever a plan is shown. Navigate is there when
@@ -262,7 +282,7 @@ internal fun PlanMenu(
             MenuEntry(Icons.Edit, "Edit", onEdit),
             MenuEntry(Icons.Copy, "Copy", onCopy),
             MenuEntry(Icons.Share, "Share link", onShare),
-            MenuEntry(Icons.Delete, "Delete", onDelete),
+            MenuEntry(Icons.Delete, "Delete", onDelete, tint = Tokens.bad),
         ),
         modifier,
         initiallyOpen,
@@ -319,14 +339,5 @@ private class MenuPosition(private val opensUp: Boolean) : PopupPositionProvider
 
 @Composable
 private fun MenuIcon(entry: MenuEntry, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(44.dp)
-            .then(entry.fill?.let { Modifier.background(it, Shapes.control) } ?: Modifier)
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = entry.label },
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(entry.icon, contentDescription = null, modifier = Modifier.size(20.dp), colorFilter = ColorFilter.tint(if (entry.fill != null) Tokens.surface else Tokens.ink))
-    }
+    IconButton(entry.icon, entry.label, onClick, tint = entry.tint)
 }

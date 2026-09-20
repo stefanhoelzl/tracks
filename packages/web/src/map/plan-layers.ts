@@ -42,7 +42,8 @@ export const PLAN_PREVIEW_LAYER = 'plan-preview-ring'
  * which is what the accent has always meant. Borrowing the selected-track highlight said
  * "the track you mean" instead, and put a plan and a ride in the same voice.
  */
-const ACCENT = '#0d8a5f'
+/** `--accent`: the plan is the thing you edit, so it wears the interactive colour. */
+export const ACCENT = '#0d8a5f'
 
 /**
  * Below this a shaping point is noise: at valley scale it is the handle you reach for,

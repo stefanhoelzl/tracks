@@ -1,12 +1,16 @@
+/* Centred with `margin: auto` on the card rather than by centring the container: a grid or
+   flex box centres by overflowing both ways, and a card taller than the window then has its
+   top cut off with nothing to scroll to. This centres while it fits and scrolls when it does
+   not — which is what an error appearing above the button asks for. */
 .page {
-  display: grid;
-  place-items: center;
+  display: flex;
   min-height: 100dvh;
   padding: 24px;
   background: var(--sunk);
 }
 
 .card {
+  margin: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -68,7 +72,7 @@
   margin: 0;
   font-size: var(--text-base);
   line-height: 1.5;
-  color: #a2261d;
+  color: var(--bad);
 }
 
 .primary {

@@ -16,11 +16,13 @@
   background: var(--sunk);
 }
 
+/* On rather than filled: colour is what says a control is active, the same way the phone's
+   camera button and its chosen sport say it. The pill that used to invert the icon was the
+   last filled thing in the chrome. */
 .active {
-  background: var(--ink);
-  color: var(--surface);
+  color: var(--accent);
 }
 
 .active:hover {
-  background: var(--ink);
+  background: var(--accent-soft);
 }

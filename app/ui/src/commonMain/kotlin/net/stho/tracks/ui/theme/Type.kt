@@ -15,6 +15,9 @@ object Type {
     val body = TextStyle(color = Tokens.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     val note = TextStyle(color = Tokens.ink2, fontSize = 13.sp)
     val mono = TextStyle(color = Tokens.muted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+
+    /** A figure that is the point of the line it is on: the profile's done and to-come, read at speed. */
+    val figure = TextStyle(color = Tokens.ink, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
     val label = TextStyle(color = Tokens.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.12.em)
     val number = TextStyle(color = Tokens.ink, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.04).em)
     val unit = TextStyle(color = Tokens.muted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)

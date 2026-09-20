@@ -8,6 +8,7 @@ import { legCount, moveStop, type Placement } from '../lib/plan-ops.ts'
 import { readingsFrom } from '../lib/plan-track.ts'
 import { PlaceSearch } from './PlaceSearch.tsx'
 import { Label } from './ui/Label.tsx'
+import { WaypointMark } from './ui/Waypoint.tsx'
 import styles from './WaypointPanel.module.css'
 
 /**
@@ -140,8 +141,11 @@ export function WaypointPanel({
               rows crosses the gaps between them, and re-basing to the first stop for a
               frame each time would make the numbers flicker. */}
           <ol className={styles.list} onMouseLeave={() => setBase(null)}>
-            {rows.map(({ waypoint, index, stop: ordinal }) => {
+            {rows.map(({ waypoint, index, stop: ordinal }, at) => {
               const reading = readings[ordinal]
+              // The glyph says which end of the line this is, in the same four marks the
+              // dialog offers and the phone draws.
+              const glyph = at === 0 ? 'start' : at === rows.length - 1 ? 'end' : 'mid'
 
               return waypoint.kind === 'poi' ? (
                 <li
@@ -166,7 +170,7 @@ export function WaypointPanel({
                     onFocus={() => setBase(ordinal)}
                     onClick={() => onSelect(index)}
                   >
-                    <span className={styles.dot} />
+                    <WaypointMark glyph={glyph} size={17} className={styles.glyph} />
                     <span className={styles.name}>{waypoint.name ?? 'Unnamed stop'}</span>
                     {/* The row being measured from carries no numbers, which is what
                         the first row always did. A leg that failed shows a dash: the
@@ -195,6 +199,7 @@ export function WaypointPanel({
                     className={styles.tickButton}
                     onClick={() => onSelect(index)}
                   >
+                    <WaypointMark glyph="shape" size={15} className={styles.glyph} />
                     Shaping point
                   </button>
                   <button

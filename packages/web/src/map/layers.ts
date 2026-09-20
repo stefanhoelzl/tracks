@@ -26,6 +26,20 @@ export const SELECTED_LAYER = 'selected-track'
 export const CURSOR_LAYER = 'cursor-dot'
 
 /**
+ * The stretch two bars on the elevation profile enclose, drawn over the track it is part of.
+ *
+ * A source of its own rather than a filter on the track: the selection is a slice with
+ * interpolated ends, which is a different geometry from anything already on the map, and
+ * dimming "the rest" means holding back the line underneath rather than cutting it in three.
+ */
+/** What the selected track drops to outside a stretch selected on its profile. */
+export const HELD_BACK = 0.28
+
+export const RANGE_SOURCE = 'range'
+export const RANGE_CASING_LAYER = 'range-casing'
+export const RANGE_LAYER = 'range-line'
+
+/**
  * Below this the map is about where you have been, not which way you went, so the
  * lines give way to clustered start points. The two cross-fade over one zoom level
  * rather than snapping, which is what keeps the transition from reading as a glitch.
@@ -73,6 +87,22 @@ const HIGHLIGHT_CASING_WIDTH: ExpressionSpecification = [
   11,
 ]
 const HIGHLIGHT_CASING_OPACITY = 0.75
+
+/**
+ * The white border around a selected stretch: wider than the casing a selected track already wears,
+ * so the stretch reads as picked out of the line rather than as a second line beside it.
+ */
+const RANGE_CASING_WIDTH: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  6,
+  9,
+  10,
+  12,
+  14,
+  16,
+]
 
 /** Coalesced: a feature without a colour would take the layer down, not draw it wrong. */
 const HIGHLIGHT_COLOUR: ExpressionSpecification = [
@@ -207,6 +237,7 @@ export function addTrackLayers(map: MapLibreMap): void {
   map.addSource(TRACKS_SOURCE, { type: 'geojson', data: EMPTY })
   map.addSource(SELECTED_SOURCE, { type: 'geojson', data: EMPTY })
   map.addSource(CURSOR_SOURCE, { type: 'geojson', data: EMPTY })
+  map.addSource(RANGE_SOURCE, { type: 'geojson', data: EMPTY })
   map.addSource(STARTS_SOURCE, {
     type: 'geojson',
     data: EMPTY,
@@ -270,6 +301,31 @@ export function addTrackLayers(map: MapLibreMap): void {
     source: SELECTED_SOURCE,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: highlightPaint(),
+  })
+
+  // The selected stretch, over the line held back beneath it: the chart and the map are then
+  // talking about the same kilometres. It **keeps the track's own colour** and is picked out by a
+  // white casing rather than by being repainted — a stretch drawn in ink would answer *which piece*
+  // by destroying the answer to *what is this ride*, which is the colour it is drawn in.
+  map.addLayer({
+    id: RANGE_CASING_LAYER,
+    type: 'line',
+    source: RANGE_SOURCE,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': RANGE_CASING_WIDTH,
+    },
+  })
+  map.addLayer({
+    id: RANGE_LAYER,
+    type: 'line',
+    source: RANGE_SOURCE,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': HIGHLIGHT_COLOUR,
+      'line-width': HIGHLIGHT_WIDTH,
+    },
   })
 
   // Where the elevation profile's cursor is, on the track it belongs to. White with

@@ -7,7 +7,7 @@ import type { Plan } from '../lib/plan.ts'
 import { derivedName, type Placement } from '../lib/plan-ops.ts'
 import { planTotals } from '../lib/plan-track.ts'
 import type { Reference } from '../lib/references.ts'
-import { profileOf } from './ElevationProfile.tsx'
+import { profileOf, type Range } from './ElevationProfile.tsx'
 import styles from './PlanPanel.module.css'
 import { ReferenceList } from './ReferenceList.tsx'
 import { TrackOverview } from './TrackOverview.tsx'
@@ -46,6 +46,7 @@ export function PlanPanel({
   onDismissReference,
   onCancelRead,
   onCursor,
+  onRange,
   onPlan,
   onSelect,
   onRemove,
@@ -72,6 +73,8 @@ export function PlanPanel({
   onDismissReference: (id: string) => void
   onCancelRead: () => void
   onCursor: (index: number | null) => void
+  /** Told which stretch is selected, so the map can hold the rest back. */
+  onRange: (range: Range | null) => void
   onPlan: (plan: Plan) => void
   onSelect: (index: number) => void
   onRemove: (index: number) => void
@@ -131,6 +134,7 @@ export function PlanPanel({
             profile={profile}
             cursor={cursor}
             onCursor={onCursor}
+            onRange={onRange}
             note={
               totals.incomplete
                 ? 'One leg could not be routed, so these totals are short by it.'

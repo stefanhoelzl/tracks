@@ -3,6 +3,8 @@ import { formatFilter } from '@tracks/core'
 import type { LatLon, Leg } from '@tracks/routing'
 import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
+import { cumulativeDistances } from '../lib/geo.ts'
+import { sliceBetween } from '../lib/profile.ts'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   type DragEvent,
@@ -10,6 +12,7 @@ import {
   type Ref,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -24,9 +27,12 @@ import {
   addTrackLayers,
   CURSOR_SOURCE,
   FOCUS_LAYER,
+  HELD_BACK,
   paint,
   paintTracks,
+  RANGE_SOURCE,
   SELECTED_CASING_LAYER,
+  SELECTED_LAYER,
   SELECTED_SOURCE,
   STARTS_SOURCE,
   startPoints,
@@ -37,6 +43,7 @@ import {
   addPlanLayers,
   beelineFeatures,
   PENDING_OPACITY,
+  ACCENT as PLAN_ACCENT,
   PLAN_CASING_LAYER,
   PLAN_FAILED_LAYER,
   PLAN_LINE_LAYER,
@@ -138,6 +145,7 @@ export function MapView({
   plannedTrack,
   references,
   cursorTrack,
+  range,
   pending,
   preview,
   pin,
@@ -187,6 +195,11 @@ export function MapView({
    * array it indexes. So the array comes with it rather than being assumed.
    */
   cursorTrack: Array<[number, number]> | null
+  /**
+   * The stretch two bars on the elevation profile enclose, in metres along whichever track the
+   * cursor belongs to. The map draws that piece over the line and holds the rest back.
+   */
+  range: { fromM: number; toM: number; totalM: number } | null
   /** A leg is outstanding, which is what the dashed line pulses to say. */
   pending: boolean
   /** The search result under the pointer, drawn as a ring. Not part of the plan. */
@@ -791,6 +804,62 @@ export function MapView({
         : [],
     })
   }, [ready, cursor, detail, planning, plannedTrack, cursorTrack])
+
+  /**
+   * What a selected stretch is drawn in: the plan's accent while planning, and otherwise the
+   * selected activity's own colour turned up — the very value the line under it is painted with.
+   */
+  const rangeColour = useMemo(() => {
+    if (planning || cursorTrack) return PLAN_ACCENT
+    if (!detail) return PLAN_ACCENT
+    return emphasise(
+      activityColour(
+        detail.activity.tags,
+        Number(detail.activity.localDate.slice(0, 4)),
+        colourBy,
+        scale,
+      ),
+    )
+  }, [planning, cursorTrack, detail, colourBy, scale])
+
+  // The stretch the two bars enclose, on the same track the cursor indexes into.
+  useEffect(() => {
+    if (!ready || !map.current) return
+    const source = map.current.getSource<GeoJSONSource>(RANGE_SOURCE)
+    if (!source) return
+
+    const coordinates = cursorTrack ?? (planning ? plannedTrack : detail?.track.coordinates)
+    // Measured here rather than handed over: the profile scales its distances to the reported
+    // length, and `cumulativeDistances` is the same scaling, so the two agree by construction.
+    const along = range && coordinates ? cumulativeDistances(coordinates, range.totalM) : null
+    const slice =
+      range && coordinates && along ? sliceBetween(coordinates, along, range.fromM, range.toM) : []
+    source.setData({
+      type: 'FeatureCollection',
+      features:
+        slice.length > 1
+          ? [
+              {
+                type: 'Feature',
+                // The same key the selected line is painted from, so the stretch keeps that line's
+                // own colour rather than taking one of its own.
+                properties: { colourHi: rangeColour },
+                geometry: { type: 'LineString', coordinates: slice },
+              },
+            ]
+          : [],
+    })
+    // The line under it is held back while a piece of it is being talked about.
+    for (const layer of [SELECTED_LAYER, SELECTED_CASING_LAYER]) {
+      if (map.current.getLayer(layer)) {
+        map.current.setPaintProperty(
+          layer,
+          'line-opacity',
+          slice.length > 1 ? HELD_BACK : undefined,
+        )
+      }
+    }
+  }, [ready, range, detail, planning, plannedTrack, cursorTrack, rangeColour])
 
   // --- Camera ---------------------------------------------------------------
 

@@ -35,13 +35,14 @@ import net.stho.tracks.ui.theme.Tokens
 /** A ride the app died during, found as it started again: continue it where the journal left it, or stop it there. */
 @Composable
 fun InterruptedSheet(interrupted: RecorderState.Interrupted, onContinue: () -> Unit, onStop: () -> Unit) {
-    Sheet {
-        Title("A ride was interrupted")
-        Label("It had ${kilometres(interrupted.distanceM)} when the app was ended.")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+    Sheet(
+        actions = {
             Button("Stop", quiet = true, onClick = onStop)
             Button("Continue", onClick = onContinue)
-        }
+        },
+    ) {
+        Title("A ride was interrupted")
+        Label("It had ${kilometres(interrupted.distanceM)} when the app was ended.")
     }
 }
 
@@ -59,28 +60,31 @@ fun SaveRideSheet(
     var title by remember(stopped.id) { mutableStateOf(stopped.title) }
     var sport by remember(stopped.id) { mutableStateOf(stopped.sport) }
 
-    Sheet {
+    Sheet(
+        actions = {
+            Button("Discard", quiet = true, bad = true, onClick = onDiscard)
+            Spacer(Modifier.weight(1f))
+            Button("Continue", quiet = true, onClick = onContinue)
+            Button("Save") { onSave(title, sport) }
+        },
+    ) {
         Title("Save ride?")
         Field(title, onValueChange = { title = it })
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SPORTS.forEach { value -> SportButton(value, chosen = value == sport) { sport = value } }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button("Discard", quiet = true, onClick = onDiscard)
-            Spacer(Modifier.weight(1f))
-            Button("Continue", quiet = true, onClick = onContinue)
-            Button("Save") { onSave(title, sport) }
-        }
     }
 }
 
-/** A sport as its figure, and no word: the chosen one in the accent. The word is what a screen reader says. */
+/**
+ * A sport as its figure, and no word: the chosen one green, the rest black. Nothing is drawn behind
+ * it — the colour is the whole of the state, as it is everywhere else in the set.
+ */
 @Composable
 private fun SportButton(sport: String, chosen: Boolean, onClick: () -> Unit) {
     Box(
         Modifier
             .size(48.dp)
-            .background(if (chosen) Tokens.accent else Tokens.sunk, CircleShape)
             .clickable(onClick = onClick)
             .semantics {
                 contentDescription = sport.replaceFirstChar { it.uppercase() }
@@ -93,7 +97,7 @@ private fun SportButton(sport: String, chosen: Boolean, onClick: () -> Unit) {
             "run" -> Icons.Run
             else -> Icons.Bike
         }
-        Image(icon, contentDescription = null, modifier = Modifier.size(24.dp), colorFilter = ColorFilter.tint(if (chosen) Tokens.surface else Tokens.ink))
+        Image(icon, contentDescription = null, modifier = Modifier.size(26.dp), colorFilter = ColorFilter.tint(if (chosen) Tokens.accent else Tokens.ink))
     }
 }
 

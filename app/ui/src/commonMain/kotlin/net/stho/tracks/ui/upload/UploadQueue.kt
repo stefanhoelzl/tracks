@@ -73,7 +73,14 @@ class UploadQueue(
         wake.trySend(Unit)
     }
 
-    /** Signs in and sends whatever was waiting. Returns what to tell the person when it did not work, or null. */
+    /**
+     * Signs in and sends whatever was waiting. Returns what to tell the person when it did not work, or null.
+     *
+     * **One short sentence per kind, never the exception's own words.** What a failed request throws
+     * is a library's sentence about a host and a domain and a negative number, and there is no length
+     * it cannot be; on a sheet that had it above the buttons, it pushed them off the screen. The
+     * thrown text is worth having in a log and worth nothing on a phone in the rain.
+     */
     suspend fun signIn(email: String, password: String): String? = try {
         sessions.save(api.signIn(email.trim(), password))
         publish(uploading = false)
@@ -81,8 +88,10 @@ class UploadQueue(
         null
     } catch (e: ApiException.Unauthorized) {
         "Wrong email or password."
+    } catch (e: ApiException.Refused) {
+        "Tracks refused that (${e.status})."
     } catch (e: ApiException) {
-        e.message ?: "Tracks could not be reached."
+        "No connection to Tracks."
     }
 
     private suspend fun run() {

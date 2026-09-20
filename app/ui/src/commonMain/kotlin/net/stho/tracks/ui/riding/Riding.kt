@@ -22,15 +22,23 @@ import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.places.PhotonGeocoder
 import net.stho.tracks.plan.Waypoint
 import net.stho.tracks.plan.WaypointKind
+import net.stho.tracks.plan.Plan
+import net.stho.tracks.plan.addWaypoint
+import net.stho.tracks.plan.kindIsAChoice
+import net.stho.tracks.plan.moveStop
+import net.stho.tracks.plan.removeWaypoint
+import net.stho.tracks.plan.setKind
+import net.stho.tracks.plan.updateWaypoint
+import net.stho.tracks.ui.plans.PinTarget
+import net.stho.tracks.ui.plans.PlaceSearch
+import net.stho.tracks.ui.plans.WaypointDialog
 import net.stho.tracks.plan.nearestLeg
 import net.stho.tracks.riding.Detour
 import net.stho.tracks.riding.RideEdits
 import net.stho.tracks.riding.detour
 import net.stho.tracks.routing.LegRouting
-import net.stho.tracks.store.PlanEditor
 import net.stho.tracks.store.PlanLibrary
 import net.stho.tracks.ui.map.MapStyle
-import net.stho.tracks.ui.plans.PlanEditorScreen
 import net.stho.tracks.ui.recording.InterruptedSheet
 import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.recording.RecorderState
@@ -45,8 +53,10 @@ import net.stho.tracks.ui.sensors.Sensors
  *
  * - **A long press** on the map raises the detour dialog. What it makes goes into the leg you are on and is saved over
  *   the plan at once; the leg routes where the library routes, pulsing meanwhile. Undo and Redo take the steps back.
- * - **Edit plan** opens the editor over the ride, as it is from the list: Save overwrites the plan and is one more step
- *   to undo; Copy saves it as a new plan, and the ride follows the copy from then on; Cancel leaves the plan as it was.
+ * - **The large sheet is the stop list**, searchable, reorderable and deletable, and **a tap on a waypoint** on the map
+ *   opens the same dialog the editor does — delete it, or change what it is. There is no *Edit plan* any more: a second
+ *   way to change a plan was a second place to be while a ride recorded, and every edit already goes through the one
+ *   stack that takes it back.
  *
  * [navigator] must already follow the plan the ride does. [sensors] are the ones the recorder reads, and [router] the
  * one the [library] routes with.
@@ -77,47 +87,15 @@ fun Riding(
         is RecorderState.Interrupted -> current.id
         RecorderState.Idle -> null
     }
-    // Kept out here, for as long as the ride: the editor replaces the riding screen, and the sheet is as it was after.
-    var expanded by remember(rideId) { mutableStateOf(false) }
+    // Kept out here, for as long as the ride: a ride starts at the smallest detent, because most of a ride is map.
+    var detent by remember(rideId) { mutableStateOf(Detent.Small) }
     val planId = recording?.planId
     val scope = rememberCoroutineScope()
 
     val edits = remember(planId) { planId?.let { RideEdits(library, it) } }
     val undoState by remember(edits) { edits?.state ?: flowOf(RideEdits.State()) }.collectAsState(RideEdits.State())
     var target by remember { mutableStateOf<DetourTarget?>(null) }
-    var editing by remember { mutableStateOf<PlanEditor?>(null) }
-
-    val editor = editing
-    if (editor != null && recording != null) {
-        val before = remember(editor) { library.find(editor.id) }
-        PlanEditorScreen(
-            style = style,
-            editor = editor,
-            geocoder = geocoder,
-            fix = fix,
-            onCancel = {
-                editor.close()
-                editing = null
-            },
-            onSave = {
-                scope.launch {
-                    editor.save(library)
-                    before?.let { edits?.edited(it) }
-                    editing = null
-                }
-            },
-            onCopy = {
-                scope.launch {
-                    val copy = editor.saveAsNew(library)
-                    recorder.follow(copy.id)
-                    editing = null
-                }
-            },
-            modifier = modifier,
-            onIdle = onIdle,
-        )
-        return
-    }
+    var tapped by remember { mutableStateOf<Int?>(null) }
 
     fun place(chosen: DetourTarget, kind: Detour) {
         target = null
@@ -143,6 +121,11 @@ fun Riding(
         }
     }
 
+    val stored = navigation?.let { library.find(it.plan.id) }
+    fun change(next: Plan) {
+        scope.launch { edits?.update(next) }
+    }
+
     RidingScreen(
         style = style,
         fix = fix,
@@ -156,14 +139,26 @@ fun Riding(
         onResume = recorder::resume,
         onStop = recorder::stop,
         modifier = modifier,
-        expanded = expanded,
-        onExpanded = { expanded = it },
+        detent = detent,
+        onDetent = { detent = it },
         onLongPlace = if (planId != null) { at, name -> target = DetourTarget(at, name) } else null,
-        onEditPlan = planId?.let { id ->
-            {
-                target = null
-                library.find(id)?.let { editing = PlanEditor(it, router, scope) }
-            }
+        onWaypointTap = if (stored != null) { index -> tapped = index } else null,
+        editing = stored?.let { plan ->
+            RidePlanEditing(
+                plan = plan.plan,
+                legs = plan.legs,
+                onRemove = { index -> change(removeWaypoint(plan.plan, index)) },
+                onMoveStop = { from, to -> change(moveStop(plan.plan, from, to)) },
+                search = {
+                    PlaceSearch(
+                        geocoder = geocoder,
+                        near = { fix?.at ?: navigation?.progress?.let { navigation?.route?.pointAt(it.alongM) } },
+                        onPick = { place ->
+                            change(addWaypoint(plan.plan, Waypoint(place.lat, place.lon, WaypointKind.Poi, place.name), plan.plan.waypoints.size))
+                        },
+                    )
+                },
+            )
         },
         undo = edits?.let { UndoControls(undoState.canUndo, undoState.canRedo, { scope.launch { it.undo() } }, { scope.launch { it.redo() } }) },
         onIdle = onIdle,
@@ -172,8 +167,34 @@ fun Riding(
             when (val asked = state) {
                 is RecorderState.Stopped -> SaveRideSheet(asked, onSave = recorder::save, onContinue = recorder::continueStopped, onDiscard = recorder::discard)
                 is RecorderState.Interrupted -> InterruptedSheet(asked, onContinue = recorder::continueRide, onStop = recorder::stop)
-                else -> target?.let { chosen ->
-                    DetourDialog(chosen, onDetour = { place(chosen, it) }, onClose = { target = null })
+                else -> {
+                    val chosen = target
+                    val editable = tapped?.let { index -> stored?.plan?.waypoints?.getOrNull(index)?.let { index to it } }
+                    when {
+                        chosen != null -> DetourDialog(chosen, onDetour = { place(chosen, it) }, onClose = { target = null })
+                        // A tap on a waypoint is the editor's own dialog: delete it, or change what it is. A tap
+                        // anywhere else on the riding map still does nothing at all.
+                        editable != null && stored != null -> WaypointDialog(
+                            target = PinTarget.Edit(editable.first, editable.second),
+                            count = stored.plan.waypoints.size,
+                            kindIsAChoice = kindIsAChoice(stored.plan),
+                            onAdd = { _, _ -> },
+                            onKind = { kind ->
+                                change(setKind(stored.plan, editable.first, kind))
+                                tapped = null
+                            },
+                            onRename = { name ->
+                                change(updateWaypoint(stored.plan, editable.first) { it.copy(name = name.ifBlank { null }) })
+                                tapped = null
+                            },
+                            onRemove = {
+                                change(removeWaypoint(stored.plan, editable.first))
+                                tapped = null
+                            },
+                            onClose = { tapped = null },
+                        )
+                        else -> Unit
+                    }
                 }
             }
         }

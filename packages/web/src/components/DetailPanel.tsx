@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, group, km, localTime, longDate, metres } from '../lib/format.ts'
 import styles from './DetailPanel.module.css'
-import { profileOf } from './ElevationProfile.tsx'
+import { profileOf, type Range } from './ElevationProfile.tsx'
 import { TagInput } from './TagInput.tsx'
 import { TrackOverview } from './TrackOverview.tsx'
 import { Chip } from './ui/Chip.tsx'
@@ -26,6 +26,7 @@ export function DetailPanel({
   error,
   cursor,
   onCursor,
+  onRange,
   onTags,
   onBack,
 }: {
@@ -38,6 +39,8 @@ export function DetailPanel({
   /** The point the elevation cursor is on, shared with the map. */
   cursor: number | null
   onCursor: (index: number | null) => void
+  /** Told which stretch is selected, so the map can hold the rest back. */
+  onRange: (range: Range | null) => void
   onTags: (tags: string[], newType?: NewType) => Promise<unknown>
   onBack: () => void
 }) {
@@ -90,6 +93,7 @@ export function DetailPanel({
               profile={profile}
               cursor={cursor}
               onCursor={onCursor}
+              onRange={onRange}
               note={`${group(detail.track.coordinates.length)} points at full resolution, drawn on the map.`}
             />
 
