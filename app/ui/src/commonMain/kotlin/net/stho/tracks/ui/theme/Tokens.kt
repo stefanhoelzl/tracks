@@ -29,4 +29,10 @@ object Tokens {
     val accent = Color(0xFF0D8A5F) // --accent
     val accentDeep = Color(0xFF0A6E4C) // --accent-deep
     val accentSoft = Color(0xFFE4F3EC) // --accent-soft
+
+    /** What takes something away — undo, discard, delete — and what a failure is said in. */
+    val bad = Color(0xFFB0304B) // --bad
+
+    /** Behind a sheet that wants an answer before anything else: the screen, held back. */
+    val scrim = Color(0x3D0F1513) // --scrim
 }

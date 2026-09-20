@@ -1,14 +1,21 @@
 import type { ActivityTrack } from '@tracks/core'
-import type { EChartsType, ElementEvent } from 'echarts/core'
-import { useEffect, useMemo, useRef } from 'react'
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { CHART, gradeColour } from '../lib/chart-theme.ts'
 import { km, metres, slope } from '../lib/format.ts'
 import { cumulativeDistances, drawnIndices, gradients, nearestInSorted } from '../lib/geo.ts'
+import {
+  alongAt,
+  altitudeAt,
+  distanceAxis,
+  heightAxis,
+  type Stats,
+  splitAt,
+  statsBetween,
+} from '../lib/profile.ts'
 import styles from './ElevationProfile.module.css'
-import { Chart, type ChartOption } from './ui/Chart.tsx'
 
 /**
- * One activity's terrain, against distance along it.
+ * One track's terrain, against distance along it.
  *
  * Distance and not time: timestamps were taken off the detail payload deliberately,
  * and nothing since has wanted them back. Distance is also how the thing is talked
@@ -19,14 +26,22 @@ import { Chart, type ChartOption } from './ui/Chart.tsx'
  * green, yellow, orange and red to dark red at +15%. Still deliberately not the
  * activity's hashed colour — that colour answers *which category*, where this answers
  * *how steep, here*, which is the question a single ride's profile is for.
+ *
+ * **Drawn by hand rather than by ECharts.** The same picture has to appear in four
+ * places across two platforms, one of which paints it on a Compose canvas; with a chart
+ * library on one side only, every gesture and every gridline was a translation between
+ * two vocabularies, and the two drifted. So the line, the axes, the bar and the brush
+ * are an `<svg>` here and a `Canvas` there, over arithmetic both import from
+ * `lib/profile.ts`. ECharts stays where it earns its keep — the analytics charts, which
+ * exist here only.
  */
 
 /**
  * The smallest range the y axis will show.
  *
  * Without it every ride fills the box and a flat valley loop draws exactly like a col.
- * The floor extends upward from the true minimum rather than padding both ends, so the
- * bottom label is always a height that was actually recorded.
+ * It survived the arrival of gridlines and is snapped out to whichever round step the
+ * axis chose, so the labels stay numbers you would say out loud.
  */
 const MIN_SPAN_M = 200
 
@@ -54,11 +69,14 @@ const TOLERANCE_OF_SPAN = 1 / 400
 const MAX_STEP_M = 50
 const MIN_STEPS = 40
 
-/** Enough for the y labels, which are the widest thing outside the plot. */
-const GRID = { left: 34, right: 8, top: 8, bottom: 6 }
+/** Room for the height labels on the left, and for the distance labels underneath. */
+const GRID = { left: 38, right: 8, top: 10, bottom: 18 }
 
 /** The area under the line, against the line's own colour at full strength. */
 const AREA_OPACITY = 0.16
+
+/** What the line drops to outside a selected stretch. The stretch keeps its own colour. */
+const OUTSIDE_OPACITY = 0.28
 
 export interface Profile {
   /** Metres along the track at each drawn point, scaled to the reported distance. */
@@ -69,6 +87,19 @@ export interface Profile {
   /** Each drawn point's index into the track, which is what the map is hovering. */
   trackIndex: number[]
   /** The whole track's length, which is the last distance. */
+  totalM: number
+}
+
+/**
+ * A stretch between two bars, in metres along the track — and how long that track is.
+ *
+ * The length travels with it because whoever draws the stretch on the map has to measure the
+ * same coordinates the same way, and the profile scaled its own distances to the reported
+ * length. Two numbers and the scale they were taken at, rather than two numbers and a guess.
+ */
+export interface Range {
+  fromM: number
+  toM: number
   totalM: number
 }
 
@@ -118,128 +149,71 @@ export function profileOf(track: ActivityTrack, reportedM: number | null): Profi
 /**
  * The ramp, as one gradient laid along the x axis.
  *
- * ECharts will not colour a line from a `visualMap` on anything but an axis dimension —
- * it wants to build a gradient out of it, and can only place the stops if it knows
- * where they fall on a coordinate. So the gradient is built here instead, from the one
- * dimension that *is* on an axis: distance. Same thing, one step earlier, and it costs
- * one SVG path rather than one per segment.
+ * Built along the one dimension that is on an axis — distance — rather than per segment:
+ * it costs one `<linearGradient>` and one path rather than one path per point, and the
+ * line and the area beneath it can share the single paint.
  *
- * Offsets are fractions of the drawn line's own bounding box, which is what a
- * non-global gradient is measured against — so they run between the first and last
- * point that carries an altitude, not between 0 and the track's length. A track that
- * starts under a dropout would otherwise be painted with the ramp shifted along it.
- *
- * A run of one colour keeps only the stops at its two ends. Dropping the ends instead
- * would smear a plateau into whatever is next to it.
+ * Offsets are fractions of the drawn line's own extent, so they run between the first
+ * and last point that carries an altitude rather than between 0 and the track's length.
+ * A track that starts under a dropout would otherwise be painted with the ramp shifted
+ * along it. A run of one colour keeps only the stops at its two ends; dropping the ends
+ * instead would smear a plateau into whatever is next to it.
  */
-function rampAlong({ distances, altitudeM, gradients: grades }: Profile) {
+export function rampStops({ distances, altitudeM, gradients: grades }: Profile) {
   const drawn: number[] = []
   for (let at = 0; at < distances.length; at++) if (altitudeM[at] !== null) drawn.push(at)
-  if (drawn.length === 0) return CHART.ink
+  if (drawn.length === 0) return null
 
   const first = distances[drawn[0]!]!
   const span = distances[drawn[drawn.length - 1]!]! - first
-  if (span <= 0) return CHART.ink
+  if (span <= 0) return null
 
   const colours = drawn.map((at) => {
     const gradient = grades[at]
     return gradient === null || gradient === undefined ? CHART.ink : gradeColour(gradient)
   })
 
-  const colorStops: Array<{ offset: number; color: string }> = []
+  const stops: Array<{ offset: number; colour: string }> = []
   for (let k = 0; k < colours.length; k++) {
     const colour = colours[k]!
     const plateau =
       k > 0 && k < colours.length - 1 && colour === colours[k - 1] && colour === colours[k + 1]
     if (plateau) continue
-    colorStops.push({ offset: (distances[drawn[k]!]! - first) / span, color: colour })
+    stops.push({ offset: (distances[drawn[k]!]! - first) / span, colour })
   }
-
-  return { type: 'linear' as const, x: 0, y: 0, x2: 1, y2: 0, colorStops }
+  return { stops, fromM: first, spanM: span }
 }
 
-export function buildProfileOption(profile: Profile): ChartOption {
-  const { distances, altitudeM, gradients: grades, totalM } = profile
-  const measured = altitudeM.filter((value): value is number => value !== null)
-  const floor = Math.floor(Math.min(...measured))
-  const ceiling = Math.ceil(Math.max(...measured))
-  const top = floor + Math.max(ceiling - floor, MIN_SPAN_M)
+/** One run of measured altitude, as the line's `d` and the area's. */
+function runsOf(profile: Profile, x: (m: number) => number, y: (m: number) => number) {
+  const { distances, altitudeM } = profile
+  const runs: Array<{ line: string; area: string }> = []
 
-  // One paint for the line and the area beneath it, so the profile reads as a coloured
-  // mass rather than as a coloured hairline over a grey one.
-  const paint = rampAlong(profile)
+  let start = 0
+  while (start < altitudeM.length) {
+    if (altitudeM[start] === null) {
+      start++
+      continue
+    }
+    let end = start
+    while (end + 1 < altitudeM.length && altitudeM[end + 1] !== null) end++
 
-  return {
-    grid: GRID,
-    xAxis: {
-      type: 'value',
-      min: 0,
-      max: totalM,
-      // The two ends are set below the chart, in the same mono row the range sliders
-      // use for theirs. An axis label centred on the last tick would hang half its
-      // width past the panel.
-      show: false,
-    },
-    yAxis: {
-      type: 'value',
-      min: floor,
-      max: top,
-      // One interval, so exactly two labels are drawn: the bottom of the track and
-      // the top of the axis. Anything between them is a gridline nobody reads.
-      interval: top - floor,
-      axisLabel: { color: CHART.muted, formatter: (value: number) => metres(value) },
-      axisLine: { show: false },
-      axisTick: { show: false },
-      splitLine: { show: false },
-    },
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: CHART.tip,
-      borderWidth: 0,
-      padding: [4, 8],
-      textStyle: { color: CHART.tipInk, fontSize: 10 },
-      axisPointer: { type: 'line', lineStyle: { color: CHART.muted, width: 1 } },
-      formatter: (params: unknown) => {
-        const first = Array.isArray(params) ? params[0] : params
-        const value = (first as { value?: [number, number | null, number | null] } | undefined)
-          ?.value
-        if (!value) return ''
-        const [distance, altitude, gradient] = value
-        if (altitude === null || altitude === undefined) return `km ${km(distance)}`
-
-        const readout = `km ${km(distance)} · ${metres(altitude)} m`
-        // The figure in the colour the line under the cursor is drawn in: the number
-        // and the key to the ramp in one mark, which is why there is no key elsewhere.
-        if (gradient === null || gradient === undefined) return readout
-        return `${readout} · <span style="color:${gradeColour(gradient)}">${slope(gradient)}%</span>`
-      },
-    },
-    series: [
-      {
-        type: 'line',
-        // The gradient rides along as a third dimension. Nothing plots it — it is what
-        // the tooltip reads, so the formatter answers from the datum rather than from a
-        // lookup it would have to be handed separately.
-        data: distances.map((distance, index) => [
-          distance,
-          altitudeM[index] ?? null,
-          grades[index] ?? null,
-        ]),
-        // Rendering only: the series keeps every point the profile drew, so a hover
-        // still names a point the track recorded, and the map marker lands on a real
-        // coordinate.
-        sampling: 'lttb',
-        // A dropout is drawn as a dropout. The nulls survived the wire on purpose.
-        connectNulls: false,
-        showSymbol: false,
-        lineStyle: { color: paint, width: 1.2 },
-        // Filled to the start of the axis, not to zero — the axis starts at the
-        // track's own minimum, and an area hanging below it would be inventing ground.
-        areaStyle: { color: paint, opacity: AREA_OPACITY, origin: 'start' },
-        emphasis: { disabled: true },
-      },
-    ],
+    // A single measured point between two dropouts is a dot with no line in it; skipped
+    // rather than drawn as a zero-length path, which some renderers cap into a blob.
+    if (end > start) {
+      const points = []
+      for (let at = start; at <= end; at++) {
+        points.push(`${x(distances[at]!).toFixed(2)} ${y(altitudeM[at]!).toFixed(2)}`)
+      }
+      const line = `M${points.join('L')}`
+      runs.push({
+        line,
+        area: `${line}L${x(distances[end]!).toFixed(2)} BASEL${x(distances[start]!).toFixed(2)} BASEZ`,
+      })
+    }
+    start = end + 1
   }
+  return runs
 }
 
 export function ElevationProfile({
@@ -247,71 +221,419 @@ export function ElevationProfile({
   cursor,
   onCursor,
   height = 96,
+  /** Where you are on this stretch, when something is riding it. Planning, there is nobody. */
+  youM = null,
+  /** Without axes it is the line alone, edge to edge: a strip under a line of text. */
+  axes = true,
+  minSpanM = MIN_SPAN_M,
+  onRange,
 }: {
   profile: Profile
   /** The point the pointer is on, wherever it came from. */
   cursor: number | null
   onCursor: (index: number | null) => void
   height?: number
+  youM?: number | null
+  axes?: boolean
+  minSpanM?: number
+  /** Told which stretch is selected, so the map can dim the rest of the track. */
+  onRange?: (range: Range | null) => void
 }) {
-  const chart = useRef<EChartsType | null>(null)
-  const option = useMemo(() => buildProfileOption(profile), [profile])
+  const box = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
 
-  // Attached once, when the instance exists, and read live — so the handler always
-  // measures against the track currently loaded rather than the one it was born with.
-  const live = useRef({ profile, onCursor })
-  live.current = { profile, onCursor }
+  /** The bar you left there, as opposed to the one following the pointer. */
+  const [pinned, setPinned] = useState<number | null>(null)
+  const [range, setRange] = useState<Range | null>(null)
+  /** Where a drag began, while it is still too short to be a brush rather than a click. */
+  const drag = useRef<{ fromM: number; moved: boolean } | null>(null)
 
-  /**
-   * The chart half of the cursor.
-   *
-   * Read off zrender and converted back into data space rather than taken from
-   * `updateAxisPointer`, because this has to answer with *our* index into the track:
-   * the same number the map marker is placed from and the same number the map hands
-   * back the other way. The profile draws a simplification, so the two index spaces
-   * differ — but every drawn point is one the track recorded, so the conversion is a lookup
-   * and never an interpolation, and it happens here and in the effect below and
-   * nowhere else. One index, one meaning, whichever end moved.
-   */
-  const attach = (instance: EChartsType) => {
-    chart.current = instance
-    const zr = instance.getZr()
+  useEffect(() => {
+    const element = box.current
+    if (!element) return
+    const observer = new ResizeObserver(([entry]) => setWidth(entry?.contentRect.width ?? 0))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
-    zr.on('mousemove', (event: ElementEvent) => {
-      const point: [number, number] = [event.offsetX, event.offsetY]
-      if (!instance.containPixel({ gridIndex: 0 }, point)) {
-        live.current.onCursor(null)
-        return
-      }
-      const [distance] = instance.convertFromPixel({ gridIndex: 0 }, point) as [number, number]
-      const drawn = nearestInSorted(live.current.profile.distances, distance)
-      live.current.onCursor(live.current.profile.trackIndex[drawn] ?? null)
-    })
+  // A new track is a new profile: a bar left on the old one points at a place that is
+  // not there any more, and a range would dim a stretch of something else. Watched by the
+  // profile alone — a caller that rebuilds its callback has not changed the track.
+  const told = useRef(onRange)
+  told.current = onRange
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the callback is read live, not watched
+  useEffect(() => {
+    setPinned(null)
+    setRange(null)
+    told.current?.(null)
+  }, [profile])
 
-    zr.on('globalout', () => live.current.onCursor(null))
+  const plot = useMemo(() => {
+    const measured = profile.altitudeM.filter((value): value is number => value !== null)
+    const low = Math.min(...measured)
+    const high = Math.max(...measured)
+    return {
+      y: heightAxis(low, high, minSpanM),
+      x: distanceAxis(profile.totalM),
+      ramp: rampStops(profile),
+    }
+  }, [profile, minSpanM])
+
+  const inner = {
+    left: axes ? GRID.left : 6,
+    right: axes ? GRID.right : 6,
+    top: axes ? GRID.top : 3,
+    bottom: axes ? GRID.bottom : 3,
+  }
+  const plotWidth = Math.max(width - inner.left - inner.right, 1)
+  const plotHeight = Math.max(height - inner.top - inner.bottom, 1)
+
+  const x = (alongM: number) => inner.left + (alongM / profile.totalM) * plotWidth
+  const y = (altitude: number) =>
+    inner.top + plotHeight - ((altitude - plot.y.min) / (plot.y.max - plot.y.min)) * plotHeight
+
+  // Recomputed whenever the shape or the box it is drawn in changes: `x` and `y` are
+  // rebuilt every render and close over both, so they are not dependencies themselves.
+  const runs = runsOf(profile, x, y)
+
+  /** Where a pointer at [clientX] is, in metres along the track. */
+  const alongFrom = (clientX: number) => {
+    const bounds = box.current?.getBoundingClientRect()
+    if (!bounds || plotWidth <= 0) return 0
+    return alongAt(profile.totalM, (clientX - bounds.left - inner.left) / plotWidth)
   }
 
-  // And the other half: a cursor that arrived from the map moves the tooltip here.
-  // Dispatching one the chart itself just produced is a no-op it is not worth a flag
-  // to avoid.
-  useEffect(() => {
-    if (!chart.current) return
-    if (cursor === null) chart.current.dispatchAction({ type: 'hideTip' })
-    else
-      chart.current.dispatchAction({
-        type: 'showTip',
-        seriesIndex: 0,
-        dataIndex: nearestInSorted(profile.trackIndex, cursor),
-      })
-  }, [cursor, profile])
+  const report = (alongM: number | null) => {
+    if (alongM === null) {
+      onCursor(null)
+      return
+    }
+    onCursor(profile.trackIndex[nearestInSorted(profile.distances, alongM)] ?? null)
+  }
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId)
+    drag.current = { fromM: alongFrom(event.clientX), moved: false }
+  }
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const alongM = alongFrom(event.clientX)
+    const started = drag.current
+    if (started) {
+      // A brush only once the pointer has gone somewhere: a click that wobbles by a
+      // pixel is still a click, and selecting a 3 m stretch of a 40 km ride is never
+      // what anyone meant.
+      if (!started.moved && Math.abs(x(alongM) - x(started.fromM)) < 4) {
+        report(alongM)
+        return
+      }
+      started.moved = true
+      const next = {
+        fromM: Math.min(started.fromM, alongM),
+        toM: Math.max(started.fromM, alongM),
+        totalM: profile.totalM,
+      }
+      setRange(next)
+      onRange?.(next)
+    }
+    report(alongM)
+  }
+
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const started = drag.current
+    drag.current = null
+    if (!started) return
+    if (started.moved) return
+    // A click pins the bar where it is, and a second click on the same place takes it
+    // away again — including the range a drag left behind.
+    const alongM = alongFrom(event.clientX)
+    if (range) {
+      setRange(null)
+      onRange?.(null)
+    }
+    setPinned((was) => (was !== null && Math.abs(x(was) - x(alongM)) < 4 ? null : alongM))
+  }
+
+  const onPointerLeave = () => {
+    if (drag.current) return
+    report(pinned)
+  }
+
+  // The other half of the cursor: one that arrived from the map moves the bar here.
+  const fromMap =
+    cursor === null
+      ? null
+      : (profile.distances[nearestInSorted(profile.trackIndex, cursor)] ?? null)
+
+  const barM = range ? null : (fromMap ?? pinned)
+  const readAt = barM ?? pinned
+  const altitude = readAt === null ? null : altitudeAt(profile.distances, profile.altitudeM, readAt)
+  const gradient =
+    readAt === null ? null : (profile.gradients[nearestInSorted(profile.distances, readAt)] ?? null)
+
+  // Riding, the flanking figures are measured from you; planning, from the bar. Same
+  // arithmetic, and "done" is true either way.
+  const splitM = youM ?? readAt
+  const split = useMemo(
+    () => (splitM === null ? null : splitAt(profile.distances, profile.altitudeM, splitM)),
+    [profile, splitM],
+  )
+  const selected = useMemo(
+    () =>
+      range ? statsBetween(profile.distances, profile.altitudeM, range.fromM, range.toM) : null,
+    [profile, range],
+  )
+
+  const rampId = useMemo(() => `ramp-${Math.random().toString(36).slice(2, 9)}`, [])
+  const clipId = `${rampId}-band`
+  const base = (inner.top + plotHeight).toFixed(2)
 
   return (
     <>
-      <Chart option={option} height={height} onInit={attach} />
-      <div className={styles.bounds}>
-        <span>0</span>
-        <span>{km(profile.totalM)} km</span>
+      <div
+        ref={box}
+        className={styles.plot}
+        style={{ height }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerLeave}
+      >
+        {width > 0 ? (
+          <svg width={width} height={height} aria-hidden="true">
+            <defs>
+              {plot.ramp ? (
+                <linearGradient
+                  id={rampId}
+                  gradientUnits="userSpaceOnUse"
+                  x1={x(plot.ramp.fromM)}
+                  x2={x(plot.ramp.fromM + plot.ramp.spanM)}
+                >
+                  {plot.ramp.stops.map((stop) => (
+                    <stop
+                      key={`${stop.offset}-${stop.colour}`}
+                      offset={`${(stop.offset * 100).toFixed(3)}%`}
+                      stopColor={stop.colour}
+                    />
+                  ))}
+                </linearGradient>
+              ) : null}
+              {range ? (
+                <clipPath id={clipId}>
+                  <rect
+                    x={x(range.fromM)}
+                    y={inner.top}
+                    width={Math.max(x(range.toM) - x(range.fromM), 0)}
+                    height={plotHeight}
+                  />
+                </clipPath>
+              ) : null}
+            </defs>
+
+            {axes
+              ? plot.y.values.map((value) => (
+                  <g key={value}>
+                    <line
+                      className={styles.gridline}
+                      x1={inner.left}
+                      x2={inner.left + plotWidth}
+                      y1={y(value)}
+                      y2={y(value)}
+                    />
+                    <text
+                      className={styles.axisLabel}
+                      x={inner.left - 7}
+                      y={y(value) + 3.5}
+                      textAnchor="end"
+                    >
+                      {metres(value)}
+                    </text>
+                  </g>
+                ))
+              : null}
+
+            {range ? (
+              <rect
+                className={styles.band}
+                x={x(range.fromM)}
+                y={inner.top}
+                width={Math.max(x(range.toM) - x(range.fromM), 0)}
+                height={plotHeight}
+              />
+            ) : null}
+
+            {/* The whole line, held back while a stretch of it is selected… */}
+            <g opacity={range ? OUTSIDE_OPACITY : 1}>
+              {runs.map((run) => (
+                <path
+                  key={run.line}
+                  d={run.area.replaceAll('BASE', base)}
+                  fill={plot.ramp ? `url(#${rampId})` : CHART.ink}
+                  fillOpacity={range ? AREA_OPACITY / 2 : AREA_OPACITY}
+                />
+              ))}
+              {runs.map((run) => (
+                <path
+                  key={run.line}
+                  d={run.line}
+                  fill="none"
+                  stroke={plot.ramp ? `url(#${rampId})` : CHART.ink}
+                  strokeWidth={1.4}
+                />
+              ))}
+            </g>
+
+            {/* …and the stretch itself, at full strength, clipped to the two bars. */}
+            {range ? (
+              <g clipPath={`url(#${clipId})`}>
+                {runs.map((run) => (
+                  <path
+                    key={run.line}
+                    d={run.area.replaceAll('BASE', base)}
+                    fill={plot.ramp ? `url(#${rampId})` : CHART.ink}
+                    fillOpacity={AREA_OPACITY}
+                  />
+                ))}
+                {runs.map((run) => (
+                  <path
+                    key={run.line}
+                    d={run.line}
+                    fill="none"
+                    stroke={plot.ramp ? `url(#${rampId})` : CHART.ink}
+                    strokeWidth={1.8}
+                  />
+                ))}
+              </g>
+            ) : null}
+
+            {axes
+              ? plot.x.values.map((value) => (
+                  <text
+                    key={value}
+                    className={styles.axisLabel}
+                    x={x(value)}
+                    y={inner.top + plotHeight + 13}
+                    textAnchor={value === 0 ? 'start' : 'middle'}
+                  >
+                    {km(value, value >= 1000 ? 0 : 1)}
+                  </text>
+                ))
+              : null}
+            {axes ? (
+              <text
+                className={styles.axisLabel}
+                x={inner.left + plotWidth}
+                y={inner.top + plotHeight + 13}
+                textAnchor="end"
+              >
+                {km(profile.totalM)} km
+              </text>
+            ) : null}
+
+            {range ? (
+              <>
+                <Bar at={x(range.fromM)} top={inner.top} height={plotHeight} kind="edge" />
+                <Bar at={x(range.toM)} top={inner.top} height={plotHeight} kind="edge" />
+              </>
+            ) : null}
+
+            {youM !== null ? (
+              <Bar
+                at={x(youM)}
+                top={inner.top}
+                height={plotHeight}
+                kind="you"
+                dot={altitudeAt(profile.distances, profile.altitudeM, youM)}
+                y={y}
+              />
+            ) : null}
+
+            {barM !== null ? (
+              <Bar
+                at={x(barM)}
+                top={inner.top}
+                height={plotHeight}
+                kind="bar"
+                dot={altitudeAt(profile.distances, profile.altitudeM, barM)}
+                y={y}
+              />
+            ) : null}
+          </svg>
+        ) : null}
       </div>
+
+      {selected && range ? (
+        <div className={styles.readout} style={{ paddingLeft: inner.left }}>
+          <span className={styles.span}>
+            km {km(range.fromM)} → {km(range.toM)}
+          </span>
+          <Figures stats={selected} />
+        </div>
+      ) : (
+        <>
+          {readAt !== null ? (
+            <div className={styles.readout} style={{ paddingLeft: inner.left }}>
+              <span className={styles.span}>km {km(readAt)}</span>
+              {altitude === null ? null : <span>{metres(altitude)} m</span>}
+              {gradient === null ? null : (
+                <span style={{ color: gradeColour(gradient) }}>{slope(gradient)}%</span>
+              )}
+            </div>
+          ) : null}
+          {split && axes ? (
+            // No words under them: which side is behind and which is ahead is what the bar
+            // between them says, in the place the eye already is.
+            <div className={styles.flank} style={{ paddingLeft: inner.left }}>
+              <span className={styles.figure}>
+                {km(split.done.distanceM)} km · ↑ {metres(split.done.ascentM)} m
+              </span>
+              <span className={styles.figure}>
+                {km(split.toCome.distanceM)} km · ↑ {metres(split.toCome.ascentM)} m
+              </span>
+            </div>
+          ) : null}
+        </>
+      )}
+    </>
+  )
+}
+
+/** The three figures a selected stretch reports. No average gradient: a mean over a col is a number about nothing. */
+function Figures({ stats }: { stats: Stats }) {
+  return (
+    <>
+      <span>{km(stats.distanceM)} km</span>
+      <span>↑ {metres(stats.ascentM)} m</span>
+      <span>↓ {metres(stats.descentM)} m</span>
+    </>
+  )
+}
+
+/** A rule down the plot, with the height it crosses marked on the line. */
+function Bar({
+  at,
+  top,
+  height,
+  kind,
+  dot,
+  y,
+}: {
+  at: number
+  top: number
+  height: number
+  kind: 'bar' | 'edge' | 'you'
+  dot?: number | null
+  y?: (altitude: number) => number
+}) {
+  return (
+    <>
+      <line className={styles[kind]} x1={at} x2={at} y1={top} y2={top + height} />
+      {dot !== null && dot !== undefined && y ? (
+        <>
+          <circle className={styles.dotRim} cx={at} cy={y(dot)} r={5} />
+          <circle className={styles[`${kind}Dot`]} cx={at} cy={y(dot)} r={3.5} />
+        </>
+      ) : null}
     </>
   )
 }

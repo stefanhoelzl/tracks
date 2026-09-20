@@ -7,6 +7,7 @@ import styles from './App.module.css'
 import { ActivityList } from './components/ActivityList.tsx'
 import { AnalyticsPanel } from './components/AnalyticsPanel.tsx'
 import { DetailPanel } from './components/DetailPanel.tsx'
+import type { Range } from './components/ElevationProfile.tsx'
 import { FilterSidebar } from './components/FilterSidebar.tsx'
 import { ImportDialog, type ImportSource } from './components/ImportDialog.tsx'
 import { MapChrome } from './components/MapChrome.tsx'
@@ -89,6 +90,15 @@ export function App({ email }: { email: string }) {
   // whichever end moved — the profile sets it on hover, the map sets it on hover, and
   // both read it back — so the two can never disagree about which point is meant.
   const [cursor, setCursor] = useState<number | null>(null)
+
+  /**
+   * The stretch two bars on the elevation profile enclose, in metres along whichever track the
+   * cursor belongs to — and how long that track is, so the map measures it the same way.
+   *
+   * It lives here for the same reason the cursor does: the chart and the map are two views of one
+   * selection, and only the thing that owns both can hold it.
+   */
+  const [range, setRange] = useState<Range | null>(null)
   /**
    * The provisional pin, and what its dialog is about.
    *
@@ -513,6 +523,7 @@ export function App({ email }: { email: string }) {
         plannedTrack={planned.coordinates}
         references={references}
         cursorTrack={cursorTrack}
+        range={range}
         pending={legsPending}
         preview={preview}
         pinAt={pin?.at ?? null}
@@ -633,6 +644,7 @@ export function App({ email }: { email: string }) {
               legs={legs}
               track={planned}
               cursor={cursor}
+              onRange={setRange}
               pending={legsPending}
               error={legsError}
               near={() => mapHandle.current?.centre() ?? null}
@@ -672,6 +684,7 @@ export function App({ email }: { email: string }) {
               error={message(detail.error)}
               onTags={onActivityTags}
               cursor={cursor}
+              onRange={setRange}
               onCursor={setCursor}
               onBack={() => select(null)}
             />

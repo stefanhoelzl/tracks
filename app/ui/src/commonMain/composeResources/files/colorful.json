@@ -22589,6 +22589,160 @@
    "minzoom": 12
   },
   {
+   "id": "label-water-river",
+   "type": "symbol",
+   "source": "versatiles-shortbread",
+   "source-layer": "water_lines_labels",
+   "minzoom": 12,
+   "filter": [
+    "match",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "river",
+     "canal"
+    ],
+    true,
+    false
+   ],
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name_en"
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "symbol-placement": "line",
+    "symbol-spacing": 160,
+    "text-size": {
+     "stops": [
+      [
+       12,
+       10
+      ],
+      [
+       16,
+       13
+      ]
+     ]
+    }
+   },
+   "paint": {
+    "text-color": "#2f6fa8",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "id": "label-water-stream",
+   "type": "symbol",
+   "source": "versatiles-shortbread",
+   "source-layer": "water_lines_labels",
+   "minzoom": 14,
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "stream"
+   ],
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name_en"
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "symbol-placement": "line",
+    "symbol-spacing": 160,
+    "text-size": {
+     "stops": [
+      [
+       14,
+       9
+      ],
+      [
+       17,
+       12
+      ]
+     ]
+    }
+   },
+   "paint": {
+    "text-color": "#2f6fa8",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "id": "label-water-area",
+   "type": "symbol",
+   "source": "versatiles-shortbread",
+   "source-layer": "water_polygons_labels",
+   "minzoom": 11,
+   "filter": [
+    "has",
+    "name"
+   ],
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name_en"
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "symbol-placement": "point",
+    "symbol-spacing": 160,
+    "text-size": {
+     "stops": [
+      [
+       11,
+       10
+      ],
+      [
+       15,
+       13
+      ]
+     ]
+    }
+   },
+   "paint": {
+    "text-color": "#2f6fa8",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
    "source": "versatiles-shortbread",
    "id": "label-place-neighbourhood",
    "type": "symbol",
@@ -22825,7 +22979,68 @@
     "text-halo-width": 2,
     "text-halo-blur": 1
    },
-   "minzoom": 13
+   "minzoom": 11
+  },
+  {
+   "source": "versatiles-shortbread",
+   "id": "label-place-locality",
+   "type": "symbol",
+   "source-layer": "place_labels",
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "locality"
+   ],
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name_en"
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "symbol-sort-key": [
+     "-",
+     [
+      "to-number",
+      [
+       "get",
+       "population"
+      ],
+      0
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       12,
+       10
+      ],
+      [
+       15,
+       12
+      ]
+     ]
+    }
+   },
+   "paint": {
+    "icon-color": "rgb(52,59,80)",
+    "text-color": "rgb(110,118,114)",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   },
+   "minzoom": 12
   },
   {
    "source": "versatiles-shortbread",
@@ -22886,7 +23101,7 @@
     "text-halo-width": 2,
     "text-halo-blur": 1
    },
-   "minzoom": 11
+   "minzoom": 10
   },
   {
    "source": "versatiles-shortbread",
@@ -22947,7 +23162,7 @@
     "text-halo-width": 2,
     "text-halo-blur": 1
    },
-   "minzoom": 9
+   "minzoom": 8
   },
   {
    "source": "versatiles-shortbread",

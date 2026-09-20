@@ -20,6 +20,7 @@ import {
   OPACITY,
   paint,
   paintTracks,
+  RANGE_SOURCE,
   SELECTED_CASING_LAYER,
   SELECTED_LAYER,
   SELECTED_SOURCE,
@@ -272,6 +273,8 @@ describe('the track layers', () => {
       { name: 'a cluster', properties: { point_count: 12, point_count_abbreviated: '12' } },
     ],
     [CURSOR_SOURCE]: [{ name: 'the profile cursor', properties: {} }],
+    // One slice of one track, with interpolated ends and nothing on it to paint from.
+    [RANGE_SOURCE]: [{ name: 'a selected stretch', properties: {} }],
     [SELECTED_SOURCE]: [
       { name: 'the selected track', properties: { colourHi: '#00c27c' } },
       // The coalesce has to hold: a missing colour must not take the layer down.

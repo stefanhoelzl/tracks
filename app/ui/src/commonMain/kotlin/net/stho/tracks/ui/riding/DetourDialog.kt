@@ -48,9 +48,9 @@ fun DetourDialog(target: DetourTarget, onDetour: (Detour) -> Unit, onClose: () -
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconButton(Icons.Shaping, "Route through", onClick = { onDetour(Detour.Through) }, primary = false)
-            IconButton(Icons.Stop, "Stop", onClick = { onDetour(Detour.Stop) })
-            IconButton(Icons.End, "End", onClick = { onDetour(Detour.End) })
+            IconButton(Icons.Shaping, "Route through", onClick = { onDetour(Detour.Through) })
+            IconButton(Icons.Mid, "Stop", onClick = { onDetour(Detour.Stop) }, tint = Tokens.accent)
+            IconButton(Icons.End, "End", onClick = { onDetour(Detour.End) }, tint = Tokens.accent)
         }
     }
 }

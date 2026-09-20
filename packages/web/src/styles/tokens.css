@@ -43,6 +43,16 @@
   --accent-deep: #0a6e4c;
   --accent-soft: #e4f3ec;
 
+  /* --- Bad: what takes something away, and what failed ---------------------
+   * The other half of the icon rule the accent is one half of: green goes forward,
+   * this comes back off. Undo, discard and delete draw in it, and so does the one
+   * sentence a failed request gets.
+   */
+  --bad: #b0304b;
+
+  /* Behind a sheet that wants an answer before anything else: the screen, held back. */
+  --scrim: rgba(15, 21, 19, 0.24);
+
   /* --- Type --- */
   --font-body: "Manrope Variable", -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;

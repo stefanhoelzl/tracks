@@ -171,7 +171,8 @@ data class PlanDrawing(
  * reported as they move and once more, `done`, where they are let go). [onIdle] is called whenever the map has finished
  * drawing what it was asked for — what a screenshot waits for. [onGesture] is called when a finger pans, pinches or turns
  * the map — not for a tap or a long press — for a screen to stop moving the camera itself. [marker] is a place picked
- * off the map, drawn as a ring.
+ * off the map, drawn as a ring. [highlight] is a stretch selected on the elevation profile: the rest of the line is
+ * held back and this piece keeps its colour, so the chart and the map are talking about the same kilometres.
  */
 @Composable
 fun TracksMap(
@@ -191,13 +192,16 @@ fun TracksMap(
     onWaypointDrag: (index: Int, at: Coordinate, done: Boolean) -> Unit = { _, _, _ -> },
     onGesture: () -> Unit = {},
     marker: Coordinate? = null,
+    highlight: List<Coordinate> = emptyList(),
+    /** Whether [highlight] is a stretch of the ride rather than of the plan: it then wears the ride's colour. */
+    highlightRidden: Boolean = false,
     onIdle: () -> Unit = {},
 ) {
     // A Metal or Vulkan surface created at 0×0 never recovers (the KRAIL pitfalls): wait for a size, once.
     var sized by remember { mutableStateOf(false) }
     Box(modifier.onSizeChanged { if (it.width > 0 && it.height > 0) sized = true }) {
         if (sized) {
-            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onGesture, marker, onIdle)
+            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onGesture, marker, highlight, highlightRidden, onIdle)
         }
     }
 }
@@ -206,6 +210,12 @@ fun TracksMap(
 private val PLAN_WIDTH = listOf(6 to 2.0, 10 to 2.8, 14 to 3.6)
 private val PLAN_CASING_WIDTH = listOf(6 to 3.6, 10 to 4.8, 14 to 6.0)
 private const val PLAN_CASING_OPACITY = 0.55f
+
+/** What the plan line drops to outside a stretch selected on the profile. The stretch keeps its colour. */
+private const val HELD_BACK = 0.28f
+
+/** The white border around that stretch: wider than the plan's own casing, so it reads as picked out of the line. */
+private val HIGHLIGHT_CASING_WIDTH = listOf(6 to 5.6, 10 to 7.4, 14 to 9.2)
 
 /**
  * The track being recorded: the web palette's second hue (lib/colour.ts), not the accent. The plan is the accent because
@@ -318,6 +328,8 @@ private fun MapLibreMap(
     onWaypointDrag: (Int, Coordinate, Boolean) -> Unit,
     onGesture: () -> Unit,
     marker: Coordinate?,
+    highlight: List<Coordinate>,
+    highlightRidden: Boolean,
     onIdle: () -> Unit,
 ) {
     val currentCamera by rememberUpdatedState(camera)
@@ -334,6 +346,7 @@ private fun MapLibreMap(
 
     // What each layer draws. Without a drawing, the plan is one routed line.
     val riddenJson = remember(ridden) { linesJson(listOf(ridden)) }
+    val highlightJson = remember(highlight) { linesJson(listOf(highlight)) }
     val routedJson = remember(plan, drawing) {
         linesJson(drawing?.legs?.filter { it.state == LegState.Routed }?.map { it.coordinates } ?: listOf(plan))
     }
@@ -399,6 +412,30 @@ private fun MapLibreMap(
             id = "plan",
             source = routedSource,
             color = const(Tokens.accent),
+            // Held back while a stretch of it is selected on the profile, so the stretch drawn over it reads as
+            // *this piece* rather than as a second line.
+            opacity = const(if (highlight.size > 1 && !highlightRidden) HELD_BACK else 1f),
+            width = widthByZoom(PLAN_WIDTH),
+            cap = const(LineCap.Round),
+            join = const(LineJoin.Round),
+        )
+
+        // The stretch the two bars enclose, over the line it is part of: **the plan's own colour**, picked out by a
+        // white border rather than repainted. A stretch drawn in ink would answer *which piece* by destroying the
+        // answer to *what is this line*.
+        val highlightSource = rememberGeoJsonSource(GeoJsonData.JsonString(highlightJson))
+        LineLayer(
+            id = "plan-highlight-casing",
+            source = highlightSource,
+            color = const(Color.White),
+            width = widthByZoom(HIGHLIGHT_CASING_WIDTH),
+            cap = const(LineCap.Round),
+            join = const(LineJoin.Round),
+        )
+        LineLayer(
+            id = "plan-highlight",
+            source = highlightSource,
+            color = const(if (highlightRidden) RIDDEN_COLOUR else Tokens.accent),
             width = widthByZoom(PLAN_WIDTH),
             cap = const(LineCap.Round),
             join = const(LineJoin.Round),
@@ -409,6 +446,7 @@ private fun MapLibreMap(
             id = "ridden",
             source = rememberGeoJsonSource(GeoJsonData.JsonString(riddenJson)),
             color = const(RIDDEN_COLOUR),
+            opacity = const(if (highlight.size > 1 && highlightRidden) HELD_BACK else 1f),
             width = widthByZoom(PLAN_WIDTH),
             cap = const(LineCap.Round),
             join = const(LineJoin.Round),
@@ -518,14 +556,16 @@ private fun MapLibreMap(
             iconIgnorePlacement = const(true),
         )
 
-        // Ink, not accent: the rider sits on the plan line, and an accent dot would vanish into it. The library's own
+        // Accent, and the white rim is what keeps it off the plan line it rides on — the line is the same green, so
+        // without the rim the dot would sit inside its own colour. It was ink for exactly that reason and the rim
+        // answers it better: you are the app's own colour, like everything else you can act on. The library's own
         // bearing marks — an arrow, and a thin arc on the dot's rim — are off; the facing cone under it replaces them.
         LocationPuck(
             idPrefix = "rider",
             location = currentFix?.measurement(),
             bearing = null,
             colors = LocationPuckColors(
-                dotFillColorCurrentLocation = Tokens.ink,
+                dotFillColorCurrentLocation = Tokens.accent,
                 dotFillColorOldLocation = Tokens.muted,
                 dotStrokeColor = Color.White,
                 accuracyStrokeColor = Color.Transparent,

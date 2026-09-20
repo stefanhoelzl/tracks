@@ -53,6 +53,9 @@ import net.stho.tracks.sensors.pressureAt
 import net.stho.tracks.ui.riding.Navigation
 import net.stho.tracks.ui.riding.RideStats
 import net.stho.tracks.ui.offline.PlanOffline
+import net.stho.tracks.plan.Range
+import net.stho.tracks.ui.riding.Detent
+import net.stho.tracks.ui.riding.RidePlanEditing
 import net.stho.tracks.ui.riding.RidingScreen
 import net.stho.tracks.ui.recording.RecorderState
 import net.stho.tracks.ui.recording.SaveRideSheet
@@ -113,7 +116,7 @@ private const val PIXEL_TOLERANCE = 0.0003
 private const val TAP_TOLERANCE_PX = 2.0
 
 /** What a scene draws: the map on its own, or one of the app's screens over it. */
-private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried, Riding, RidingOpen, RidingMenu, RidingDialog, RidingDetour, FreeRide, SaveRide }
+private enum class Screen { Map, Home, HomeMenu, Preview, Editor, EditorRouting, EditorDialog, EditorNew, StopCarried, Riding, RidingOpen, RidingLarge, RidingRange, RidingPaused, RidingDialog, RidingDetour, FreeRide, SaveRide }
 
 /** The iPhone SE2's 4.7″ screen, the phone every device check runs on: what riding has to fit. */
 private val SE2 = DpSize(375.dp, 667.dp)
@@ -147,7 +150,10 @@ private val SCENES = listOf(
     // 2.2 km in, 400 m before the ride's stop: the camera the riding screen sets, on the phone it has to fit.
     Scene("riding", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.Riding, size = SE2),
     Scene("riding-open", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingOpen, size = SE2),
-    Scene("riding-menu", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingMenu, size = SE2),
+    Scene("riding-large", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingLarge, size = SE2),
+    // A stretch selected on the profile: two bars, its figures, and the same kilometres drawn on the map.
+    Scene("riding-range", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingRange, size = SE2),
+    Scene("riding-paused", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingPaused, size = SE2),
     Scene("save-ride", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.SaveRide, size = SE2),
     Scene("riding-dialog", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingDialog, size = SE2),
     Scene("riding-detour", second = 700, camera = { MapCamera.Follow(Orientation.HeadingUp) }, screen = Screen.RidingDetour, size = SE2),
@@ -339,7 +345,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             onIdle = onIdle,
                         )
                     }
-                    Screen.Riding, Screen.RidingOpen, Screen.RidingMenu, Screen.RidingDialog, Screen.RidingDetour, Screen.FreeRide, Screen.SaveRide -> {
+                    Screen.Riding, Screen.RidingOpen, Screen.RidingLarge, Screen.RidingRange, Screen.RidingPaused, Screen.RidingDialog, Screen.RidingDetour, Screen.FreeRide, Screen.SaveRide -> {
                         // The ride up to this second, recorded and followed as the phone would have, fix by fix.
                         val ridden = remember { ride.fixes.take(scene.second + 1) }
                         val tally = remember {
@@ -376,9 +382,10 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             navigation = navigation,
                             routing = PlanRouting(routing = 0).takeIf { scene.screen == Screen.RidingDetour },
                             elevation = remember { tally.elevation.terrain() },
-                            // Stopped, the Save sheet asks and there is no ride sheet under it; paused, the ⋯ menu is open.
+                            // Stopped, the Save sheet asks and there is no ride sheet under it; paused, the sheet is
+                            // open to the detent that carries Resume and Stop.
                             stats = RideStats(
-                                paused = scene.screen == Screen.RidingMenu,
+                                paused = scene.screen == Screen.RidingPaused,
                                 distanceM = tally.odometer.distanceM,
                                 climbedM = tally.climb.gainM,
                                 movingMillis = tally.odometer.movingMillis,
@@ -386,13 +393,23 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             onPause = {},
                             onResume = {},
                             onStop = {},
-                            expanded = scene.screen == Screen.RidingOpen,
-                            onEditPlan = {},
+                            detent = when (scene.screen) {
+                                Screen.RidingOpen, Screen.RidingRange -> Detent.Medium
+                                // Paused is drawn at the large detent, which is where Pause and Stop now live.
+                                Screen.RidingLarge, Screen.RidingPaused -> Detent.Large
+                                else -> Detent.Small
+                            },
+                            // The stop list the large detent shows, with no search: the harness has no geocoder.
+                            editing = navigation?.plan?.let { RidePlanEditing(it.plan, it.legs, onRemove = {}, onMoveStop = { _, _ -> }) },
                             undo = UndoControls(canUndo = true, canRedo = false, onUndo = {}, onRedo = {}).takeIf { scene.screen == Screen.RidingDetour },
                             pulse = false,
-                            menuOpen = scene.screen == Screen.RidingMenu,
                             // Open, a place picked a little way up the profile: the map shows it.
                             initiallyPickedM = navigation?.progress?.takeIf { scene.screen == Screen.RidingOpen }?.let { it.alongM + 250.0 },
+                            // A stretch of the leg you are on, in metres along that page. The page starts at the stop
+                            // *behind* the rider, who is near its end, so a stretch worth a picture is one near the
+                            // end too: those are the kilometres the camera is framing, and the shot then shows both
+                            // halves of a selection rather than the chart's half alone.
+                            initialRange = Range(1850.0, 2350.0).takeIf { scene.screen == Screen.RidingRange },
                             onIdle = onIdle,
                         ) {
                             if (scene.screen == Screen.SaveRide) {

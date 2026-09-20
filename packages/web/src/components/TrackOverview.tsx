@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ElevationProfile, type Profile } from './ElevationProfile.tsx'
+import { ElevationProfile, type Profile, type Range } from './ElevationProfile.tsx'
 import styles from './TrackOverview.module.css'
 import { Label } from './ui/Label.tsx'
 import { StatTile } from './ui/StatTile.tsx'
@@ -30,6 +30,7 @@ export function TrackOverview({
   profile,
   cursor,
   onCursor,
+  onRange,
   note,
 }: {
   /** A node, not a string: a plan's title is an input and an activity's is a heading. */
@@ -41,6 +42,8 @@ export function TrackOverview({
   profile: Profile | null
   cursor: number | null
   onCursor: (index: number | null) => void
+  /** Told which stretch of this track is selected, so the map can hold the rest back. */
+  onRange: (range: Range | null) => void
   /** The quiet line under the chart: how many points, or what is missing from them. */
   note: ReactNode
 }) {
@@ -63,7 +66,12 @@ export function TrackOverview({
           {profile ? <span className={styles.unit}>m</span> : null}
         </div>
         {profile ? (
-          <ElevationProfile profile={profile} cursor={cursor} onCursor={onCursor} />
+          <ElevationProfile
+            profile={profile}
+            cursor={cursor}
+            onCursor={onCursor}
+            onRange={onRange}
+          />
         ) : (
           <div className={styles.note}>No elevation recorded</div>
         )}

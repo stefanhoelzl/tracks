@@ -46,6 +46,7 @@ function overview(plan: Partial<Plan>, legs: Array<Leg | undefined> = []) {
       onDismissReference={vi.fn()}
       onCancelRead={vi.fn()}
       onCursor={vi.fn()}
+      onRange={vi.fn()}
       onPlan={onPlan}
       onSelect={vi.fn()}
       onRemove={vi.fn()}

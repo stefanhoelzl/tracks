@@ -40,6 +40,10 @@ import net.stho.tracks.plan.Plan
 import net.stho.tracks.plan.Profile
 import net.stho.tracks.plan.WaypointKind
 import net.stho.tracks.plan.readingsFrom
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ColorFilter
+import net.stho.tracks.plan.poiIndices
+import net.stho.tracks.ui.theme.Icons
 import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
@@ -95,6 +99,8 @@ fun StopList(
         }
     }
 
+    val lastStop = poiIndices(plan.waypoints).size - 1
+
     Column(modifier.onSizeChanged { listHeight = it.height.toFloat() }) {
         var stop = -1
         plan.waypoints.forEachIndexed { index, waypoint ->
@@ -148,7 +154,17 @@ fun StopList(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Box(Modifier.size(10.dp).background(Tokens.accent, CircleShape))
+                    // The mark says which end of the line this is, in the four the dialog offers.
+                    Image(
+                        when (ordinal) {
+                            0 -> Icons.Start
+                            lastStop -> Icons.End
+                            else -> Icons.Mid
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        colorFilter = ColorFilter.tint(Tokens.accent),
+                    )
                     BasicText(
                         waypoint.name ?: "Unnamed stop",
                         style = Type.body,
@@ -170,7 +186,12 @@ fun StopList(
                     placement.fillMaxWidth().padding(start = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.width(2.dp).padding(vertical = 2.dp).background(Tokens.line2))
+                    Image(
+                        Icons.Shaping,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        colorFilter = ColorFilter.tint(Tokens.ink),
+                    )
                     BasicText(
                         "Shaping point",
                         style = Type.mono,

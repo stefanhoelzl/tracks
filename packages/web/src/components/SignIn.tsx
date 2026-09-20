@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from 'react'
+import { ApiFailure } from '../lib/api.ts'
 import { useSignIn } from '../lib/session.ts'
 import { useDocumentTitle } from '../lib/title.ts'
 import styles from './SignIn.module.css'
@@ -23,6 +24,14 @@ export function SignIn() {
   useDocumentTitle('Sign in')
 
   const ready = email !== '' && password.length >= 8
+
+  // What the server said, which is ours and short, or one sentence for the one failure that
+  // arrives as whatever the browser calls a dead network this year.
+  const failure = signIn.error
+    ? signIn.error instanceof ApiFailure
+      ? signIn.error.message
+      : 'No connection to Tracks.'
+    : null
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -64,7 +73,7 @@ export function SignIn() {
             />
           </label>
 
-          {signIn.error ? <p className={styles.error}>{signIn.error.message}</p> : null}
+          {failure ? <p className={styles.error}>{failure}</p> : null}
 
           <button type="submit" className={styles.primary} disabled={!ready || signIn.isPending}>
             {signIn.isPending ? 'Signing in…' : 'Sign in'}

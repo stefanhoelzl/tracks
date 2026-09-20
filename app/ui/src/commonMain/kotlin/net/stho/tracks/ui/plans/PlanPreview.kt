@@ -99,6 +99,8 @@ fun PlanPreview(
     }
     var expanded by remember { mutableStateOf(initiallyExpanded) }
     var covered by remember { mutableStateOf(0.dp) }
+    /** Where the profile's bar stands, in metres along the plan. */
+    var pickedM by remember(stored.id) { mutableStateOf<Double?>(null) }
 
     Box(modifier.fillMaxSize().background(Tokens.ground)) {
         style?.let {
@@ -141,7 +143,9 @@ fun PlanPreview(
             content = {
                 PlanTiles(stored.legs)
                 val totals = planTotals(stored.legs)
-                terrainOf(planTrack(stored.legs), totals.distanceM.takeIf { it > 0 })?.let { ElevationProfile(it) }
+                terrainOf(planTrack(stored.legs), totals.distanceM.takeIf { it > 0 })?.let { terrain ->
+                    ElevationProfile(terrain, pickedM = pickedM, onPick = { pickedM = it })
+                }
                 statusOf(stored, routing)?.let { BasicText(it, style = Type.note) }
             },
         )

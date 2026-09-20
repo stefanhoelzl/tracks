@@ -8,7 +8,7 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | One Edge Script at [tracks.stho.net](https://tracks.stho.net), over Bunny Database |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M track points |
 | **Stack** | Node 24 · pnpm · libSQL · React · MapLibre · Deno at the edge · Kotlin Multiplatform on the phone |
-| **Status** | M1–M15 complete · M16–M17 planned: the iPhone app's lock screen, battery and release |
+| **Status** | M1–M15 and M18–M20 complete · M21 half done: the basemap's labels shipped, its water and summits open · M16–M17 planned: the iPhone app's lock screen, battery and release |
 
 ---
 
@@ -40,7 +40,8 @@ Route planning arrived in M8, and took none of the space that had been left for 
 is a fragment in the address bar, not a row. The nullable column stayed unwritten, which is
 cheaper than the safest migration there is.
 
-The iPhone app is M10–M17 — M10–M15 have shipped, and it is described in full below: a plan made here goes onto
+The iPhone app is M10–M17, and M18–M20 after them — M10–M15 and M18–M20 have shipped, and it is described in full
+below: a plan made here goes onto
 the phone as the link it already is, can be re-planned there with no signal, is ridden on a
 heading-up map, and comes back as an activity. It keeps the rules above — nothing is written
 upstream, and the only thing it adds to the server is a file that tells iOS which links are
@@ -641,9 +642,46 @@ a few tenths of a percent from the summed polyline: two right numbers reading `8
 one row apart look like a bug, and spreading the difference keeps every readout agreeing with the
 one figure already on screen.
 
-The axis starts at the track's own minimum, never at sea level, but never spans less than 200 m —
-without a floor a rolling valley loop fills the box exactly as a col does, and the shape is the
-only thing the chart is for. Missing altitude is drawn as missing: a dropout leaves a gap, and a
+The axis is a scale rather than two readings: three to five gridlines on a round step — 50, 200,
+500 m — with the bottom rounded down and the top up, and distance labelled along the foot in round
+kilometres. It never spans less than 200 m, snapped out to whichever step it chose: without a floor
+a rolling valley loop fills the box exactly as a col does, and the shape is the only thing the chart
+is for.
+
+**One bar, and two of them.** A click puts a bar down — hovering previews one — and it reads `km ·
+height · gradient` with the distance and climb **done** on its left and **to come** on its right, in
+bold and with no words under them: those two are the point of the line they are on, and the bar
+between them already says which is which. Dragging across brushes a **range**: two bars,
+the track outside them held back, and the stretch between reported as distance, ↑ and ↓. No average
+gradient — a mean over a col is a number about nothing. Riding, the split is measured from *you*
+rather than from the bar, which is the only place the two readings differ.
+
+**A selected stretch is drawn on the map** over the line held back to 28% either side of it, so the
+chart and the map are talking about the same kilometres. It **keeps the line's own colour** and is
+picked out by a white border, rather than being repainted: a stretch drawn in ink would answer *which
+piece* by destroying the answer to *what is this ride*, which is the colour it is drawn in. The ends
+are interpolated rather than snapped to the nearest recorded point, so dragging a bar moves the
+highlight instead of stepping it, and `sliceBetween` is shared and fixture-pinned like the rest.
+
+**Drawn by hand rather than charted.** The same picture appears in four places across two platforms,
+one of which paints on a Compose canvas; with a chart library on one side only, every gridline and
+every gesture was a translation, and the two drifted. So it is an `<svg>` here and a `Canvas` there
+over arithmetic both import from `lib/profile.ts` — the axis, the hit test, the range's figures and
+the split — mirrored into Kotlin and pinned by `profile.json`. Kotlin compiled to Wasm would have
+made that one source rather than two, and was declined: a few hundred lines of arithmetic do not pay
+for a JDK in the web's build path and a stdlib in the browser's bundle. ECharts stays where it earns
+its keep, which is the analytics charts.
+
+The gestures are each input's own. A mouse hovers, clicks to pin and drags to brush. A finger taps to
+put the bar down; a **long press and a drag sweeps a stretch**, and a long press on either of its bars
+moves that end. The long press is what claims the gesture from the pager and the sheet the riding
+profile sits inside. A double tap used to open a stretch and the next tap closed it: it fired by
+accident — tapping twice to move the bar *is* a double tap — and left something that could only be
+cleared, never adjusted.
+
+**Every profile takes the bar**: the activity detail, the plan panel, the plan preview, the editor and
+both kinds of riding page. Three of them were pictures until they were not, which is the sort of thing
+that compiles, passes and is still wrong; `ElevationProfileGestureTest` presses them now. Missing altitude is drawn as missing: a dropout leaves a gap, and a
 track with no altitude at all says so in words rather than drawing a flat line that would read as
 a plain. Its colour is the gradient — still deliberately not the activity's hashed colour, which
 answers *which category* where this answers *how steep, here*, and one ride's terrain was never
@@ -1560,10 +1598,25 @@ unpaved is dotted, never dashed, because a dash is the plan's straight-line leg.
 below z14, so a trail is grey at z13 rather than red one zoom and green the next. Metric only; the app is **light
 only** today (see *Still undecided*).
 
-**The rider is an ink dot with a fading blue cone** for where the phone faces, on every map. The camera has
+**Water has names now, and places arrive earlier.** `colorful` draws no water label at all, so a river was an
+anonymous blue line however far you followed it — the tiles carry `water_lines_labels` from z12 and streams from
+z14, and both are now drawn along the line, repeating about every 160 px, in the water's own blue. Place labels
+start where their data starts rather than where the style chose: town at z8, village z10, hamlet z11. And
+`place=locality` is drawn for the first time, from z12: it is OSM's named nowhere, and in the Alps it is what
+carries Kramer, Predigtstuhl and Kuhflucht — the closest thing to a peak name in a schema that has **no peaks at
+any zoom**. Water sources and summits of our own are the open question, and their own milestone.
+
+**The rider is an accent dot with a white rim and a fading blue cone** for where the phone faces, on every map.
+It was ink until the rim existed — the dot rides on the plan line, which is the same green — and the rim is what
+keeps the two apart, so you are drawn in the app's own colour like everything else you can act on. The camera has
 three states behind one button: **heading-up** (GPS course while moving, the compass below about 4 km/h, where
 course is noise), **north-up**, and **manual**, which a pan, pinch or rotate switches to and which leaves the map
-where it was put; following always returns to its zoom. There is **no tilt**. North-up is a button rather than a
+where it was put; following always returns to its zoom. The button is two glyphs through all three — a compass needle, and
+lucide's `navigation` arrow when the map is turning with you — and **it always shows the mode the map is in or would
+go into**, so a tap never changes the shape under your thumb, only its colour: manual draws the mode it would resume
+in black, and following draws the mode it is in, in green. They are the one place in the set that is **solid and carries no
+circle**: a needle and an arrow are shapes rather than outlines of shapes, stroked they read as small empty triangles,
+and framed they read as a button rather than as a direction. There is **no tilt**. North-up is a button rather than a
 tap on the map so that taps stay free.
 
 **CI renders the real map**, under Xvfb with Mesa's lavapipe in one container, from a committed 3.4 MB tile
@@ -1586,18 +1639,41 @@ ahead. Riding back moves the readouts back, and the next stop is the first one b
 been forward-only snapping, which never jumps to the way home on an out-and-back — but it also never lets you
 turn around, and the first real out-and-back found that. Legs are scaled to the router's own distance and ascent.
 
-The screen is **one sheet over a map at zoom 15**, the rider in the lower third of what the sheet leaves:
+The screen is **one sheet over a map at zoom 15**, the rider in the lower third of what the sheet leaves, and the
+sheet opens to one of **three detents, each adding below the one before** — nothing already on the screen moves as
+it grows, so the number you were reading stays where you left it:
 
-- **A page per stop ahead, the finish last**, each the distance, the climb and the elevation profile from you to
-  it, with you on it. Swiping between them is the whole navigation; opening the sheet only gives the profile more
-  room. The profile's span is at least 100 m (the editor keeps the web's 200 m), and a tap on it shows that place
-  on the map. Totals across a leg that is not routed yet show `+`. A ride with no plan shows the ride so far.
-- **The ride so far, fixed**: speed, average speed over moving time, metres climbed and distance.
-- **Pause, Edit plan and Stop behind ⋯**, and a PAUSED chip on the map that resumes.
+- **Small**, where a ride starts, is one line: speed, average speed over moving time, and the height you are at.
+  Most of a ride is map. There are no pages at this size and so nothing to swipe.
+- **Medium** keeps that line on top and adds **the pages**: what you have **ridden so far**, then a page per stop
+  still ahead, then **the whole trip** — the two questions a swipe is for, with the legs between them. The leg you
+  are on is drawn **stop to stop with a bar where you are**, because the climb you are half way up is a climb and
+  not the end of one; a leg further ahead starts at a stop you have not reached, so it is **extended back to you**.
+  The profile's span is at least 100 m (the editor keeps the web's 200 m), a tap on it shows that place on the map,
+  and totals across a leg that is not routed yet show `+`.
+- **Large** keeps both and adds **the stops**, over the strip of map it leaves: the editor's own list, searchable,
+  reorderable and deletable, and a tap on a row swipes the pages to that leg. A ride with no plan has no list.
+- **Pause and Stop are buttons under the profile in the large sheet**, centred, and nowhere else. Under it rather
+  than in the header because opening the sheet only ever *adds below* what was already there, which is the whole of
+  how the detents work — a control appearing at the top would move the one thing you were reading. Both are
+  deliberate acts, and a menu over a map is a tap between a rider and the thing they meant, so stopping a ride costs
+  opening the sheet: the price of never stopping one by accident. A PAUSED chip on the map resumes.
+
+**Undo and Redo and the camera sit on the map just above the sheet and ride up with it** — the hand that reaches
+them is already down there, and a control at the top of the screen is a stretch on a handlebar. At the large detent
+they sit on the strip of map rather than going away.
+
+**There is no *Edit plan* any more.** The large detent is the editor's list, a long press on the map still raises the
+detour dialog, and **a tap on a waypoint opens the editor's own dialog** — delete it, or change what it is — while a
+tap anywhere else on the riding map still does nothing at all. Every one of those goes through the **one undo stack
+the ride has**, which is what makes a stop dropped in the wrong place on a handlebar one tap from being back. A
+second way to change a plan was a second place to be while a ride records, and the copy-to-follow it also carried
+went with it.
 
 M14 shipped this as a top card of stops and a separate two-page bottom panel, *To finish* and *To next stop*, as
-the mockup had it; riding it put both into one sheet with a page per stop, which answers *how far to the hut* and
-*how far to the end* with the same swipe.
+the mockup had it; riding it put both into one sheet with a page per stop. Riding *that* took distance and climb off
+the fixed line — the profile's own done/to-come row carries both, measured from where you are — and put the height
+you are at in the space, because nothing else said it.
 
 **Re-planning mid-ride is a long press** — a tap on the riding map does nothing, because a tap on a moving map on
 a handlebar is a mistake more often than a wish. The long press opens a dialog: **Through** or **Stop** into the
@@ -1641,6 +1717,14 @@ Signing in is the web's: email and password against `POST /api/session`, with th
 sent back as a `Cookie` header written by hand rather than through a cookie jar, so a password change on the web
 signs the phone out too — M6's revocation, unchanged. A 401 forgets the session and holds the rides; a warning comes
 three days before the thirty. Sign-in and upload status live on home.
+
+The sign-in sheet says **one short sentence per kind of failure** — *No connection to Tracks.*, *Wrong email or
+password.*, *Tracks refused that (503).* — and never what the request threw. A library's sentence about a host and
+a negative number has no length it cannot be, and on a sheet that had it above the buttons it pushed them off the
+bottom of the screen with the keyboard up and no way to scroll to them. The sheet itself answers the other half:
+its buttons are pinned along the bottom, whatever is above them scrolls, and it lifts above the keyboard. That is
+in the harness rather than in this one sheet, because the waypoint name, the ride title and the place search all
+had the same bug waiting.
 
 **Home is the map, centred on you**, under a sheet listing the stored plans newest first — swipe to delete, the +
 for a new one — and *Ride*, with Navigate's arrow, for a ride with no plan. There is no GPX export and no Apple Watch
@@ -1701,7 +1785,7 @@ not reachable from anything it imports; no subpath exports, no tree-shaking to t
 | **Web state** | No router — the app is one page, and core already parses the query string. A `useUrlState` hook over `useSyncExternalStore` is the whole of it; M8 widened its snapshot from `search` to `search + hash` and added `hashchange` beside `popstate`, which is the entire cost of the plan living in a fragment. TanStack Query keys on the serialized filter, so cache invalidation and the URL are the same fact. |
 | **Map** | `maplibre-gl` driven imperatively from a hook. Feature-state hover and a viewport-derived filter are both things a declarative wrapper would be in the way of. |
 | **Styling** | CSS Modules over one token file. Three tiers: `styles/tokens.css` holds every colour, radius, shadow and step of the type scale; `components/ui/` holds primitives that each own one visual idea; feature components compose them and contain no raw values. A hex code appears in exactly one file — except the two sets no CSS rule can read, the *colour by* palette and the chart colours, which live in `lib/colour.ts` and `lib/chart-theme.ts` beside their only consumers — mirrored from the token file where a token exists, and simply defined there where none does, as the profile's gradient ramp is. |
-| **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`. |
+| **Fonts & icons** | `@fontsource-variable/manrope` and JetBrains Mono, installed and bundled — a Google Fonts link would make "no data leaves the machine except tile requests" false. Icons are `lucide-react`, 24 px at stroke 2.2, with **nothing drawn behind them** — no disc, no plate — except a circle on the map's own controls, which is part of the glyph and takes its colour. **Colour is meaning, and green is also the primary**: green goes forward and is the thing to press, red takes something away, black is neutral. A waypoint is one of four marks — `o->` start, `->o` end, `-o-` stop, `o⌒o` shaping — on the type buttons and at the head of every stop-list row, drawn here and in `Icons.kt` from one set of paths; the markers on the map are unchanged, a glyph being a worse pin than a dot. The sports are Phosphor's `person-simple-*` at **bold**, since lucide draws no hiker and no runner — its regular weight is the same outline at 16/256, a hairline beside everything else, where bold's 24/256 is 2.2 on the 24 grid. |
 | **Testing** | Vitest in two projects. `node` covers core, the query layer and ingestion — including that an aborted import leaves the database byte-identical — and stays offline. No longer under a second: signing in really does 600k PBKDF2 rounds, and
 the handful of tests that go through `POST /api/session` pay for it on purpose, because a
 cheap hash there would prove the wrong thing about the one route that has to be right. `web` (jsdom) covers the components, mounts the whole app against a mocked API, and now owns the sources too, with the msw-replayed Komoot fixtures and a zip built at test time from plain-text fixtures. Browser code is tested where a DOM is. jsdom lacks three things the sources need — `dialog.showModal`, a `Blob` undici will read, and an `AbortSignal` it will accept — so `test-setup.ts` adapts them and says why. `--project node` keeps the fast lane. Map styles are checked against `@maplibre/maplibre-gl-style-spec` — validated *and* evaluated against the features each layer will actually meet, because the expression bugs that matter are legal ones that meet the wrong data. |
@@ -1844,6 +1928,10 @@ inspected through a SQLite browser.
 | **M15** | Recording and the upload | A ride recorded on the phone lands in Tracks. The append-only journal that is also the upload queue, recording with the phone locked, the barometer, and a tally of distance, moving time and climb. Sign-in through the web's own session route with the cookie in the Keychain, and a queue that uploads saved rides through the unchanged import frame as `source: tracks`. CI records a replayed ride and uploads it to a dev server on every run. Shipped beside M12–M13 rather than after them, because it needed only the sensors and the import route. |
 | **M16** | *Planned* — the lock screen | The Live Activity and its picture, fed by the riding screen's own next stop and finish, so nothing is computed twice — and the numbers it needs from the phone: how often iOS lets a Live Activity refresh, and what drawing its picture costs. Re-scoped on the day it started: the battery and the release went to M17, because checking the handoff turned up enough in each to be a milestone. |
 | **M17** | *Planned* — battery and the release | The battery target measured on a real ride with the Live Activity running, and its levers pulled — the map redrawn a few times a second rather than at 120 Hz, a dimmer riding style, a rarer snapshot. Then TestFlight for every account: a signed build's pipeline, a privacy manifest and an encryption declaration, versions from the build settings, distribution signing beside the development signing that puts builds on the phone today, and the VersaTiles question answered before more than one phone downloads packs. |
+| **M18** | The icon set, and the door | The first real ride's notes, turned into an icon rule. Nothing is drawn behind an icon — the accent disc goes, and a control floating on the map is framed by a circle that is part of the glyph. Colour is meaning: green goes forward and is the thing to press, red takes something away, black is neutral. A waypoint becomes one of four marks, `o->`, `->o`, `-o-`, `o⌒o`, drawn once and used by both the phone's dialog and the web's, and at the head of every stop-list row. The camera button becomes two filled glyphs with no circle, showing the mode the map is in *or would go into*. The sign-in sheet's buttons stop being pushed off the bottom of the screen by an error as long as whatever the network threw: the fix is in the `Sheet` harness, so the ride title, the waypoint name and the place search get it too, and a failure is now one short sentence per kind. Numbered after M17 because it came from riding the app, not from the plan. |
+| **M19** | One elevation profile | The same drawing, the same numbers and the same gestures in the web's activity detail and plan panel, the phone's plan preview, its editor and its riding sheet. The web drops ECharts for this one chart and hand-draws SVG mirroring the Kotlin Canvas, over `lib/profile.ts` — axis choice, hit-testing, range figures, the done/to-come split — mirrored into Kotlin and pinned by `profile.json`. Axes with round steps and gridlines, a bar that reads `km · height · gradient` over a flanking row, and a stretch between two bars that reports distance, ↑ and ↓ and is drawn on the map. Kotlin→Wasm was weighed as the way to have one source instead of two, and declined: a few hundred lines of arithmetic do not pay for a JDK in the web's build path and a stdlib in the browser's bundle. |
+| **M20** | The riding sheet | Three detents, each adding below the one before: a line of figures, then the pages, then the stops. The pages become what you have ridden, a page per stop still ahead, and the whole trip — the leg you are on drawn stop to stop with a bar where you are. The large detent is the editor's own stop list, so *Edit plan* goes and with it the copy-to-follow it carried; a tap on a waypoint opens the editor's dialog, and every edit goes through the ride's one undo stack. Undo, redo and the camera move off the top of the screen to sit just above the sheet. Pause and Stop become buttons under the profile at the large detent, and the ⋯ menu goes. Left out: a free ride cannot be given a plan from the sheet, which needs making one and following it rather than a new layout. |
+| **M21** | What the map says | Half shipped. River and stream names, which `colorful` drew nowhere at all, placed along the line and repeated; town, village and hamlet labels started at the zoom their data starts at rather than the one the style chose; and `place=locality` drawn for the first time, which in the Alps is what carries Kramer and Kuhflucht. **Open**: water sources and summits, which Shortbread has no POIs below z14 for and no peaks at any zoom, so they need an extract of our own — whether that is one region-scoped GeoJSON or a tileset, what it covers and how it refreshes is its own workspace. |
 
 ---
 

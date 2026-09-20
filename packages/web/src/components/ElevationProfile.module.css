@@ -1,12 +1,102 @@
 /*
- * The axis ends, set the way a range slider sets its bounds — same row, same mono, so
- * the two charts in this app read as one family.
+ * The profile is drawn rather than charted, so its ink lives here instead of in
+ * `chart-theme.ts` — these are CSS rules on real elements, and `var(--ink)` is a colour
+ * again. The ramp is still a JS value, because an SVG gradient's stops are.
  */
-.bounds {
-  display: flex;
-  justify-content: space-between;
+
+.plot {
+  position: relative;
+  width: 100%;
+  /* The whole box is the target: a bar you can only place by hitting a 1 px line is a
+     bar nobody places. */
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.gridline {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.axisLabel {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  fill: var(--muted);
+}
+
+/* The selected stretch: a wash behind it, and the line outside it held back. */
+.band {
+  fill: var(--accent);
+  opacity: 0.07;
+}
+
+.bar,
+.edge,
+.you {
+  stroke-width: 1.4;
+}
+
+.bar {
+  stroke: var(--ink);
+}
+
+/* The two ends of a selection, heavier than a passing cursor: they stay put. */
+.edge {
+  stroke: var(--accent-deep);
+  stroke-width: 1.8;
+}
+
+/* Where you are, while something is riding this stretch — dashed, because it moves. */
+.you {
+  stroke: var(--ink);
+  stroke-dasharray: 3 3;
+}
+
+.dotRim {
+  fill: var(--surface);
+}
+
+.barDot,
+.youDot {
+  fill: var(--ink);
+}
+
+.edgeDot {
+  fill: var(--accent-deep);
+}
+
+/* What the bar says about where it stands, or what the two bars enclose. */
+.readout {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink);
+  padding-right: 8px;
+  min-height: 15px;
+}
+
+.span {
   color: var(--muted);
-  padding-left: 34px;
+}
+
+/*
+ * Done on the left, still to come on the right, either side of where the split is: the
+ * two numbers a profile is usually being read for, in the place the eye already is — and
+ * without words under them, because the bar between them already says which is which.
+ */
+.flank {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 8px;
+  font-size: var(--text-xs);
+  color: var(--ink);
+}
+
+/* The figure is the point of the line it is on, so it carries the weight; the word under it does not. */
+.figure {
+  font-family: var(--font-mono);
+  font-weight: 700;
 }

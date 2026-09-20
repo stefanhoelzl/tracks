@@ -110,13 +110,15 @@
   text-align: left;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
+/* A stop is green because it is a thing you put there and can move; a shaping point is
+   black because it only bends a leg. The same rule the icons follow everywhere else. */
+.glyph {
   flex-shrink: 0;
-  border-radius: var(--radius-pill);
-  background: var(--ink);
-  translate: 0 -1px;
+  color: var(--accent);
+}
+
+.tickButton .glyph {
+  color: var(--ink);
 }
 
 .name {
@@ -147,7 +149,10 @@
 }
 
 .tickButton {
+  display: flex;
   flex: 1;
+  gap: 7px;
+  align-items: center;
   text-align: left;
 }
 

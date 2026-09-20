@@ -12,6 +12,7 @@ import net.stho.tracks.plan.RoutedLeg
 import net.stho.tracks.plan.Terrain
 import net.stho.tracks.plan.Waypoint
 import net.stho.tracks.plan.legGeometries
+import net.stho.tracks.plan.sliceBetween
 import net.stho.tracks.plan.terrainAlong
 import net.stho.tracks.recording.Climb
 import net.stho.tracks.sensors.distanceM
@@ -212,6 +213,12 @@ class Route(waypoints: List<Waypoint>, legs: List<Leg?>) {
 
     /** The whole route's terrain, measured along it: a leg that is not routed is a gap as long as its straight line. */
     fun terrain(): Terrain? = terrainAlong(along, altitudes)
+
+    /**
+     * The route's own points between [fromM] and [toM], both ends interpolated: a stretch selected on the profile, as
+     * a line for the map to draw over the plan it is part of.
+     */
+    fun lineBetween(fromM: Double, toM: Double): List<Coordinate> = sliceBetween(points, along, fromM, toM)
 
     /** One leg's terrain, measured from the leg's start. */
     fun legTerrain(leg: Int): Terrain? {

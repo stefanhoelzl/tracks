@@ -37,7 +37,7 @@ export async function washedColorful() {
     recolor: { saturate: -0.05, gamma: 1.02, blend: 0.06, blendColor: '#eef1ee' },
     language: 'en',
   })
-  return { ...style, layers: withWayNetworks(style.layers) }
+  return { ...style, layers: withPlaceLabels(withWaterLabels(withWayNetworks(style.layers))) }
 }
 
 type Layer = Awaited<ReturnType<typeof colorful>>['layers'][number]
@@ -222,4 +222,127 @@ function onStructure(structure: string): unknown[] {
     ['!=', ['get', 'bridge'], true],
     ['!=', ['get', 'tunnel'], true],
   ]
+}
+
+/**
+ * Water names, which `colorful` draws nowhere at all.
+ *
+ * Shortbread carries `water_lines_labels` — rivers and canals from z12, streams from z14 — and
+ * `water_polygons_labels`, and the style has no symbol layer for either: a river on this map is
+ * an anonymous blue line however far you follow it, which is exactly how it reads on a ride.
+ *
+ * Placed along the line and repeated every `WATER_LABEL_SPACING` px, so a name is always within
+ * a phone screen of wherever you are looking. The blue is the water's own, darkened until it
+ * holds against the paper; there is no italic in the glyphs VersaTiles serves, so colour is what
+ * separates a water name from a street name.
+ *
+ * They go in under the place labels: where a village name and a stream name want the same pixels,
+ * the village wins.
+ */
+export const WATER_LABEL_COLOUR = '#2f6fa8'
+export const WATER_LABEL_SPACING = 160
+
+function waterLabel(
+  id: string,
+  sourceLayer: string,
+  filter: unknown,
+  minzoom: number,
+  size: number[][],
+) {
+  return {
+    id,
+    type: 'symbol',
+    source: 'versatiles-shortbread',
+    'source-layer': sourceLayer,
+    minzoom,
+    filter,
+    layout: {
+      'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
+      'text-font': ['noto_sans_regular'],
+      'symbol-placement': sourceLayer === 'water_lines_labels' ? 'line' : 'point',
+      'symbol-spacing': WATER_LABEL_SPACING,
+      'text-size': { stops: size },
+    },
+    paint: {
+      'text-color': WATER_LABEL_COLOUR,
+      'text-halo-color': 'rgba(254,254,254,0.8)',
+      'text-halo-width': 2,
+      'text-halo-blur': 1,
+    },
+  }
+}
+
+function withWaterLabels(layers: Layer[]): Layer[] {
+  const water = [
+    waterLabel(
+      'label-water-river',
+      'water_lines_labels',
+      ['match', ['get', 'kind'], ['river', 'canal'], true, false],
+      12,
+      [
+        [12, 10],
+        [16, 13],
+      ],
+    ),
+    waterLabel('label-water-stream', 'water_lines_labels', ['==', ['get', 'kind'], 'stream'], 14, [
+      [14, 9],
+      [17, 12],
+    ]),
+    waterLabel('label-water-area', 'water_polygons_labels', ['has', 'name'], 11, [
+      [11, 10],
+      [15, 13],
+    ]),
+  ] as unknown as Layer[]
+
+  // Under the place labels, which are the first `label-place-` symbol layer onwards.
+  const at = layers.findIndex((layer) => layer.id.startsWith('label-place-'))
+  if (at < 0) return [...layers, ...water]
+  return [...layers.slice(0, at), ...water, ...layers.slice(at)]
+}
+
+/**
+ * Place names from the zoom their data starts at, rather than from the zoom `colorful` chose.
+ *
+ * Measured against the tiles: `place_labels` carries village, hamlet, locality and
+ * isolated_dwelling from z10 — the style held village to z11 and hamlet to z13, so a 20 km view
+ * of a valley named almost nothing in it.
+ *
+ * `locality` is drawn for the first time. It is OSM's named nowhere, and in the Alps it is what
+ * carries Kramer, Predigtstuhl, Kuhflucht and Stepbergeck — the closest thing to a peak name in
+ * a schema that has no peaks. Quieter than a village, because it is not one.
+ */
+export const PLACE_MINZOOM = { town: 8, village: 10, hamlet: 11, locality: 12 } as const
+
+function withPlaceLabels(layers: Layer[]): Layer[] {
+  const out = layers.map((layer) => {
+    const kind = /^label-place-(town|village|hamlet)$/.exec(layer.id)?.[1]
+    if (!kind) return layer
+    return { ...layer, minzoom: PLACE_MINZOOM[kind as 'town' | 'village' | 'hamlet'] }
+  })
+
+  const village = out.find((layer) => layer.id === 'label-place-village')
+  if (!village) return out
+  const locality = {
+    ...village,
+    id: 'label-place-locality',
+    minzoom: PLACE_MINZOOM.locality,
+    filter: ['==', ['get', 'kind'], 'locality'],
+    layout: {
+      ...(village as { layout?: object }).layout,
+      'text-font': ['noto_sans_regular'],
+      'text-size': {
+        stops: [
+          [12, 10],
+          [15, 12],
+        ],
+      },
+    },
+    paint: {
+      ...(village as { paint?: object }).paint,
+      'text-color': 'rgb(110,118,114)',
+    },
+  } as unknown as Layer
+
+  const at = out.findIndex((layer) => layer.id === 'label-place-village')
+  return [...out.slice(0, at), locality, ...out.slice(at)]
 }

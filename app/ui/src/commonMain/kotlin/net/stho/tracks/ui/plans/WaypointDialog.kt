@@ -74,16 +74,19 @@ fun WaypointDialog(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // Splitting a leg is on offer as soon as there is a leg to split.
-                    if (target.leg != null) IconButton(Icons.Insert, "Insert", onClick = { onAdd(WaypointKind.Poi, Placement.Nearest) })
+                    if (target.leg != null) {
+                        IconButton(Icons.Mid, "Insert", onClick = { onAdd(WaypointKind.Poi, Placement.Nearest) }, tint = Tokens.accent)
+                    }
                     if (count == 0) {
-                        IconButton(Icons.Add, "Add", onClick = { onAdd(WaypointKind.Poi, Placement.End) })
+                        // The first waypoint is where the line starts, whatever the button is called.
+                        IconButton(Icons.Start, "Add", onClick = { onAdd(WaypointKind.Poi, Placement.End) }, tint = Tokens.accent)
                     } else {
-                        IconButton(Icons.Start, "Start", onClick = { onAdd(WaypointKind.Poi, Placement.Start) })
-                        IconButton(Icons.End, "End", onClick = { onAdd(WaypointKind.Poi, Placement.End) })
+                        IconButton(Icons.Start, "Start", onClick = { onAdd(WaypointKind.Poi, Placement.Start) }, tint = Tokens.accent)
+                        IconButton(Icons.End, "End", onClick = { onAdd(WaypointKind.Poi, Placement.End) }, tint = Tokens.accent)
                     }
                     // A shaping hint with no leg to shape has nowhere to go.
                     if (kindIsAChoice && target.leg != null) {
-                        IconButton(Icons.Shaping, "Shaping point", onClick = { onAdd(WaypointKind.Routing, Placement.Nearest) }, primary = false)
+                        IconButton(Icons.Shaping, "Shaping point", onClick = { onAdd(WaypointKind.Routing, Placement.Nearest) })
                     }
                 }
             }
@@ -122,13 +125,13 @@ fun WaypointDialog(
                     if (kindIsAChoice) {
                         val poi = target.waypoint.kind == WaypointKind.Poi
                         IconButton(
-                            if (poi) Icons.Shaping else Icons.Stop,
+                            if (poi) Icons.Shaping else Icons.Mid,
                             if (poi) "Make shaping" else "Make a stop",
                             onClick = { onKind(if (poi) WaypointKind.Routing else WaypointKind.Poi) },
-                            primary = false,
+                            tint = if (poi) Tokens.ink else Tokens.accent,
                         )
                     }
-                    IconButton(Icons.Delete, "Remove", onClick = onRemove, primary = false)
+                    IconButton(Icons.Delete, "Remove", onClick = onRemove, tint = Tokens.bad)
                 }
             }
         }
