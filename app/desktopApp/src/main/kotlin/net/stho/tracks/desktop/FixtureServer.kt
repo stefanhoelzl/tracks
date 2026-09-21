@@ -14,14 +14,21 @@ import java.util.zip.GZIPInputStream
 
 const val VERSATILES = "https://tiles.versatiles.org"
 
+/** The map's own points (`packages/web/src/map/points.ts`, `POINTS_ORIGIN`), kept under [POINTS_DIR] in the fixture. */
+const val POINTS = "https://tiles.tracks.stho.net"
+private const val POINTS_DIR = "/tracks"
+
 /**
- * tiles.versatiles.org, as far as the screenshot tests need it, served from files on disk over loopback.
+ * tiles.versatiles.org and the map's own point tiles, as far as the screenshot tests need them, served from files on disk
+ * over loopback.
  *
- * Every path the map asks for is a file under [root], mirroring the server's own paths. A file that is not there is a
- * miss: answered 404 and remembered, so the test can fail naming it instead of rendering a quietly incomplete map.
+ * Every path the map asks for is a file under [root], mirroring the server's own paths — VersaTiles' at the root, ours
+ * under `tracks/`. A file that is not there is a miss: answered 404 and remembered, so the test can fail naming it instead
+ * of rendering a quietly incomplete map.
  *
- * With [record], a miss is fetched once from VersaTiles and kept — the only time the tests touch the network, run by
- * hand. An answer other than 200 is kept too, as `<path>.status`, so a tile that does not exist upstream is not a miss.
+ * With [record], a miss is fetched once from its server and kept — the only time the tests touch the network, run by
+ * hand. An answer other than 200 is kept too, as `<path>.status`, so a tile that does not exist upstream is not a miss:
+ * most point tiles do not, the tilesets holding only tiles with something in them.
  */
 class FixtureServer(private val root: File, private val record: Boolean) : AutoCloseable {
     val misses: MutableList<String> = CopyOnWriteArrayList()
@@ -37,7 +44,15 @@ class FixtureServer(private val root: File, private val record: Boolean) : AutoC
     val base: String get() = "http://127.0.0.1:${server.address.port}"
 
     /** The URL the map should ask instead of [url], or null for one this server does not stand in for. */
-    fun rewrite(url: String): String? = if (url.startsWith("$VERSATILES/")) base + url.removePrefix(VERSATILES) else null
+    fun rewrite(url: String): String? = when {
+        url.startsWith("$VERSATILES/") -> base + url.removePrefix(VERSATILES)
+        url.startsWith("$POINTS/") -> base + POINTS_DIR + url.removePrefix(POINTS)
+        else -> null
+    }
+
+    /** Where a path under [root] was recorded from. */
+    private fun upstream(path: String): String =
+        if (path.startsWith("$POINTS_DIR/")) POINTS + path.removePrefix(POINTS_DIR) else VERSATILES + path
 
     private fun answer(exchange: HttpExchange) {
         val path = exchange.requestURI.rawPath
@@ -62,7 +77,7 @@ class FixtureServer(private val root: File, private val record: Boolean) : AutoC
     private fun fetch(path: String, file: File, status: File) {
         if (file.isFile || status.isFile) return
         val response = client.send(
-            HttpRequest.newBuilder(URI.create(VERSATILES + path))
+            HttpRequest.newBuilder(URI.create(upstream(path)))
                 .header("User-Agent", "tracks screenshot fixture (+https://github.com/stefanhoelzl/tracks)")
                 .header("Accept-Encoding", "gzip")
                 .build(),

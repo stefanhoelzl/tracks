@@ -162,6 +162,10 @@ private val SCENES = listOf(
     Scene("stop-compass", second = 950, camera = { MapCamera.Follow(Orientation.HeadingUp, FOLLOW_ZOOM) }),
     Scene("north-up", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp, FOLLOW_ZOOM) }),
     Scene("overview", second = 185, camera = { MapCamera.Overview(it.track) }),
+    // The map's own points around Garmisch: water dots, passes, named peaks and huts at the 10 km view; drops,
+    // services, sights and every peak at the 1 km one.
+    Scene("points-z11", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp, 11.0) }),
+    Scene("points-z14", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp, 14.0) }),
     Scene("tap", second = 185, camera = { MapCamera.Follow(Orientation.NorthUp, FOLLOW_ZOOM) }, tap = 100 to -150),
 )
 

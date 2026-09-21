@@ -9,6 +9,10 @@
   {
    "id": "base",
    "url": "https://tiles.versatiles.org/assets/sprites/base"
+  },
+  {
+   "id": "icons",
+   "url": "https://tiles.versatiles.org/assets/sprites/icons"
   }
  ],
  "sources": {
@@ -42,6 +46,15 @@
     85.051129
    ],
    "attribution": "<a href=\"https://mapterhorn.com/attribution\">© Mapterhorn</a>"
+  },
+  "tracks-outdoor": {
+   "type": "vector",
+   "tiles": [
+    "https://tiles.tracks.stho.net/outdoor/{z}/{x}/{y}.pbf"
+   ],
+   "minzoom": 9,
+   "maxzoom": 11,
+   "attribution": "© <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
   }
  },
  "layers": [
@@ -17675,10 +17688,30 @@
    "type": "symbol",
    "source-layer": "pois",
    "filter": [
-    "to-boolean",
+    "all",
     [
-     "get",
-     "amenity"
+     "to-boolean",
+     [
+      "get",
+      "amenity"
+     ]
+    ],
+    [
+     "!",
+     [
+      "match",
+      [
+       "get",
+       "amenity"
+      ],
+      [
+       "drinking_water",
+       "shelter",
+       "toilets"
+      ],
+      true,
+      false
+     ]
     ]
    ],
    "minzoom": 14,
@@ -18032,10 +18065,33 @@
    "type": "symbol",
    "source-layer": "pois",
    "filter": [
-    "to-boolean",
+    "all",
     [
-     "get",
-     "tourism"
+     "to-boolean",
+     [
+      "get",
+      "tourism"
+     ]
+    ],
+    [
+     "!",
+     [
+      "match",
+      [
+       "get",
+       "tourism"
+      ],
+      [
+       "alpine_hut",
+       "wilderness_hut",
+       "camp_site",
+       "caravan_site",
+       "viewpoint",
+       "picnic_site"
+      ],
+      true,
+      false
+     ]
     ]
    ],
    "minzoom": 14,
@@ -18170,10 +18226,28 @@
    "type": "symbol",
    "source-layer": "pois",
    "filter": [
-    "to-boolean",
+    "all",
     [
-     "get",
-     "shop"
+     "to-boolean",
+     [
+      "get",
+      "shop"
+     ]
+    ],
+    [
+     "!",
+     [
+      "match",
+      [
+       "get",
+       "shop"
+      ],
+      [
+       "bicycle"
+      ],
+      true,
+      false
+     ]
     ]
    ],
    "minzoom": 14,
@@ -18338,10 +18412,29 @@
    "type": "symbol",
    "source-layer": "pois",
    "filter": [
-    "to-boolean",
+    "all",
     [
-     "get",
-     "man_made"
+     "to-boolean",
+     [
+      "get",
+      "man_made"
+     ]
+    ],
+    [
+     "!",
+     [
+      "match",
+      [
+       "get",
+       "man_made"
+      ],
+      [
+       "water_well",
+       "water_tap"
+      ],
+      true,
+      false
+     ]
     ]
    ],
    "minzoom": 14,
@@ -20348,6 +20441,824 @@
    "source": "versatiles-shortbread"
   },
   {
+   "id": "point-water-dot",
+   "type": "circle",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "minzoom": 10,
+   "maxzoom": 13,
+   "filter": [
+    "match",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "drinking_water",
+     "water_tap",
+     "water_point",
+     "water_well",
+     "spring"
+    ],
+    true,
+    false
+   ],
+   "paint": {
+    "circle-color": "#2f6fa8",
+    "circle-radius": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1.8,
+     13,
+     2.8
+    ],
+    "circle-stroke-color": "rgba(254,254,254,0.9)",
+    "circle-stroke-width": 0.8
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-water",
+   "minzoom": 13,
+   "filter": [
+    "match",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "drinking_water",
+     "water_tap",
+     "water_point",
+     "water_well",
+     "spring"
+    ],
+    true,
+    false
+   ],
+   "layout": {
+    "icon-image": "base:icon-drinking_water",
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.45,
+     16,
+     0.6
+    ],
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     "",
+     16,
+     [
+      "coalesce",
+      [
+       "get",
+       "name"
+      ],
+      ""
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     0.9
+    ],
+    "text-optional": true
+   },
+   "paint": {
+    "icon-color": "#2f6fa8",
+    "text-color": "#2f6fa8",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-hut",
+   "minzoom": 11,
+   "filter": [
+    "match",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "alpine_hut",
+     "wilderness_hut"
+    ],
+    true,
+    false
+   ],
+   "layout": {
+    "icon-image": [
+     "match",
+     [
+      "get",
+      "kind"
+     ],
+     "alpine_hut",
+     "base:icon-lodging",
+     "wilderness_hut",
+     "icons:house",
+     ""
+    ],
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     11,
+     0.5,
+     16,
+     0.65
+    ],
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     "",
+     13,
+     [
+      "coalesce",
+      [
+       "get",
+       "name"
+      ],
+      ""
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     0.9
+    ],
+    "text-optional": true
+   },
+   "paint": {
+    "icon-color": "#8a5a3c",
+    "text-color": "#8a5a3c",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-camp",
+   "minzoom": 12,
+   "filter": [
+    "match",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "camp_site",
+     "caravan_site"
+    ],
+    true,
+    false
+   ],
+   "layout": {
+    "icon-image": [
+     "match",
+     [
+      "get",
+      "kind"
+     ],
+     "camp_site",
+     "base:icon-campsite",
+     "caravan_site",
+     "base:icon-caravan",
+     ""
+    ],
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     0.5,
+     16,
+     0.65
+    ],
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     "",
+     14,
+     [
+      "coalesce",
+      [
+       "get",
+       "name"
+      ],
+      ""
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     0.9
+    ],
+    "text-optional": true
+   },
+   "paint": {
+    "icon-color": "#4f7a3a",
+    "text-color": "#4f7a3a",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-service",
+   "minzoom": 13,
+   "filter": [
+    "match",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "shelter",
+     "toilets",
+     "bicycle_shop"
+    ],
+    true,
+    false
+   ],
+   "layout": {
+    "icon-image": [
+     "match",
+     [
+      "get",
+      "kind"
+     ],
+     "shelter",
+     "base:icon-shelter",
+     "toilets",
+     "base:icon-restrooms",
+     "bicycle_shop",
+     "icons:bicycle",
+     ""
+    ],
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.5,
+     16,
+     0.65
+    ],
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     "",
+     15,
+     [
+      "coalesce",
+      [
+       "get",
+       "name"
+      ],
+      ""
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     0.9
+    ],
+    "text-optional": true
+   },
+   "paint": {
+    "icon-color": "#6e7672",
+    "text-color": "#6e7672",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-sight",
+   "minzoom": 14,
+   "filter": [
+    "match",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "viewpoint",
+     "picnic_site"
+    ],
+    true,
+    false
+   ],
+   "layout": {
+    "icon-image": [
+     "match",
+     [
+      "get",
+      "kind"
+     ],
+     "viewpoint",
+     "base:icon-viewpoint",
+     "picnic_site",
+     "base:icon-picnic_site",
+     ""
+    ],
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     0.5,
+     16,
+     0.65
+    ],
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     "",
+     16,
+     [
+      "coalesce",
+      [
+       "get",
+       "name"
+      ],
+      ""
+     ]
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     0.9
+    ],
+    "text-optional": true
+   },
+   "paint": {
+    "icon-color": "#7a5a8a",
+    "text-color": "#7a5a8a",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-saddle",
+   "minzoom": 11,
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "saddle"
+   ],
+   "layout": {
+    "text-field": [
+     "format",
+     ")(",
+     {
+      "font-scale": 1.15
+     },
+     [
+      "case",
+      [
+       "has",
+       "name"
+      ],
+      [
+       "concat",
+       "\n",
+       [
+        "get",
+        "name"
+       ]
+      ],
+      ""
+     ],
+     {},
+     [
+      "case",
+      [
+       "has",
+       "ele"
+      ],
+      [
+       "concat",
+       "\n",
+       [
+        "to-string",
+        [
+         "get",
+         "ele"
+        ]
+       ],
+       " m"
+      ],
+      ""
+     ],
+     {
+      "font-scale": 0.85
+     }
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     -0.6
+    ],
+    "text-line-height": 1.15,
+    "symbol-sort-key": [
+     "-",
+     [
+      "coalesce",
+      [
+       "get",
+       "ele"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgb(58,72,66)",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-pass",
+   "minzoom": 10,
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "pass"
+   ],
+   "layout": {
+    "text-field": [
+     "format",
+     ")(",
+     {
+      "font-scale": 1.15
+     },
+     [
+      "case",
+      [
+       "has",
+       "name"
+      ],
+      [
+       "concat",
+       "\n",
+       [
+        "get",
+        "name"
+       ]
+      ],
+      ""
+     ],
+     {},
+     [
+      "case",
+      [
+       "has",
+       "ele"
+      ],
+      [
+       "concat",
+       "\n",
+       [
+        "to-string",
+        [
+         "get",
+         "ele"
+        ]
+       ],
+       " m"
+      ],
+      ""
+     ],
+     {
+      "font-scale": 0.85
+     }
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     -0.6
+    ],
+    "text-line-height": 1.15,
+    "symbol-sort-key": [
+     "-",
+     [
+      "coalesce",
+      [
+       "get",
+       "ele"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgb(58,72,66)",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-peak-unnamed",
+   "minzoom": 13,
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "peak"
+    ],
+    [
+     "!",
+     [
+      "has",
+      "name"
+     ]
+    ]
+   ],
+   "layout": {
+    "text-field": [
+     "format",
+     "▲",
+     {
+      "font-scale": 1.15
+     },
+     [
+      "case",
+      [
+       "has",
+       "name"
+      ],
+      [
+       "concat",
+       "\n",
+       [
+        "get",
+        "name"
+       ]
+      ],
+      ""
+     ],
+     {},
+     [
+      "case",
+      [
+       "has",
+       "ele"
+      ],
+      [
+       "concat",
+       "\n",
+       [
+        "to-string",
+        [
+         "get",
+         "ele"
+        ]
+       ],
+       " m"
+      ],
+      ""
+     ],
+     {
+      "font-scale": 0.85
+     }
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     -0.6
+    ],
+    "text-line-height": 1.15,
+    "symbol-sort-key": [
+     "-",
+     [
+      "coalesce",
+      [
+       "get",
+       "ele"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgb(58,72,66)",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
+   "type": "symbol",
+   "source": "tracks-outdoor",
+   "source-layer": "points",
+   "id": "point-peak",
+   "minzoom": 11,
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "peak"
+    ],
+    [
+     "has",
+     "name"
+    ]
+   ],
+   "layout": {
+    "text-field": [
+     "format",
+     "▲",
+     {
+      "font-scale": 1.15
+     },
+     [
+      "case",
+      [
+       "has",
+       "name"
+      ],
+      [
+       "concat",
+       "\n",
+       [
+        "get",
+        "name"
+       ]
+      ],
+      ""
+     ],
+     {},
+     [
+      "case",
+      [
+       "has",
+       "ele"
+      ],
+      [
+       "concat",
+       "\n",
+       [
+        "to-string",
+        [
+         "get",
+         "ele"
+        ]
+       ],
+       " m"
+      ],
+      ""
+     ],
+     {
+      "font-scale": 0.85
+     }
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11,
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     -0.6
+    ],
+    "text-line-height": 1.15,
+    "symbol-sort-key": [
+     "-",
+     [
+      "coalesce",
+      [
+       "get",
+       "ele"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgb(58,72,66)",
+    "text-halo-color": "rgba(254,254,254,0.8)",
+    "text-halo-width": 2,
+    "text-halo-blur": 1
+   }
+  },
+  {
    "id": "label-place-neighbourhood",
    "type": "symbol",
    "source-layer": "place_labels",
@@ -20681,94 +21592,6 @@
    },
    "minzoom": 11,
    "maxzoom": 18,
-   "source": "versatiles-shortbread"
-  },
-  {
-   "id": "label-place-locality",
-   "type": "symbol",
-   "source-layer": "place_labels",
-   "filter": [
-    "==",
-    [
-     "get",
-     "kind"
-    ],
-    "locality"
-   ],
-   "layout": {
-    "text-field": [
-     "coalesce",
-     [
-      "get",
-      "name_en"
-     ],
-     [
-      "get",
-      "name"
-     ]
-    ],
-    "symbol-sort-key": [
-     "-",
-     [
-      "to-number",
-      [
-       "get",
-       "population"
-      ],
-      0
-     ]
-    ],
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       15,
-       12
-      ]
-     ]
-    },
-    "text-font": [
-     "noto_sans_regular"
-    ]
-   },
-   "paint": {
-    "icon-color": "rgb(61,61,76)",
-    "text-color": "rgb(110,118,114)",
-    "text-halo-color": "rgba(254,254,254,0.812)",
-    "icon-opacity": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     15,
-     1,
-     16,
-     0
-    ],
-    "text-opacity": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     15,
-     1,
-     16,
-     0
-    ],
-    "text-halo-width": 2,
-    "text-halo-blur": 1
-   },
-   "minzoom": 12,
-   "maxzoom": 16,
    "source": "versatiles-shortbread"
   },
   {

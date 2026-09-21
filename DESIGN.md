@@ -498,8 +498,25 @@ water across 20–50 km is what a ride needs, and on a phone that is z9, where a
 points of its own: asked of QLever's copy of the planet monthly by `.github/workflows/points.yml`, and cut into two
 tilesets on Bunny for the
 style to draw beside VersaTiles'. `map/points.ts` is the one declaration of what they carry — every kind, the OSM tags
-that select it, and which tileset it goes in — read by the extract to classify, and by the style to filter on. Nothing
-draws them yet: the tiles come first, and what is shown at which zoom is its own change.
+that select it, and which tileset it goes in — read by the extract to classify, and by the style to filter on.
+
+Only water a ride can drink is in the tiles. A fountain is drinking water by its own tag and is taken unless it says
+otherwise; a tap, a water point, a well or a spring is only sometimes drinkable — a cemetery's tap, a caravan's fill
+point — and is taken only when it says `drinking_water=yes`: 13k of 41k taps, 10k of 41k water points, 18k of 345k
+wells.
+
+The style draws `outdoor` and does not name `town`, since MapLibre Native's offline packs download every source a
+style names, read or not. Water is the water's own blue: a dot from z10, the drop from z13, the name from z16. Summits
+are glyphs in the contours' ink — a peak as ▲ with its name and height from z11, a pass as )( from z10, since a pass is
+what a route crosses, and a saddle from z11 — and a peak with no name waits for z13; where two collide the higher is
+drawn. The places a ride stops at are icons in four inks, one per reason to stop, from the zoom it starts mattering at:
+huts, a day's destination, in timber brown from z11; camp and caravan sites in forest green from z12; shelters,
+toilets and bike shops in slate from z13; viewpoints and picnic tables in violet from z14; each named two zooms after
+its icon. Waterfalls, caves, fords and repair stands are in the tiles and not drawn — no icon says them yet. Whatever
+is drawn from these tiles is taken off Shortbread's own POI layers, so nothing is drawn twice, and Shortbread's wells
+and taps go with it, since only drinkable water is drawn. The points go over the water names and under the place
+names: a village wins over a peak, a peak over a stream. `place=locality`, drawn earlier as the closest thing to a
+peak name in a schema without peaks, is not drawn any more.
 
 | | |
 |---|---|
