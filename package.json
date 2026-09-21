@@ -20,7 +20,10 @@
     "user:add": "node --experimental-strip-types packages/scripts/add-user.ts",
     "fixtures:app": "node --experimental-strip-types packages/scripts/app-fixtures.ts",
     "style:app": "node --experimental-strip-types packages/scripts/app-style.ts",
-    "icon:app": "node --experimental-strip-types packages/scripts/app-icon.ts"
+    "icon:app": "node --experimental-strip-types packages/scripts/app-icon.ts",
+    "points:extract": "node --experimental-strip-types packages/scripts/points/main.ts extract",
+    "points:tiles": "node --experimental-strip-types packages/scripts/points/main.ts tiles",
+    "points:upload": "node --experimental-strip-types packages/scripts/points/main.ts upload"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",

@@ -11,6 +11,10 @@ data/
 .env
 
 node_modules/
+
+# A local run of `pnpm points:extract`/`points:tiles`: the filtered planet, its points and a tile
+# tree, all rebuilt from scratch by the next run.
+/build/
 dist/
 *.log
 .DS_Store
