@@ -289,7 +289,16 @@ private fun Fix.measurement() = LocationMeasurement(
     measuredAt = Instant.fromEpochMilliseconds(epochMillis),
 )
 
-private const val FOLLOW_MS = 950L
+/**
+ * How long Follow glides to each new fix. Fixes come once a second, and at the 950 ms this was the camera moved 95% of
+ * the time — and a moving camera keeps MapLibre building render trees and re-placing symbols for as long as it moves:
+ * 250 ms took 18.6% off the app's CPU on the SE2 (app/docs/battery/REPORT.md, "The cause: FOLLOW_MS = 950"). The price
+ * is a map that steps once a second rather than gliding continuously, a few pixels a step at riding zoom.
+ */
+private const val FOLLOW_MS = 250L
+
+/** How long a camera the app asks for travels: to the rider for Centre, to a place for Show. Once, so unhurried. */
+private const val FLIGHT_MS = 950L
 
 /** How wide the cone that shows where the phone faces is: roughly what the eye takes in. */
 private const val FIELD_OF_VIEW_DEG = 60.0
@@ -520,14 +529,14 @@ private fun MapLibreMap(
                     val aim = insetTarget(fix.at, camera.zoom, 0.0, camera.inset, layoutDirection)
                     state.animateCameraPosition(
                         CameraPosition(target = Position(aim.lon, aim.lat), zoom = camera.zoom),
-                        duration = FOLLOW_MS.milliseconds,
+                        duration = FLIGHT_MS.milliseconds,
                     )
                 }
                 MapCamera.Free -> Unit
                 is MapCamera.Show -> {
                     val position = state.cameraPosition
                     val aim = insetTarget(camera.at, position.zoom, position.bearing, camera.inset, layoutDirection)
-                    state.animateCameraPosition(position.copy(target = Position(aim.lon, aim.lat)), duration = FOLLOW_MS.milliseconds)
+                    state.animateCameraPosition(position.copy(target = Position(aim.lon, aim.lat)), duration = FLIGHT_MS.milliseconds)
                 }
                 is MapCamera.Overview -> if (camera.points.isNotEmpty()) {
                     state.animateCameraToBounds(
