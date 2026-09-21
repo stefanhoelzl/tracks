@@ -43,10 +43,20 @@ enum class Orientation { HeadingUp, NorthUp }
 fun mapBearing(orientation: Orientation, fix: Fix?, heading: Heading?, previous: Double): Double {
     if (orientation == Orientation.NorthUp) return 0.0
     val course = fix?.courseDeg
-    val speed = fix?.speedMps ?: 0.0
     return when {
-        course != null && speed >= COURSE_MIN_SPEED_MPS -> course
+        course != null && onCourse(fix) -> course
         heading != null -> heading.degrees
         else -> previous
     }
 }
+
+/**
+ * Whether [mapBearing] turns the map by the compass at [fix]: heading-up, and slower than [COURSE_MIN_SPEED_MPS] or
+ * with no course. Anywhere else the heading is discarded, so a camera that asks this first need not listen to the
+ * compass at all — which matters, because a phone moving on a handlebar reports a heading many times a second, and
+ * each one the camera listens to cancels its glide and starts it again for nothing.
+ */
+fun compassTurnsMap(orientation: Orientation, fix: Fix?): Boolean = orientation == Orientation.HeadingUp && !onCourse(fix)
+
+/** Moving fast enough that the GPS course, not the compass, says which way the map is turned. */
+private fun onCourse(fix: Fix?): Boolean = fix?.courseDeg != null && (fix.speedMps ?: 0.0) >= COURSE_MIN_SPEED_MPS

@@ -189,12 +189,16 @@ data class RideStats(val paused: Boolean, val distanceM: Double, val climbedM: D
  *
  * A tap on a stop's profile picks that place on the route: the map leaves following to show it, ringed, and the profile
  * marks it. Following again — the grey button — lets it go.
+ *
+ * [heading] is read, not handed over: the compass is for the map alone, and it fires up to ~30 times a second while the
+ * phone moves. Passed as a value it recomposed this whole screen on every one — the sheet, the figures, the profile,
+ * none of which read it — which was a third of what the compass cost (app/docs/battery/REPORT.md).
  */
 @Composable
 fun RidingScreen(
     style: MapStyle?,
     fix: Fix?,
-    heading: Heading?,
+    heading: () -> Heading?,
     ridden: List<Coordinate>,
     navigation: Navigation?,
     routing: PlanRouting?,
