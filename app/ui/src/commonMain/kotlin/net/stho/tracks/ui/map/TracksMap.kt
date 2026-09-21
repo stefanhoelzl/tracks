@@ -17,6 +17,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -171,6 +172,10 @@ data class PlanDrawing(
  * the map — not for a tap or a long press — for a screen to stop moving the camera itself. [marker] is a place picked
  * off the map, drawn as a ring. [highlight] is a stretch selected on the elevation profile: the rest of the line is
  * held back and this piece keeps its colour, so the chart and the map are talking about the same kilometres.
+ *
+ * [heading] is a read rather than a value, and only this map makes it: a compass fires up to ~30 times a second while
+ * the phone moves, and a value handed down recomposes every composable it passes through on each one. Read here, it
+ * reaches the facing cone and — below walking pace, heading-up — the camera, and recomposes nothing.
  */
 @Composable
 fun TracksMap(
@@ -180,7 +185,7 @@ fun TracksMap(
     plan: List<Coordinate> = emptyList(),
     ridden: List<Coordinate> = emptyList(),
     fix: Fix? = null,
-    heading: Heading? = null,
+    heading: () -> Heading? = { null },
     drawing: PlanDrawing? = null,
     onTap: (Coordinate) -> Unit = {},
     onPlace: ((Coordinate, String?) -> Unit)? = null,
@@ -319,6 +324,10 @@ private fun facingCone(colour: Color, density: Density): ImageBitmap {
     return bitmap
 }
 
+/** The rider at [at], carrying the [heading] the facing cone turns to; nothing until both are known. */
+private fun riderJson(at: Coordinate?, heading: Heading?): String =
+    if (at == null || heading == null) EMPTY_COLLECTION else collection(listOf(pointFeature(at, properties("bearing" to heading.degrees))))
+
 /** Keeps a style source holding [json], once the style is [loaded] — and again after every reload, which empties it. */
 @Composable
 private fun Feed(state: MapState, loaded: Boolean, source: String, json: String) {
@@ -346,7 +355,7 @@ private fun MapLibreMap(
     plan: List<Coordinate>,
     ridden: List<Coordinate>,
     fix: Fix?,
-    heading: Heading?,
+    heading: () -> Heading?,
     drawing: PlanDrawing?,
     onTap: (Coordinate) -> Unit,
     onPlace: ((Coordinate, String?) -> Unit)?,
@@ -387,11 +396,6 @@ private fun MapLibreMap(
         collection(listOfNotNull(lineFeature(highlight, properties("role" to if (highlightRidden) "ridden" else "plan"))))
     }
     val cursorJson = remember(marker) { collection(listOfNotNull(marker?.let { pointFeature(it) })) }
-    val facing = heading
-    val riderJson = remember(fix?.at, facing?.degrees) {
-        val at = fix?.at
-        if (at == null || facing == null) EMPTY_COLLECTION else collection(listOf(pointFeature(at, properties("bearing" to facing.degrees))))
-    }
 
     // The one thing on the map that moves on its own, because it is the one thing waiting on somebody else.
     val waiting = drawing != null && drawing.pulse && drawing.legs.any { it.state == LegState.Routing }
@@ -417,7 +421,8 @@ private fun MapLibreMap(
             is MapCamera.Follow -> CameraPosition(
                 target = Position(at.lon, at.lat),
                 zoom = camera.zoom,
-                bearing = mapBearing(camera.orientation, fix, heading, previous = 0.0),
+                // Read once, and unobserved: a read here would recompose the map on every heading after it.
+                bearing = mapBearing(camera.orientation, fix, Snapshot.withoutReadObservation(heading), previous = 0.0),
             )
             is MapCamera.Overview, MapCamera.Free, is MapCamera.Show -> CameraPosition(target = Position(at.lon, at.lat), zoom = 13.0)
             is MapCamera.Centre -> CameraPosition(target = Position(at.lon, at.lat), zoom = camera.zoom)
@@ -457,7 +462,15 @@ private fun MapLibreMap(
     Feed(state, loaded, OverlayIds.RIDDEN_SOURCE, riddenJson)
     Feed(state, loaded, OverlayIds.RANGE_SOURCE, rangeJson)
     Feed(state, loaded, OverlayIds.CURSOR_SOURCE, cursorJson)
-    Feed(state, loaded, OverlayIds.RIDER_SOURCE, riderJson)
+    // The rider, carrying the heading the facing cone is turned by. Fed from the fix and the heading as they change
+    // rather than from composition, so that a heading recomposes nothing (see TracksMap's `heading`).
+    LaunchedEffect(state, loaded) {
+        if (!loaded) return@LaunchedEffect
+        val rider = checkNotNull((state.style.sources[OverlayIds.RIDER_SOURCE] as? GeoJsonSourceHandle)?.asMutable) {
+            "overlays.json has no GeoJSON source '${OverlayIds.RIDER_SOURCE}'"
+        }
+        snapshotFlow { riderJson(currentFix?.at, currentHeading()) }.collect { rider.setData(GeoJsonData.JsonString(it)) }
+    }
 
     // Held back while a stretch of it is picked out, so the stretch drawn over it reads as *this piece* rather than as a
     // second line.
@@ -484,7 +497,14 @@ private fun MapLibreMap(
         snapshotFlow { currentCamera }.collectLatest { camera ->
             when (camera) {
                 is MapCamera.Follow -> {
-                    snapshotFlow { currentFix to currentHeading }.collectLatest { (fix, heading) ->
+                    // The heading is read only where it turns the map. Above walking pace the course does, and a
+                    // heading read there would cancel and restart the glide for a value mapBearing then discards.
+                    // mapBearing itself stays out of the flow: it reads the camera's bearing, which moves on every
+                    // frame of a glide, and would make the flow emit on every frame.
+                    snapshotFlow {
+                        val fix = currentFix
+                        fix to if (compassTurnsMap(camera.orientation, fix)) currentHeading() else null
+                    }.collectLatest { (fix, heading) ->
                         if (fix == null) return@collectLatest
                         val zoom = camera.zoom
                         val bearing = mapBearing(camera.orientation, fix, heading, previous = state.cameraPosition.bearing)

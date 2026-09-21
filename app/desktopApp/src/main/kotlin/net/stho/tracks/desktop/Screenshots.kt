@@ -272,7 +272,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                             modifier = Modifier.fillMaxSize(),
                             plan = ride.track,
                             fix = fix,
-                            heading = heading,
+                            heading = { heading },
                             onTap = { at -> tapped.set(at) },
                             onIdle = onIdle,
                         )
@@ -381,7 +381,7 @@ private fun render(scene: Scene, update: Boolean, record: Boolean) {
                         RidingScreen(
                             style = style,
                             fix = fix,
-                            heading = heading,
+                            heading = { heading },
                             ridden = ridden.map { it.at },
                             navigation = navigation,
                             routing = PlanRouting(routing = 0).takeIf { scene.screen == Screen.RidingDetour },

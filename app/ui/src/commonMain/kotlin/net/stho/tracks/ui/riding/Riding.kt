@@ -75,7 +75,8 @@ fun Riding(
 ) {
     val state by recorder.state.collectAsState()
     val fix by remember(sensors) { sensors.fixes }.collectAsState(null)
-    val heading by remember(sensors) { sensors.headings }.collectAsState(null)
+    // Collected here, where the sensors are, but never read here: only the map reads it (see RidingScreen).
+    val heading = remember(sensors) { sensors.headings }.collectAsState(null)
     val ridden by recorder.track.collectAsState()
     val elevation by recorder.elevation.collectAsState()
     val navigation by navigator.state.collectAsState()
@@ -129,7 +130,7 @@ fun Riding(
     RidingScreen(
         style = style,
         fix = fix,
-        heading = heading,
+        heading = { heading.value },
         ridden = ridden,
         navigation = navigation.takeIf { planId != null },
         routing = navigation?.let { routing[it.plan.id] },

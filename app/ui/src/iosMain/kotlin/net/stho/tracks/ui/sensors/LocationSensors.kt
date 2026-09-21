@@ -69,7 +69,10 @@ class LocationSensors : Sensors {
             trySend(Heading(degrees, (heading.timestamp.timeIntervalSince1970 * 1000).toLong()))
         })
         listener.manager.apply {
-            headingFilter = 1.0
+            // Five degrees, not one. At one, a phone moved by hand reported ~30 headings a second (on the SE2), and
+            // each is work for the map; the facing cone is 60° wide and the compass turns the map only below walking
+            // pace, so a finer heading than this shows nothing a rider could see. app/docs/battery/REPORT.md.
+            headingFilter = 5.0
             startUpdatingHeading()
         }
         awaitClose { listener.stop() }
