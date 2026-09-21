@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -50,6 +51,7 @@ import net.stho.tracks.sensors.Fix
 import net.stho.tracks.sensors.Heading
 import net.stho.tracks.ui.resources.Res
 import net.stho.tracks.ui.theme.Tokens
+import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
@@ -58,6 +60,7 @@ import org.maplibre.compose.location.LocationPuck
 import org.maplibre.compose.location.LocationPuckColors
 import org.maplibre.compose.map.MapEvent
 import org.maplibre.compose.map.MapState
+import org.maplibre.compose.map.RenderOptions
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.sources.GeoJsonData
@@ -300,6 +303,25 @@ private const val FOLLOW_MS = 250L
 /** How long a camera the app asks for travels: to the rider for Centre, to a place for Show. Once, so unhurried. */
 private const val FLIGHT_MS = 950L
 
+/**
+ * How often MapLibre may draw while nothing anyone would watch is moving: the rider's dot, the ridden line, the cone and
+ * Follow's step to each fix.
+ *
+ * Any change on the map — a dot moved once a second is enough — restarts MapLibre's symbol-placement cross-fade, and
+ * while it fades MapLibre draws at the display's rate; so a riding map drew 60 frames a second for the whole ride, at
+ * ~0.44 of an A13 core. Capped at 15 that was 60% cheaper on the SE2 (app/docs/battery/REPORT.md, "Root cause: the
+ * symbol placement cross-fade"). The fade itself can be switched off only through an API maplibre-compose 0.16 keeps
+ * internal, so that fix waits upstream; the cap is public. At riding zoom a fix moves the map a few pixels, which
+ * 15 frames a second draws as smoothly as 60.
+ *
+ * It is lifted — [RenderOptions.Standard], the display's rate — for everything a person would see stutter, and only
+ * those: a finger on the map, the fling that outlives it, a camera the app flies somewhere, and the pulse of a leg
+ * being routed.
+ */
+private const val MAX_FPS = 15
+
+private val CAPPED = RenderOptions { maximumFps = MAX_FPS }
+
 /** How wide the cone that shows where the phone faces is: roughly what the eye takes in. */
 private const val FIELD_OF_VIEW_DEG = 60.0
 
@@ -421,6 +443,18 @@ private fun MapLibreMap(
     }
     val routingOpacity = if (waiting && low) ROUTING_LOW_OPACITY else ROUTING_REST_OPACITY
     val picking = highlight.size > 1
+    val currentWaiting by rememberUpdatedState(waiting)
+
+    // A camera the app asked for is on its way: Centre, Show, Overview, or Follow's first step, from wherever the map was.
+    var flying by remember { mutableStateOf(false) }
+    suspend fun fly(move: suspend () -> Unit) {
+        flying = true
+        try {
+            move()
+        } finally {
+            flying = false
+        }
+    }
 
     // Start where the camera is going when that is known, rather than flying in: every tile a fly-in passes through is
     // one more download, on a phone that may be on a hillside's last bar of signal.
@@ -510,6 +544,10 @@ private fun MapLibreMap(
                     // heading read there would cancel and restart the glide for a value mapBearing then discards.
                     // mapBearing itself stays out of the flow: it reads the camera's bearing, which moves on every
                     // frame of a glide, and would make the flow emit on every frame.
+                    //
+                    // Until one step has landed, the camera may be anywhere — panned away, or north-up a moment ago — so
+                    // that step is a flight and drawn at the display's rate; every step after it is a few pixels, capped.
+                    var arrived = false
                     snapshotFlow {
                         val fix = currentFix
                         fix to if (compassTurnsMap(camera.orientation, fix)) currentHeading() else null
@@ -518,27 +556,37 @@ private fun MapLibreMap(
                         val zoom = camera.zoom
                         val bearing = mapBearing(camera.orientation, fix, heading, previous = state.cameraPosition.bearing)
                         val aim = insetTarget(fix.at, zoom, bearing, camera.inset, layoutDirection)
-                        state.animateCameraPosition(
-                            CameraPosition(target = Position(aim.lon, aim.lat), zoom = zoom, bearing = bearing),
-                            duration = FOLLOW_MS.milliseconds,
-                        )
+                        val step = suspend {
+                            state.animateCameraPosition(
+                                CameraPosition(target = Position(aim.lon, aim.lat), zoom = zoom, bearing = bearing),
+                                duration = FOLLOW_MS.milliseconds,
+                            )
+                        }
+                        if (arrived) {
+                            step()
+                        } else {
+                            fly(step)
+                            arrived = true
+                        }
                     }
                 }
                 is MapCamera.Centre -> {
                     val fix = snapshotFlow { currentFix }.filterNotNull().first()
                     val aim = insetTarget(fix.at, camera.zoom, 0.0, camera.inset, layoutDirection)
-                    state.animateCameraPosition(
-                        CameraPosition(target = Position(aim.lon, aim.lat), zoom = camera.zoom),
-                        duration = FLIGHT_MS.milliseconds,
-                    )
+                    fly {
+                        state.animateCameraPosition(
+                            CameraPosition(target = Position(aim.lon, aim.lat), zoom = camera.zoom),
+                            duration = FLIGHT_MS.milliseconds,
+                        )
+                    }
                 }
                 MapCamera.Free -> Unit
                 is MapCamera.Show -> {
                     val position = state.cameraPosition
                     val aim = insetTarget(camera.at, position.zoom, position.bearing, camera.inset, layoutDirection)
-                    state.animateCameraPosition(position.copy(target = Position(aim.lon, aim.lat)), duration = FLIGHT_MS.milliseconds)
+                    fly { state.animateCameraPosition(position.copy(target = Position(aim.lon, aim.lat)), duration = FLIGHT_MS.milliseconds) }
                 }
-                is MapCamera.Overview -> if (camera.points.isNotEmpty()) {
+                is MapCamera.Overview -> if (camera.points.isNotEmpty()) fly {
                     state.animateCameraToBounds(
                         BoundingBox(
                             west = camera.points.minOf { it.lon },
@@ -551,6 +599,16 @@ private fun MapLibreMap(
                     )
                 }
             }
+        }
+    }
+
+    // Whether anything is moving that would stutter at MAX_FPS. A fling outlives the finger that threw it, so a finger
+    // count cannot see it; the camera's own move reason can. Derived, so that the camera starting and stopping every
+    // second recomposes nothing unless the answer changes.
+    val uncapped by remember(state) {
+        derivedStateOf {
+            fingers > 0 || flying || currentWaiting ||
+                (state.isCameraMoving && state.cameraMoveReason == CameraMoveReason.GESTURE)
         }
     }
 
@@ -584,6 +642,7 @@ private fun MapLibreMap(
     ) {
         MaplibreMap(
             state = state,
+            renderOptions = if (uncapped) RenderOptions.Standard else CAPPED,
             interactions = remember {
                 MapInteractions {
                     callbacks {
