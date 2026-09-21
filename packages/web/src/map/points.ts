@@ -53,11 +53,34 @@ export type PointRule = {
  * in town, so an alpine hut serving food stays a hut.
  */
 export const POINT_RULES = [
-  { kind: 'drinking_water', source: 'outdoor', tag: ['amenity', 'drinking_water'] },
-  { kind: 'water_tap', source: 'outdoor', tag: ['man_made', 'water_tap'] },
-  { kind: 'water_point', source: 'outdoor', tag: ['amenity', 'water_point'] },
-  { kind: 'water_well', source: 'outdoor', tag: ['man_made', 'water_well'] },
-  // Only 17k of 284k springs say they are drinkable; the rest are not a water source for a ride.
+  // Only water a ride can drink. A fountain is drinking water by its own tag, so it is taken
+  // unless it says otherwise (2k of 365k do). A tap, a water point, a well or a spring is only
+  // sometimes drinkable — a cemetery's tap, a caravan's fill point — so it is taken when it says so:
+  // 13k of 41k taps, 10k of 41k water points, 18k of 345k wells, 17k of 284k springs.
+  {
+    kind: 'drinking_water',
+    source: 'outdoor',
+    tag: ['amenity', 'drinking_water'],
+    unless: { drinking_water: 'no' },
+  },
+  {
+    kind: 'water_tap',
+    source: 'outdoor',
+    tag: ['man_made', 'water_tap'],
+    also: { drinking_water: 'yes' },
+  },
+  {
+    kind: 'water_point',
+    source: 'outdoor',
+    tag: ['amenity', 'water_point'],
+    also: { drinking_water: 'yes' },
+  },
+  {
+    kind: 'water_well',
+    source: 'outdoor',
+    tag: ['man_made', 'water_well'],
+    also: { drinking_water: 'yes' },
+  },
   {
     kind: 'spring',
     source: 'outdoor',

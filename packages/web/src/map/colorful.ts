@@ -1,4 +1,5 @@
 import { osm, type TileJSONSpecification } from '@versatiles/style'
+import { POINT_SOURCES, POINTS_LAYER, type PointKind, tilesUrl } from './points.ts'
 
 /**
  * The vector basemap's style decisions, apart from the MapLibre wiring in `basemap.ts`.
@@ -69,7 +70,7 @@ const AS_BEFORE = {
 export function washedColorful() {
   const style = osm({
     theme: 'colorful',
-    urls: { base: TILES, osm: OSM_TILES, elevation: ELEVATION_TILES },
+    urls: { base: TILES, osm: OSM_TILES, elevation: ELEVATION_TILES, sprite: SPRITES },
     features: { hillshade: HILLSHADE },
     // Barely held back. An earlier pass desaturated this by a third to keep the
     // tracks dominant, and took the terrain down with it — woodland, scrub and rock
@@ -79,8 +80,10 @@ export function washedColorful() {
     text: { language: 'en' },
     ...AS_BEFORE,
   })
-  const layers = withPlaceLabels(withWaterLabels(withWayNetworks(withLight(style.layers))))
-  return { ...style, layers }
+  const layers = withPlaceLabels(
+    withPoints(withWaterLabels(withWayNetworks(withLight(style.layers)))),
+  )
+  return { ...style, sources: { ...style.sources, ...pointSources() }, layers }
 }
 
 /** The hillshade lit from `LIGHT`, which v6 cannot be told. */
@@ -331,46 +334,289 @@ function onStructure(structure: string): unknown[] {
 /**
  * Place names from the zoom their data starts at, rather than from the zoom VersaTiles chose.
  *
- * Measured against the tiles: `place_labels` carries village, hamlet, locality and
- * isolated_dwelling from z10 — the style held village to z11 and hamlet to z13, so a 20 km view
- * of a valley named almost nothing in it.
+ * Measured against the tiles: `place_labels` carries village and hamlet from z10 — the style held
+ * hamlet to z13, so a 20 km view of a valley named almost nothing in it.
  *
- * `locality` is drawn for the first time. It is OSM's named nowhere, and in the Alps it is what
- * carries Kramer, Predigtstuhl, Kuhflucht and Stepbergeck — the closest thing to a peak name in
- * a schema that has no peaks. Quieter than a village, because it is not one.
+ * `locality`, OSM's named nowhere, was drawn here too while it was the closest thing to a peak
+ * name in a schema without peaks. The map has its own peaks now (`withPoints`), and it is not.
  */
-export const PLACE_MINZOOM = { town: 8, village: 10, hamlet: 11, locality: 12 } as const
+export const PLACE_MINZOOM = { town: 8, village: 10, hamlet: 11 } as const
 
 function withPlaceLabels(layers: Layer[]): Layer[] {
-  const out = layers.map((layer) => {
+  return layers.map((layer) => {
     const kind = /^label-place-(town|village|hamlet)$/.exec(layer.id)?.[1]
     if (!kind) return layer
-    return { ...layer, minzoom: PLACE_MINZOOM[kind as 'town' | 'village' | 'hamlet'] }
+    return { ...layer, minzoom: PLACE_MINZOOM[kind as keyof typeof PLACE_MINZOOM] }
   })
+}
 
-  const village = out.find((layer) => layer.id === 'label-place-village')
-  if (!village) return out
-  const locality = {
-    ...village,
-    id: 'label-place-locality',
-    minzoom: PLACE_MINZOOM.locality,
-    filter: ['==', ['get', 'kind'], 'locality'],
+/**
+ * The map's own points (`points.ts`): water a ride can drink, summits, and the places a ride stops
+ * at, from `tracks-outdoor`, at the zooms a ride is planned at.
+ *
+ * Shortbread has no peaks, saddles, passes or springs at any zoom, and draws the rest only from
+ * z14, so a 40 km view of a valley said nothing about where to fill a bottle, what the mountains
+ * were called or where the huts were. The tiles start at z9.
+ *
+ * Water is the water's own blue: a dot from z10, where a 20 km view can hold a hundred and more, the
+ * drop from z13, the name from z16 — few fountains have one. A summit is a fact about the terrain
+ * and is drawn in the contours' ink, as a glyph: a peak as ▲ with its name and height, a pass or a
+ * saddle as )(. A pass is what a route crosses, so it comes first, from z10; peaks and saddles from
+ * z11, a peak with no name only from z13, and where two collide the higher is drawn.
+ *
+ * The stops are icons in four inks, one per reason to stop, each from the zoom its reason starts
+ * mattering at: a hut is a day's destination (z11), a camp site a night's (z12), a shelter, a toilet
+ * or a bike shop is on the way (z13), a viewpoint or a picnic table is a pause (z14). Their names
+ * follow two zooms later. Waterfalls, caves, fords and repair stands are in the tiles and not drawn:
+ * no icon says them yet.
+ *
+ * Whatever is drawn from here is taken off Shortbread's own POI layers, so nothing is drawn twice —
+ * and Shortbread's wells and taps go with it, drinkable or not, since only drinkable water is drawn.
+ */
+export const WATER_POINT_COLOUR = WATER_LABEL_COLOUR
+export const SUMMIT_COLOUR = 'rgb(58,72,66)'
+
+/** Every water kind `points.ts` carries is drinkable: the extract takes nothing else. */
+export const WATER_KINDS = [
+  'drinking_water',
+  'water_tap',
+  'water_point',
+  'water_well',
+  'spring',
+] as const satisfies readonly PointKind[]
+
+export const WATER_ZOOMS = { dot: 10, icon: 13, name: 16 } as const
+export const SUMMIT_ZOOMS = { pass: 10, summit: 11, unnamedPeak: 13 } as const
+
+/** A reason to stop: the kinds it covers, each with its icon, the zoom it starts at and its ink. */
+export type StopGroup = {
+  readonly id: string
+  readonly minzoom: number
+  readonly colour: string
+  readonly icons: Readonly<Partial<Record<PointKind, string>>>
+}
+
+export const STOP_GROUPS = [
+  {
+    id: 'point-hut',
+    minzoom: 11,
+    colour: '#8a5a3c',
+    icons: { alpine_hut: 'base:icon-lodging', wilderness_hut: 'icons:house' },
+  },
+  {
+    id: 'point-camp',
+    minzoom: 12,
+    colour: '#4f7a3a',
+    icons: { camp_site: 'base:icon-campsite', caravan_site: 'base:icon-caravan' },
+  },
+  {
+    id: 'point-service',
+    minzoom: 13,
+    colour: '#6e7672',
+    icons: {
+      shelter: 'base:icon-shelter',
+      toilets: 'base:icon-restrooms',
+      bicycle_shop: 'icons:bicycle',
+    },
+  },
+  {
+    id: 'point-sight',
+    minzoom: 14,
+    colour: '#7a5a8a',
+    icons: { viewpoint: 'base:icon-viewpoint', picnic_site: 'base:icon-picnic_site' },
+  },
+] as const satisfies readonly StopGroup[]
+
+/** How many zooms after its icon a stop is named. */
+export const STOP_NAME_AFTER = 2
+
+/**
+ * Shortbread's copies of what is drawn here, by the tag its POI layer reads: its `poi-amenity`
+ * reads `amenity`, and so on. Its water points are not listed: Shortbread draws none.
+ */
+export const TAKEN_FROM_SHORTBREAD = {
+  'poi-amenity': ['amenity', ['drinking_water', 'shelter', 'toilets']],
+  'poi-tourism': [
+    'tourism',
+    ['alpine_hut', 'wilderness_hut', 'camp_site', 'caravan_site', 'viewpoint', 'picnic_site'],
+  ],
+  'poi-man_made': ['man_made', ['water_well', 'water_tap']],
+  'poi-shop': ['shop', ['bicycle']],
+} as const
+
+/**
+ * The point sources the style names: only those something is drawn from. MapLibre Native's offline
+ * packs download every source a style names, so `tracks-town` stays out until a layer reads it.
+ */
+export const DRAWN_POINT_SOURCES = ['outdoor'] as const
+
+/** VersaTiles' `base` sheet, and its `icons` sheet for the pictograms `base` has no use for. */
+export const SPRITES = [
+  { id: 'base', url: `${TILES}/assets/sprites/base` },
+  { id: 'icons', url: `${TILES}/assets/sprites/icons` },
+]
+
+function pointSources() {
+  return Object.fromEntries(
+    DRAWN_POINT_SOURCES.map((source) => {
+      const { id, minzoom, maxzoom } = POINT_SOURCES[source]
+      const spec = {
+        type: 'vector',
+        tiles: [tilesUrl(source)],
+        minzoom,
+        maxzoom,
+        attribution: OSM_TILES.attribution,
+      }
+      return [id, spec]
+    }),
+  ) as Record<string, ReturnType<typeof osm>['sources'][string]>
+}
+
+const kindIn = (kinds: readonly string[]) => ['match', ['get', 'kind'], [...kinds], true, false]
+
+const HALO = {
+  'text-halo-color': 'rgba(254,254,254,0.8)',
+  'text-halo-width': 2,
+  'text-halo-blur': 1,
+}
+
+const POINT = {
+  type: 'symbol',
+  source: POINT_SOURCES.outdoor.id,
+  'source-layer': POINTS_LAYER,
+} as const
+
+/** The mark on the point, the name under it, the height under that — each only if there is one. */
+function summitText(mark: string) {
+  return [
+    'format',
+    mark,
+    { 'font-scale': 1.15 },
+    ['case', ['has', 'name'], ['concat', '\n', ['get', 'name']], ''],
+    {},
+    ['case', ['has', 'ele'], ['concat', '\n', ['to-string', ['get', 'ele']], ' m'], ''],
+    { 'font-scale': 0.85 },
+  ]
+}
+
+function summit(id: string, kind: PointKind, mark: string, minzoom: number, filter?: unknown) {
+  return {
+    ...POINT,
+    id,
+    minzoom,
+    filter: filter ? ['all', ['==', ['get', 'kind'], kind], filter] : ['==', ['get', 'kind'], kind],
     layout: {
-      ...(village as { layout?: object }).layout,
+      'text-field': summitText(mark),
       'text-font': ['noto_sans_regular'],
-      'text-size': {
-        stops: [
-          [12, 10],
-          [15, 12],
+      'text-size': 11,
+      // The text box hangs from the point, lifted so the mark rather than its top sits on it.
+      'text-anchor': 'top',
+      'text-offset': [0, -0.6],
+      'text-line-height': 1.15,
+      // Lower keys are placed first: where two summits collide, the higher one is drawn.
+      'symbol-sort-key': ['-', ['coalesce', ['get', 'ele'], 0]],
+    },
+    paint: { 'text-color': SUMMIT_COLOUR, ...HALO },
+  }
+}
+
+function stop(group: StopGroup) {
+  const kinds = Object.keys(group.icons)
+  return {
+    ...POINT,
+    id: group.id,
+    minzoom: group.minzoom,
+    filter: kindIn(kinds),
+    layout: {
+      'icon-image': ['match', ['get', 'kind'], ...Object.entries(group.icons).flat(), ''],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], group.minzoom, 0.5, 16, 0.65],
+      'text-field': [
+        'step',
+        ['zoom'],
+        '',
+        group.minzoom + STOP_NAME_AFTER,
+        ['coalesce', ['get', 'name'], ''],
+      ],
+      'text-font': ['noto_sans_regular'],
+      'text-size': 11,
+      'text-anchor': 'top',
+      'text-offset': [0, 0.9],
+      'text-optional': true,
+    },
+    paint: { 'icon-color': group.colour, 'text-color': group.colour, ...HALO },
+  }
+}
+
+export const POINT_LAYERS = [
+  'point-water-dot',
+  'point-water',
+  ...STOP_GROUPS.map((group) => group.id),
+  'point-saddle',
+  'point-pass',
+  'point-peak-unnamed',
+  'point-peak',
+] as const
+
+function withPoints(layers: Layer[]): Layer[] {
+  const points = [
+    {
+      id: 'point-water-dot',
+      type: 'circle',
+      source: POINT.source,
+      'source-layer': POINTS_LAYER,
+      minzoom: WATER_ZOOMS.dot,
+      maxzoom: WATER_ZOOMS.icon,
+      filter: kindIn(WATER_KINDS),
+      paint: {
+        'circle-color': WATER_POINT_COLOUR,
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          WATER_ZOOMS.dot,
+          1.8,
+          WATER_ZOOMS.icon,
+          2.8,
         ],
+        'circle-stroke-color': 'rgba(254,254,254,0.9)',
+        'circle-stroke-width': 0.8,
       },
     },
-    paint: {
-      ...(village as { paint?: object }).paint,
-      'text-color': 'rgb(110,118,114)',
+    {
+      ...POINT,
+      id: 'point-water',
+      minzoom: WATER_ZOOMS.icon,
+      filter: kindIn(WATER_KINDS),
+      layout: {
+        'icon-image': 'base:icon-drinking_water',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], WATER_ZOOMS.icon, 0.45, 16, 0.6],
+        'text-field': ['step', ['zoom'], '', WATER_ZOOMS.name, ['coalesce', ['get', 'name'], '']],
+        'text-font': ['noto_sans_regular'],
+        'text-size': 11,
+        'text-anchor': 'top',
+        'text-offset': [0, 0.9],
+        'text-optional': true,
+      },
+      paint: { 'icon-color': WATER_POINT_COLOUR, 'text-color': WATER_POINT_COLOUR, ...HALO },
     },
-  } as unknown as Layer
+    ...STOP_GROUPS.map(stop),
+    summit('point-saddle', 'saddle', ')(', SUMMIT_ZOOMS.summit),
+    summit('point-pass', 'pass', ')(', SUMMIT_ZOOMS.pass),
+    summit('point-peak-unnamed', 'peak', '▲', SUMMIT_ZOOMS.unnamedPeak, ['!', ['has', 'name']]),
+    summit('point-peak', 'peak', '▲', SUMMIT_ZOOMS.summit, ['has', 'name']),
+  ] as unknown as Layer[]
 
-  const at = out.findIndex((layer) => layer.id === 'label-place-village')
-  return [...out.slice(0, at), locality, ...out.slice(at)]
+  const out = layers.map((layer) => {
+    const taken = TAKEN_FROM_SHORTBREAD[layer.id as keyof typeof TAKEN_FROM_SHORTBREAD]
+    if (!taken) return layer
+    const [key, values] = taken
+    const filter = (layer as { filter?: unknown }).filter
+    const notOurs = ['!', ['match', ['get', key], [...values], true, false]]
+    return { ...layer, filter: filter ? ['all', filter, notOurs] : notOurs } as Layer
+  })
+
+  // Over the water names and under the place names: a village wins over a peak, a peak over a stream.
+  const at = out.findIndex((layer) => layer.id.startsWith('label-place-'))
+  if (at < 0) return [...out, ...points]
+  return [...out.slice(0, at), ...points, ...out.slice(at)]
 }
