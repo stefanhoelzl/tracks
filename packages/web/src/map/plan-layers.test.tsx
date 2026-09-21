@@ -7,6 +7,7 @@ import type {
   StyleSpecification,
 } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
+import { CURSOR_SOURCE, RANGE_SOURCE } from './layers.ts'
 import {
   addPlanLayers,
   beelineFeatures,
@@ -19,6 +20,8 @@ import {
   PLAN_SHAPING_LAYER,
   PLAN_SOURCE,
   previewFeature,
+  RIDDEN_LAYER,
+  RIDER_FACING_LAYER,
   routeFeatures,
   showPlan,
   waypointFeatures,
@@ -201,11 +204,14 @@ describe('the plan layers', () => {
     expect(() => showPlan(map, true)).not.toThrow()
   })
 
-  it('names its sources so the plan and the tracks cannot collide', () => {
-    const { sources } = collect()
+  it('names its sources so the plan and the tracks cannot collide, and adds none of the phone’s', () => {
+    const { sources, layers } = collect()
     expect(Object.keys(sources).sort()).toEqual(
-      [PLAN_POINTS_SOURCE, PLAN_PREVIEW_SOURCE, PLAN_SOURCE].sort(),
+      [CURSOR_SOURCE, PLAN_POINTS_SOURCE, PLAN_PREVIEW_SOURCE, PLAN_SOURCE, RANGE_SOURCE].sort(),
     )
+    // The ridden line and the facing cone are the phone's: the web never draws a source it cannot fill.
+    expect(layers.map((layer) => layer.id)).not.toContain(RIDDEN_LAYER)
+    expect(layers.map((layer) => layer.id)).not.toContain(RIDER_FACING_LAYER)
   })
 
   it('rings a previewed place, and nothing at all without one', () => {

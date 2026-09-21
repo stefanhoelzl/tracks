@@ -12,6 +12,8 @@ import {
   washedColorful,
   withLight,
 } from './colorful.ts'
+import { CONTOUR_MIN_ZOOM, CONTOUR_OVERLAYS, CONTOUR_TILES } from './contours.ts'
+import { overlaysFor } from './overlay-spec.ts'
 
 /**
  * The basemap, in one module.
@@ -42,11 +44,6 @@ const ELEVATION = ELEVATION_TILES.tiles[0] as string
 
 /** The same server's raster imagery, WebP. */
 const SATELLITE = `${TILES}/tiles/satellite/{z}/{x}/{y}`
-
-/** Contours appear only when the terrain is worth reading, and never label the overview. */
-const CONTOUR_MIN_ZOOM = 11
-
-const CONTOUR_SOURCE = 'contours'
 
 /**
  * `maplibre-contour` generates contour vector tiles from the DEM in a worker and
@@ -104,53 +101,23 @@ export async function basemapStyle(kind: Basemap = 'map'): Promise<StyleSpecific
   return withContours(washedColorful() as StyleSpecification)
 }
 
-/** Contours are generated from the DEM, so they belong to whatever is underneath. */
+/**
+ * Contours are generated from the DEM, so they belong to whatever is underneath — which is why they
+ * are part of the style rather than added over it, and survive nothing a basemap swap does not.
+ */
 function withContours(style: StyleSpecification): StyleSpecification {
-  style.sources[CONTOUR_SOURCE] = {
-    type: 'vector',
-    tiles: [contourTiles()],
-    maxzoom: 15,
+  const { sources, layers } = overlaysFor(CONTOUR_OVERLAYS, 'web')
+  for (const [id, source] of Object.entries(sources)) {
+    style.sources[id] =
+      source.type === 'vector'
+        ? {
+            ...source,
+            tiles: source.tiles?.map((url) => (url === CONTOUR_TILES ? contourTiles() : url)),
+          }
+        : source
   }
-
-  style.layers.push(
-    {
-      id: 'contour-lines',
-      type: 'line',
-      source: CONTOUR_SOURCE,
-      'source-layer': 'contours',
-      minzoom: CONTOUR_MIN_ZOOM,
-      paint: {
-        // Darker and a touch more opaque than the grey basemap wanted: a contour has
-        // to stay legible crossing woodland, not only crossing paper.
-        'line-color': 'rgba(74, 88, 82, 0.45)',
-        // Index lines carry the labels, so they carry the weight too.
-        'line-width': ['match', ['get', 'level'], 1, 1, 0.5],
-      },
-    },
-    {
-      id: 'contour-labels',
-      type: 'symbol',
-      source: CONTOUR_SOURCE,
-      'source-layer': 'contours',
-      minzoom: CONTOUR_MIN_ZOOM + 1,
-      filter: ['>', ['get', 'level'], 0],
-      layout: {
-        'symbol-placement': 'line',
-        'text-field': ['concat', ['number-format', ['get', 'ele'], {}], ' m'],
-        'text-font': ['noto_sans_regular'],
-        'text-size': 9.5,
-        'text-max-angle': 25,
-      },
-      paint: {
-        'text-color': 'rgba(58, 72, 66, 0.95)',
-        // A denser halo, for the same reason: the label now has colour behind it.
-        'text-halo-color': 'rgba(244, 246, 243, 0.92)',
-        'text-halo-width': 1.6,
-      },
-    },
-  )
-
-  return style as StyleSpecification
+  style.layers.push(...layers)
+  return style
 }
 
 export const BASEMAP = { TILES, ELEVATION, CONTOUR_MIN_ZOOM }

@@ -1,0 +1,1167 @@
+{
+ "sources": {
+  "contours": {
+   "type": "vector",
+   "tiles": [
+    "{contours}"
+   ],
+   "maxzoom": 15,
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   }
+  },
+  "tracks": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   },
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   }
+  },
+  "selected": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   },
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   }
+  },
+  "starts": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   },
+   "cluster": true,
+   "clusterMaxZoom": 8,
+   "clusterRadius": 44,
+   "clusterProperties": {
+    "s0": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       0
+      ],
+      1,
+      0
+     ]
+    ],
+    "s1": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       1
+      ],
+      1,
+      0
+     ]
+    ],
+    "s2": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       2
+      ],
+      1,
+      0
+     ]
+    ],
+    "s3": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       3
+      ],
+      1,
+      0
+     ]
+    ],
+    "s4": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       4
+      ],
+      1,
+      0
+     ]
+    ],
+    "s5": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       5
+      ],
+      1,
+      0
+     ]
+    ],
+    "s6": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       6
+      ],
+      1,
+      0
+     ]
+    ],
+    "s7": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       7
+      ],
+      1,
+      0
+     ]
+    ],
+    "s8": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       8
+      ],
+      1,
+      0
+     ]
+    ],
+    "s9": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       9
+      ],
+      1,
+      0
+     ]
+    ],
+    "s10": [
+     "+",
+     [
+      "case",
+      [
+       "==",
+       [
+        "get",
+        "slot"
+       ],
+       10
+      ],
+      1,
+      0
+     ]
+    ]
+   },
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   }
+  },
+  "reference": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   },
+   "metadata": {
+    "platforms": [
+     "web"
+    ],
+    "before": "plan-casing"
+   }
+  },
+  "reference-points": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   },
+   "metadata": {
+    "platforms": [
+     "web"
+    ],
+    "before": "plan-casing"
+   }
+  },
+  "plan": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   }
+  },
+  "plan-points": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   }
+  },
+  "plan-preview": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   },
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   }
+  },
+  "range": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   }
+  },
+  "cursor": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   }
+  },
+  "ridden": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   },
+   "metadata": {
+    "platforms": [
+     "app"
+    ]
+   }
+  },
+  "rider": {
+   "type": "geojson",
+   "data": {
+    "type": "FeatureCollection",
+    "features": []
+   },
+   "metadata": {
+    "platforms": [
+     "app"
+    ]
+   }
+  }
+ },
+ "layers": [
+  {
+   "id": "contour-lines",
+   "type": "line",
+   "source": "contours",
+   "source-layer": "contours",
+   "minzoom": 11,
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "paint": {
+    "line-color": "rgba(74, 88, 82, 0.45)",
+    "line-width": [
+     "match",
+     [
+      "get",
+      "level"
+     ],
+     1,
+     1,
+     0.5
+    ]
+   }
+  },
+  {
+   "id": "contour-labels",
+   "type": "symbol",
+   "source": "contours",
+   "source-layer": "contours",
+   "minzoom": 12,
+   "filter": [
+    ">",
+    [
+     "get",
+     "level"
+    ],
+    0
+   ],
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "layout": {
+    "symbol-placement": "line",
+    "text-field": [
+     "concat",
+     [
+      "number-format",
+      [
+       "get",
+       "ele"
+      ],
+      {}
+     ],
+     " m"
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 9.5,
+    "text-max-angle": 25
+   },
+   "paint": {
+    "text-color": "rgba(58, 72, 66, 0.95)",
+    "text-halo-color": "rgba(244, 246, 243, 0.92)",
+    "text-halo-width": 1.6
+   }
+  },
+  {
+   "id": "tracks-base",
+   "type": "line",
+   "source": "tracks",
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": [
+     "get",
+     "colour"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     1.8,
+     10,
+     3,
+     14,
+     4.5
+    ],
+    "line-opacity": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     7,
+     0,
+     8,
+     0.85
+    ]
+   }
+  },
+  {
+   "id": "tracks-focus-casing",
+   "type": "line",
+   "source": "tracks",
+   "filter": [
+    "==",
+    [
+     "get",
+     "id"
+    ],
+    -1
+   ],
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#0f1513",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     6,
+     10,
+     8.5,
+     14,
+     11
+    ],
+    "line-opacity": 0.75
+   }
+  },
+  {
+   "id": "tracks-focus",
+   "type": "line",
+   "source": "tracks",
+   "filter": [
+    "==",
+    [
+     "get",
+     "id"
+    ],
+    -1
+   ],
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": [
+     "coalesce",
+     [
+      "get",
+      "colourHi"
+     ],
+     "#0f1513"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     3.2,
+     10,
+     5,
+     14,
+     7
+    ],
+    "line-opacity": 1
+   }
+  },
+  {
+   "id": "selected-track-casing",
+   "type": "line",
+   "source": "selected",
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#0f1513",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     6,
+     10,
+     8.5,
+     14,
+     11
+    ],
+    "line-opacity": 0.75
+   }
+  },
+  {
+   "id": "selected-track",
+   "type": "line",
+   "source": "selected",
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": [
+     "coalesce",
+     [
+      "get",
+      "colourHi"
+     ],
+     "#0f1513"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     3.2,
+     10,
+     5,
+     14,
+     7
+    ],
+    "line-opacity": 1
+   }
+  },
+  {
+   "id": "starts-circles",
+   "type": "circle",
+   "source": "starts",
+   "filter": [
+    "!",
+    [
+     "has",
+     "point_count"
+    ]
+   ],
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "paint": {
+    "circle-color": [
+     "get",
+     "colour"
+    ],
+    "circle-radius": 7,
+    "circle-stroke-width": 2,
+    "circle-stroke-color": "#ffffff",
+    "circle-opacity": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     7,
+     1,
+     8,
+     0
+    ],
+    "circle-stroke-opacity": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     7,
+     1,
+     8,
+     0
+    ]
+   }
+  },
+  {
+   "id": "reference-line",
+   "type": "line",
+   "source": "reference",
+   "metadata": {
+    "platforms": [
+     "web"
+    ],
+    "before": "plan-casing"
+   },
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": [
+     "get",
+     "colour"
+    ],
+    "line-width": 2.6
+   }
+  },
+  {
+   "id": "reference-vertex",
+   "type": "circle",
+   "source": "reference-points",
+   "filter": [
+    "!",
+    [
+     "get",
+     "wpt"
+    ]
+   ],
+   "minzoom": 11,
+   "metadata": {
+    "platforms": [
+     "web"
+    ],
+    "before": "plan-casing"
+   },
+   "paint": {
+    "circle-color": "#ffffff",
+    "circle-radius": 3,
+    "circle-stroke-width": 1.5,
+    "circle-stroke-color": [
+     "get",
+     "colour"
+    ]
+   }
+  },
+  {
+   "id": "reference-wpt",
+   "type": "circle",
+   "source": "reference-points",
+   "filter": [
+    "get",
+    "wpt"
+   ],
+   "metadata": {
+    "platforms": [
+     "web"
+    ],
+    "before": "plan-casing"
+   },
+   "paint": {
+    "circle-color": "#ffffff",
+    "circle-radius": 5,
+    "circle-stroke-width": 2.5,
+    "circle-stroke-color": [
+     "get",
+     "colour"
+    ]
+   }
+  },
+  {
+   "id": "reference-wpt-label",
+   "type": "symbol",
+   "source": "reference-points",
+   "filter": [
+    "get",
+    "wpt"
+   ],
+   "minzoom": 11,
+   "metadata": {
+    "platforms": [
+     "web"
+    ],
+    "before": "plan-casing"
+   },
+   "layout": {
+    "text-field": [
+     "get",
+     "label"
+    ],
+    "text-font": [
+     "noto_sans_regular"
+    ],
+    "text-size": 11.5,
+    "text-offset": [
+     0,
+     0.9
+    ],
+    "text-anchor": "top",
+    "text-optional": true
+   },
+   "paint": {
+    "text-color": [
+     "get",
+     "colour"
+    ],
+    "text-halo-color": "rgba(255, 255, 255, 0.92)",
+    "text-halo-width": 1.6
+   }
+  },
+  {
+   "id": "plan-casing",
+   "type": "line",
+   "source": "plan",
+   "filter": [
+    "get",
+    "routed"
+   ],
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#0f1513",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     3.6,
+     10,
+     4.8,
+     14,
+     6
+    ],
+    "line-opacity": 0.55
+   }
+  },
+  {
+   "id": "plan-line",
+   "type": "line",
+   "source": "plan",
+   "filter": [
+    "get",
+    "routed"
+   ],
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#0d8a5f",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     2,
+     10,
+     2.8,
+     14,
+     3.6
+    ]
+   }
+  },
+  {
+   "id": "ridden",
+   "type": "line",
+   "source": "ridden",
+   "metadata": {
+    "platforms": [
+     "app"
+    ]
+   },
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#ce7a0c",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     2,
+     10,
+     2.8,
+     14,
+     3.6
+    ]
+   }
+  },
+  {
+   "id": "plan-failed",
+   "type": "line",
+   "source": "plan",
+   "filter": [
+    "all",
+    [
+     "!",
+     [
+      "get",
+      "routed"
+     ]
+    ],
+    [
+     "!",
+     [
+      "get",
+      "pending"
+     ]
+    ]
+   ],
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#0f1513",
+    "line-width": 3,
+    "line-opacity": 0.5,
+    "line-dasharray": [
+     2,
+     2.5
+    ]
+   }
+  },
+  {
+   "id": "plan-pending",
+   "type": "line",
+   "source": "plan",
+   "filter": [
+    "get",
+    "pending"
+   ],
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#0d8a5f",
+    "line-width": 3,
+    "line-opacity": 0.55,
+    "line-dasharray": [
+     2,
+     2.5
+    ]
+   }
+  },
+  {
+   "id": "range-casing",
+   "type": "line",
+   "source": "range",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#ffffff",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     5.6,
+     10,
+     7.4,
+     14,
+     9.2
+    ]
+   }
+  },
+  {
+   "id": "range-line",
+   "type": "line",
+   "source": "range",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": [
+     "coalesce",
+     [
+      "get",
+      "colourHi"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "role"
+      ],
+      "ridden",
+      "#ce7a0c",
+      "#0d8a5f"
+     ]
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     2,
+     10,
+     2.8,
+     14,
+     3.6
+    ]
+   }
+  },
+  {
+   "id": "plan-shaping",
+   "type": "circle",
+   "source": "plan-points",
+   "filter": [
+    "!",
+    [
+     "get",
+     "poi"
+    ]
+   ],
+   "minzoom": 10,
+   "paint": {
+    "circle-color": "#ffffff",
+    "circle-radius": [
+     "case",
+     [
+      "==",
+      [
+       "get",
+       "held"
+      ],
+      true
+     ],
+     6,
+     3.5
+    ],
+    "circle-stroke-width": [
+     "case",
+     [
+      "==",
+      [
+       "get",
+       "held"
+      ],
+      true
+     ],
+     2,
+     1.5
+    ],
+    "circle-stroke-color": "#0d8a5f",
+    "circle-opacity": [
+     "case",
+     [
+      "==",
+      [
+       "get",
+       "held"
+      ],
+      true
+     ],
+     1,
+     0.9
+    ]
+   }
+  },
+  {
+   "id": "plan-poi",
+   "type": "circle",
+   "source": "plan-points",
+   "filter": [
+    "get",
+    "poi"
+   ],
+   "paint": {
+    "circle-color": "#0d8a5f",
+    "circle-radius": [
+     "case",
+     [
+      "==",
+      [
+       "get",
+       "held"
+      ],
+      true
+     ],
+     11,
+     7
+    ],
+    "circle-stroke-width": [
+     "case",
+     [
+      "==",
+      [
+       "get",
+       "held"
+      ],
+      true
+     ],
+     3,
+     2.5
+    ],
+    "circle-stroke-color": "#ffffff"
+   }
+  },
+  {
+   "id": "plan-preview-ring",
+   "type": "circle",
+   "source": "plan-preview",
+   "metadata": {
+    "platforms": [
+     "web"
+    ]
+   },
+   "paint": {
+    "circle-color": "rgba(13, 138, 95, 0.18)",
+    "circle-radius": 11,
+    "circle-stroke-width": 2.5,
+    "circle-stroke-color": "#0d8a5f"
+   }
+  },
+  {
+   "id": "plan-poi-label",
+   "type": "symbol",
+   "source": "plan-points",
+   "filter": [
+    "get",
+    "poi"
+   ],
+   "layout": {
+    "text-field": [
+     "get",
+     "label"
+    ],
+    "text-font": [
+     "noto_sans_bold"
+    ],
+    "text-size": 12,
+    "text-offset": [
+     0,
+     1.1
+    ],
+    "text-anchor": "top",
+    "text-optional": true
+   },
+   "paint": {
+    "text-color": "#0f1513",
+    "text-halo-color": "rgba(255, 255, 255, 0.92)",
+    "text-halo-width": 1.6
+   }
+  },
+  {
+   "id": "cursor-dot",
+   "type": "circle",
+   "source": "cursor",
+   "paint": {
+    "circle-color": "#ffffff",
+    "circle-radius": 7,
+    "circle-stroke-width": 3,
+    "circle-stroke-color": "#0f1513"
+   }
+  },
+  {
+   "id": "rider-facing",
+   "type": "symbol",
+   "source": "rider",
+   "metadata": {
+    "platforms": [
+     "app"
+    ],
+    "imageColour": "#2f6fd6"
+   },
+   "layout": {
+    "icon-image": "rider-facing",
+    "icon-anchor": "center",
+    "icon-rotate": [
+     "get",
+     "bearing"
+    ],
+    "icon-rotation-alignment": "map",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
+   }
+  }
+ ]
+}

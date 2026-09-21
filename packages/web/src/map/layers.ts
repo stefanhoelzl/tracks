@@ -1,7 +1,14 @@
 import type { TrackCollection } from '@tracks/core'
 import type { ExpressionSpecification, FilterSpecification, MapLibreMap } from 'maplibre-gl'
-import { activityColour, activitySlot, type ColourScale, emphasise, HASHED } from '../lib/colour.ts'
-import { clusterProperties } from './clusters.ts'
+import {
+  activityColour,
+  activitySlot,
+  type ColourScale,
+  emphasise,
+  HASHED,
+  NEUTRAL_SLOT,
+} from '../lib/colour.ts'
+import { addOverlays, type Overlays } from './overlay-spec.ts'
 
 /**
  * The track layers, and the rules for painting them.
@@ -87,22 +94,6 @@ const HIGHLIGHT_CASING_WIDTH: ExpressionSpecification = [
   11,
 ]
 const HIGHLIGHT_CASING_OPACITY = 0.75
-
-/**
- * The white border around a selected stretch: wider than the casing a selected track already wears,
- * so the stretch reads as picked out of the line rather than as a second line beside it.
- */
-const RANGE_CASING_WIDTH: ExpressionSpecification = [
-  'interpolate',
-  ['linear'],
-  ['zoom'],
-  6,
-  9,
-  10,
-  12,
-  14,
-  16,
-]
 
 /** Coalesced: a feature without a colour would take the layer down, not draw it wrong. */
 const HIGHLIGHT_COLOUR: ExpressionSpecification = [
@@ -233,133 +224,118 @@ function highlightCasingPaint() {
   }
 }
 
+/**
+ * Each slot's counter, named `s0`…`s10`, summed over a cluster's members: the tally a donut is
+ * drawn from (`clusters.ts`).
+ */
+export function clusterProperties(): Record<string, unknown> {
+  const properties: Record<string, unknown> = {}
+
+  for (let slot = 0; slot <= NEUTRAL_SLOT; slot++) {
+    properties[`s${slot}`] = ['+', ['case', ['==', ['get', 'slot'], slot], 1, 0]]
+  }
+  return properties
+}
+
+const WEB = { platforms: ['web'] } as const
+
+/** The web's own: the activity archive, which the phone does not have. */
+export const TRACK_OVERLAYS: Overlays = {
+  sources: {
+    [TRACKS_SOURCE]: { type: 'geojson', data: EMPTY, metadata: WEB },
+    [SELECTED_SOURCE]: { type: 'geojson', data: EMPTY, metadata: WEB },
+    [STARTS_SOURCE]: {
+      type: 'geojson',
+      data: EMPTY,
+      cluster: true,
+      clusterMaxZoom: CLUSTER_MAX_ZOOM,
+      clusterRadius: 44,
+      // Eleven counters, one per palette slot: the tally each donut is drawn from.
+      clusterProperties: clusterProperties(),
+      metadata: WEB,
+    },
+  },
+  layers: [
+    {
+      id: TRACKS_LAYER,
+      type: 'line',
+      source: TRACKS_SOURCE,
+      metadata: WEB,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ['get', 'colour'],
+        // Thin enough at country scale to show a shape rather than a blot, heavy
+        // enough at valley scale to follow.
+        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.8, 10, 3, 14, 4.5],
+        'line-opacity': fadeInTo(RESTING_OPACITY),
+      },
+    },
+
+    // Drawn separately so focusing costs one filter change rather than a feature-state
+    // write per track — and so the highlight can be wider than the line it replaces.
+    {
+      id: FOCUS_CASING_LAYER,
+      type: 'line',
+      source: TRACKS_SOURCE,
+      filter: ['==', ['get', 'id'], -1],
+      metadata: WEB,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: highlightCasingPaint(),
+    },
+    {
+      id: FOCUS_LAYER,
+      type: 'line',
+      source: TRACKS_SOURCE,
+      filter: ['==', ['get', 'id'], -1],
+      metadata: WEB,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: highlightPaint(),
+    },
+
+    // An outline, not a colour. Painting the selection itself black said "this is a
+    // different kind of thing" when it means "this is the one you picked", and threw away
+    // the sport or trip the colour was carrying. Drawn *under* the line instead, the same
+    // ink separates the selection from every track it crosses and from the pale basemap,
+    // while the colour on top stays the colour it always was.
+    {
+      id: SELECTED_CASING_LAYER,
+      type: 'line',
+      source: SELECTED_SOURCE,
+      metadata: WEB,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: highlightCasingPaint(),
+    },
+    {
+      id: SELECTED_LAYER,
+      type: 'line',
+      source: SELECTED_SOURCE,
+      metadata: WEB,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: highlightPaint(),
+    },
+
+    // Only the lone starts. A cluster is a mixture, and a circle layer can paint one
+    // colour per feature — so clusters are drawn as donut markers over the canvas.
+    {
+      id: STARTS_LAYER,
+      type: 'circle',
+      source: STARTS_SOURCE,
+      filter: ['!', ['has', 'point_count']],
+      metadata: WEB,
+      paint: {
+        'circle-color': ['get', 'colour'],
+        'circle-radius': 7,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+        'circle-opacity': fadeOutFrom(1),
+        'circle-stroke-opacity': fadeOutFrom(1),
+      },
+    },
+  ],
+}
+
 export function addTrackLayers(map: MapLibreMap): void {
-  map.addSource(TRACKS_SOURCE, { type: 'geojson', data: EMPTY })
-  map.addSource(SELECTED_SOURCE, { type: 'geojson', data: EMPTY })
-  map.addSource(CURSOR_SOURCE, { type: 'geojson', data: EMPTY })
-  map.addSource(RANGE_SOURCE, { type: 'geojson', data: EMPTY })
-  map.addSource(STARTS_SOURCE, {
-    type: 'geojson',
-    data: EMPTY,
-    cluster: true,
-    clusterMaxZoom: CLUSTER_MAX_ZOOM,
-    clusterRadius: 44,
-    // Eleven counters, one per palette slot: the tally each donut is drawn from.
-    clusterProperties: clusterProperties(),
-  })
-
-  map.addLayer({
-    id: TRACKS_LAYER,
-    type: 'line',
-    source: TRACKS_SOURCE,
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': ['get', 'colour'],
-      // Thin enough at country scale to show a shape rather than a blot, heavy
-      // enough at valley scale to follow.
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.8, 10, 3, 14, 4.5],
-      'line-opacity': fadeInTo(RESTING_OPACITY),
-    },
-  })
-
-  // Drawn separately so focusing costs one filter change rather than a feature-state
-  // write per track — and so the highlight can be wider than the line it replaces.
-  map.addLayer({
-    id: FOCUS_CASING_LAYER,
-    type: 'line',
-    source: TRACKS_SOURCE,
-    filter: ['==', ['get', 'id'], -1],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: highlightCasingPaint(),
-  })
-
-  map.addLayer({
-    id: FOCUS_LAYER,
-    type: 'line',
-    source: TRACKS_SOURCE,
-    filter: ['==', ['get', 'id'], -1],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: highlightPaint(),
-  })
-
-  // An outline, not a colour. Painting the selection itself black said "this is a
-  // different kind of thing" when it means "this is the one you picked", and threw away
-  // the sport or trip the colour was carrying. Drawn *under* the line instead, the same
-  // ink separates the selection from every track it crosses and from the pale basemap,
-  // while the colour on top stays the colour it always was.
-  map.addLayer({
-    id: SELECTED_CASING_LAYER,
-    type: 'line',
-    source: SELECTED_SOURCE,
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: highlightCasingPaint(),
-  })
-
-  map.addLayer({
-    id: SELECTED_LAYER,
-    type: 'line',
-    source: SELECTED_SOURCE,
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: highlightPaint(),
-  })
-
-  // The selected stretch, over the line held back beneath it: the chart and the map are then
-  // talking about the same kilometres. It **keeps the track's own colour** and is picked out by a
-  // white casing rather than by being repainted — a stretch drawn in ink would answer *which piece*
-  // by destroying the answer to *what is this ride*, which is the colour it is drawn in.
-  map.addLayer({
-    id: RANGE_CASING_LAYER,
-    type: 'line',
-    source: RANGE_SOURCE,
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': '#ffffff',
-      'line-width': RANGE_CASING_WIDTH,
-    },
-  })
-  map.addLayer({
-    id: RANGE_LAYER,
-    type: 'line',
-    source: RANGE_SOURCE,
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': HIGHLIGHT_COLOUR,
-      'line-width': HIGHLIGHT_WIDTH,
-    },
-  })
-
-  // Where the elevation profile's cursor is, on the track it belongs to. White with
-  // the same dark outline everything else is cased in — the one combination that
-  // holds against the pale basemap, the satellite imagery and the track underneath,
-  // which between them cover every value a single flat colour could have been.
-  map.addLayer({
-    id: CURSOR_LAYER,
-    type: 'circle',
-    source: CURSOR_SOURCE,
-    paint: {
-      'circle-color': '#ffffff',
-      'circle-radius': 5,
-      'circle-stroke-width': 2,
-      'circle-stroke-color': SELECTED_OUTLINE,
-    },
-  })
-
-  // Only the lone starts. A cluster is a mixture, and a circle layer can paint one
-  // colour per feature — so clusters are drawn as donut markers over the canvas.
-  map.addLayer({
-    id: STARTS_LAYER,
-    type: 'circle',
-    source: STARTS_SOURCE,
-    filter: ['!', ['has', 'point_count']],
-    paint: {
-      'circle-color': ['get', 'colour'],
-      'circle-radius': 7,
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff',
-      'circle-opacity': fadeOutFrom(1),
-      'circle-stroke-opacity': fadeOutFrom(1),
-    },
-  })
+  addOverlays(map, TRACK_OVERLAYS)
 }
 
 /**

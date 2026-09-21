@@ -1652,6 +1652,17 @@ unpaved is dotted, never dashed, because a dash is the plan's straight-line leg.
 below z14, so a trail is grey at z13 rather than red one zoom and green the next. Metric only; the app is **light
 only** today (see *Still undecided*).
 
+**What is drawn over the basemap is one list too.** The plan, its stops and shaping points, the routing dash, the
+stretch picked out on a profile, the cursor, the ride and the facing cone are style-spec layers in the web's
+`overlays.ts`, written beside the style as `overlays.json` and checked by the same test. The phone merges them into
+the style as it reads it and only feeds their GeoJSON sources by id — a held waypoint or a routed leg is a property
+of the feature, not a layer of its own — setting a paint value only where it is live: the pulse, and a line held back
+under a picked-out stretch. Before, `TracksMap.kt` carried a hand copy of every width and dash; moving to the list
+changed one picture, `riding-range`, where the ride had been drawn over the stretch of plan picked out under it.
+Each entry may say who draws it (`metadata.platforms`) — the contours need the web's protocol, the archive and
+dropped files are the web's, the ride and the cone the phone's — and what it goes under (`metadata.before`). The
+puck stays maplibre-compose's own, for its native motion between fixes.
+
 **Water has names now, and places arrive earlier.** `colorful` draws no water label at all, so a river was an
 anonymous blue line however far you followed it — the tiles carry `water_lines_labels` from z12 and streams from
 z14, and both are now drawn along the line, repeating about every 160 px, in the water's own blue. Place labels
