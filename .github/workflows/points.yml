@@ -1,0 +1,47 @@
+# The map's own points — water, summits, outdoor and town places — asked of QLever's planet and cut
+# into two tilesets on Bunny. See packages/scripts/points/main.ts for the steps and
+# packages/web/src/map/points.ts for what they make.
+#
+# Monthly, because peaks do not move and fountains are not added in bursts; and by hand, for a fix
+# to the rules that should not wait a month. Apart from `ci` on purpose: it asks a research service
+# for the whole planet and can take hours to upload, and nothing in a pull request is a reason to.
+#
+# The only secrets are the storage zone's name and password, which reach nothing but that zone.
+name: points
+
+on:
+  schedule:
+    # Off the hour, when GitHub's scheduled runs queue up.
+    - cron: '17 3 3 * *'
+  workflow_dispatch:
+
+# One at a time. Two runs uploading into the same zone would each write a manifest describing only
+# what it sent, and the second would forget the first's tiles.
+concurrency:
+  group: points
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # ~15 minutes of QLever, then an upload whose speed is Bunny's to decide: the first, all ~730k
+    # tiles, took an hour at ~200/s, and a slow day could stretch that past this limit. A run cut off
+    # here leaves a manifest of what landed, and the next carries on from it.
+    timeout-minutes: 350
+    env:
+      WORK: ${{ runner.temp }}/points
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm points:extract "$WORK"
+      - run: pnpm points:tiles "$WORK"
+      - run: pnpm points:upload "$WORK"
+        env:
+          TRACKS_STORAGE_ZONE: ${{ secrets.TRACKS_STORAGE_ZONE }}
+          TRACKS_STORAGE_ZONE_PASSWORD: ${{ secrets.TRACKS_STORAGE_ZONE_PASSWORD }}

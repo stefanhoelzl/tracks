@@ -480,6 +480,32 @@ zoom in. `washedColorful()` lives in `map/colorful.ts` so the iPhone app draws t
 | **Viewport** | Eases to the result bounds once the filter settles — debounced, so dragging a slider fits at the end rather than every frame. It holds still when nothing matches, rather than lurching at empty bounds, and stays put entirely while *filter to this area* is on. |
 | **Low zoom** | Start points cluster into **donuts**, split by the same colour-by that paints the tracks — which valley is all hiking and which is half rides, before you zoom in to find out. The client derives the start points from the track payload it already holds, so clustering costs no endpoint. A toggle turns grouping off entirely, and the tracks then never fade: the zoom interpolation existed only to make room for the donuts. |
 
+### Water, summits and the places a ride stops at
+
+Shortbread's `pois` layer exists at z14 only, and has no peaks, saddles, passes, springs or taps at any zoom. Seeing
+water across 20–50 km is what a ride needs, and on a phone that is z9, where a screen is 40 km across. So the map has
+points of its own: asked of QLever's copy of the planet monthly by `.github/workflows/points.yml`, and cut into two
+tilesets on Bunny for the
+style to draw beside VersaTiles'. `map/points.ts` is the one declaration of what they carry — every kind, the OSM tags
+that select it, and which tileset it goes in — read by the extract to classify, and by the style to filter on. Nothing
+draws them yet: the tiles come first, and what is shown at which zoom is its own change.
+
+| | |
+|---|---|
+| **Shape** | Two sparse `z/x/y.pbf` trees at `tiles.tracks.stho.net`: `outdoor` (water, summits, huts, shelters, fords, campsites, viewpoints, bike repair — 21 kinds) stored at z9–11, `town` (lodging, food, shops, fuel, stations — 16 kinds) at z12. One layer, `points`, with `kind`, `name` and `ele`; MVT extent 32768, so a point overzoomed from z11 is 0.4 m out, the basemap's own precision. Only tiles with something in them exist; a missing one is a 404, which MapLibre reads as empty on the web and on the phone, offline packs included. |
+| **Why not a file** | A worldwide GeoJSON is ~34 MB gzipped against the 4.6 MB the edge script has left, and MapLibre indexes a GeoJSON source whole in memory, which 2 M points will not survive on a phone. A region-scoped file would be a silent boundary everywhere else. |
+| **Why not PMTiles** | MapLibre Native reads `pmtiles://`, but its offline packs do not cache it. Plain `z/x/y` keeps both the packs and, served straight from storage, any code out of the request path. |
+| **The extract** | [QLever](https://qlever.dev) holds the OSM planet with every node, way and relation's geometry already assembled as WKT, and one query per kind, generated from `points.ts`, fetches the lot in about fifteen minutes. Cutting the planet ourselves was built first and set aside: a way's coordinates live on its nodes, which a planet file stores before the ways, so on a 95 GB stream that cannot land on a runner's disk it took two full passes — ~45 minutes and 190 GB a month — and still left out relations. Half of all alpine huts, two thirds of shelters and a third of campsites are ways, so shapes are not optional. QLever is a research service that owes us nothing: a failed request fails the run and the map keeps last month's tiles, and a kind that comes back empty — what a change to its schema looks like — fails it too. Its planet is a few weeks old, which for peaks and fountains is no loss. |
+| **Serving** | Bunny Storage has no public read and no per-object headers, so it sits behind a pull zone, and everything a response carries is set there: `Cache-Control` of a week (the default was 296 days, which over tiles rewritten in place would have pinned stale ones for most of a year), CORS with `pbf` allowlisted, and an edge rule adding `Content-Encoding: gzip` to the gzipped tiles — without which the web would get bytes it cannot parse while the phone, which inflates tiles itself, worked. |
+| **Upload** | Bunny takes one request per tile and throttles the zone, by an amount that varies: the first upload of all 728k tiles held ~200/s at 128 connections and took an hour, a test the same morning got 34/s, and 256 connections collapse to a few per second. A manifest of tile hashes in the zone makes a run send only what changed, and it is written every 50k tiles along the way, so a run cut off by the job's six-hour limit leaves a truthful one behind and the next carries on. How much a month changes — a 50 km z9 tile changes with any edit inside it — the second run's log will say. |
+
+A full run came to 13.4 M points in fifteen minutes of QLever, cut in three more into 728k tiles and 393 MB — 402k
+tiles for `outdoor`, 327k for `town`, the largest a 225 KB town tile. Once a style names these tiles the kinds are a
+contract with every installed app, whose committed style reaches them by a URL with no version in it: a kind may be
+added, and never renamed or removed. Considered and left out: paths and bike lines in our own tiles, which would fix
+one attribute at one zoom (z13's grey) with a 53 M-line tileset, and Komoot's Highlights, which are other people's
+content with no licence to serve them.
+
 ### Colour is hashed, then unjammed
 
 A colour has to belong to a value for as long as the value exists, with nothing stored

@@ -87,6 +87,13 @@ importers:
       drizzle-orm:
         specifier: ^0.44.7
         version: 0.44.7(@libsql/client@0.18.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
+    devDependencies:
+      '@mapbox/vector-tile':
+        specifier: ^3.0.0
+        version: 3.0.0
+      pbf:
+        specifier: ^5.1.2
+        version: 5.1.2
 
   packages/server:
     dependencies:
