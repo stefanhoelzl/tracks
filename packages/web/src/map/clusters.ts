@@ -1,7 +1,7 @@
 import type { MapLibreMap, Marker } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
-import { colourForSlot, NEUTRAL_SLOT, PALETTE_SIZE } from '../lib/colour.ts'
-import { STARTS_SOURCE } from './layers.ts'
+import { colourForSlot, PALETTE_SIZE } from '../lib/colour.ts'
+import { clusterProperties, STARTS_SOURCE } from './layers.ts'
 
 /**
  * Clusters, drawn as donuts.
@@ -18,15 +18,7 @@ import { STARTS_SOURCE } from './layers.ts'
  * donuts are DOM markers positioned over the canvas.
  */
 
-/** Each slot's counter, named `s0`…`s10`, summed over a cluster's members. */
-export function clusterProperties(): Record<string, unknown> {
-  const properties: Record<string, unknown> = {}
-
-  for (let slot = 0; slot <= NEUTRAL_SLOT; slot++) {
-    properties[`s${slot}`] = ['+', ['case', ['==', ['get', 'slot'], slot], 1, 0]]
-  }
-  return properties
-}
+export { clusterProperties }
 
 const SIZES = [
   { upTo: 10, radius: 17, stroke: 5 },

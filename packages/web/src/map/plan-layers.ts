@@ -1,7 +1,16 @@
 import type { Leg, Waypoint } from '@tracks/routing'
 import type { ExpressionSpecification, MapLibreMap } from 'maplibre-gl'
+import { RIDDEN_COLOUR } from '../lib/colour.ts'
 import { legGeometries } from '../lib/plan-track.ts'
-import { SELECTION } from './layers.ts'
+import {
+  CURSOR_LAYER,
+  CURSOR_SOURCE,
+  RANGE_CASING_LAYER,
+  RANGE_LAYER,
+  RANGE_SOURCE,
+  SELECTION,
+} from './layers.ts'
+import { addOverlays, type Overlays } from './overlay-spec.ts'
 
 /**
  * The plan, on the map.
@@ -30,6 +39,15 @@ export const PLAN_POI_LAYER = 'plan-poi'
 export const PLAN_POI_LABEL_LAYER = 'plan-poi-label'
 export const PLAN_PENDING_LAYER = 'plan-pending'
 export const PLAN_PREVIEW_LAYER = 'plan-preview-ring'
+
+/** The phone's own: the ride being recorded, and where the phone faces. */
+export const RIDDEN_SOURCE = 'ridden'
+export const RIDDEN_LAYER = 'ridden'
+export const RIDER_SOURCE = 'rider'
+export const RIDER_FACING_LAYER = 'rider-facing'
+
+/** The image the facing cone is drawn with, painted by the phone at runtime in `metadata.imageColour`. */
+export const RIDER_FACING_IMAGE = 'rider-facing'
 
 /**
  * The plan's own colour, mirrored from `--accent` in the token file.
@@ -88,6 +106,29 @@ const ROUTE_CASING_WIDTH: ExpressionSpecification = [
   14,
   6,
 ]
+
+/**
+ * The white border around a stretch picked out on the elevation profile: wider than the plan's own
+ * casing, so the stretch reads as picked out of the line rather than as a second line beside it.
+ * Drawn at the plan's weight, over a line held back to `HELD_BACK`, which is what it is picked out of.
+ */
+const RANGE_CASING_WIDTH: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  6,
+  5.6,
+  10,
+  7.4,
+  14,
+  9.2,
+]
+
+/**
+ * A waypoint a finger has picked up, on the phone, before it is dragged: drawn larger, so it
+ * shows it has been. The web drags with a pointer, which needs no such sign, and never sets it.
+ */
+const HELD: ExpressionSpecification = ['==', ['get', 'held'], true]
 
 interface LineFeature {
   type: 'Feature'
@@ -199,137 +240,231 @@ export function previewFeature(at: { lat: number; lon: number } | null): Collect
   }
 }
 
+const BOTH = undefined
+const WEB = { platforms: ['web'] } as const
+const APP = { platforms: ['app'] } as const
+
+const ROUND = { 'line-cap': 'round', 'line-join': 'round' } as const
+
+/**
+ * The plan and what is said about it: the stretch picked out on its profile, the cursor on it, and
+ * on the phone the ride over it and the cone where the phone faces.
+ */
+export const PLAN_OVERLAYS: Overlays = {
+  sources: {
+    [PLAN_SOURCE]: { type: 'geojson', data: EMPTY, metadata: BOTH },
+    [PLAN_POINTS_SOURCE]: { type: 'geojson', data: EMPTY, metadata: BOTH },
+    [PLAN_PREVIEW_SOURCE]: { type: 'geojson', data: EMPTY, metadata: WEB },
+    [RANGE_SOURCE]: { type: 'geojson', data: EMPTY, metadata: BOTH },
+    [CURSOR_SOURCE]: { type: 'geojson', data: EMPTY, metadata: BOTH },
+    [RIDDEN_SOURCE]: { type: 'geojson', data: EMPTY, metadata: APP },
+    [RIDER_SOURCE]: { type: 'geojson', data: EMPTY, metadata: APP },
+  },
+  layers: [
+    {
+      id: PLAN_CASING_LAYER,
+      type: 'line',
+      source: PLAN_SOURCE,
+      filter: ['get', 'routed'],
+      layout: ROUND,
+      paint: {
+        'line-color': SELECTION.SELECTED_OUTLINE,
+        'line-width': ROUTE_CASING_WIDTH,
+        'line-opacity': 0.55,
+      },
+    },
+    {
+      id: PLAN_LINE_LAYER,
+      type: 'line',
+      source: PLAN_SOURCE,
+      filter: ['get', 'routed'],
+      layout: ROUND,
+      paint: { 'line-color': ACCENT, 'line-width': ROUTE_WIDTH },
+    },
+
+    // Over the plan, at the plan's weight: where you went, drawn on where you meant to.
+    {
+      id: RIDDEN_LAYER,
+      type: 'line',
+      source: RIDDEN_SOURCE,
+      metadata: APP,
+      layout: ROUND,
+      paint: { 'line-color': RIDDEN_COLOUR, 'line-width': ROUTE_WIDTH },
+    },
+
+    // Not a route, and never going to be one: the engine could not connect these two.
+    // Dashed and uncased, so it reads as a gap in the plan rather than as part of it — the
+    // shape survives, the claim does not. Still a full-width hit target, which is what
+    // keeps the leg draggable even though it has no route to shape yet.
+    {
+      id: PLAN_FAILED_LAYER,
+      type: 'line',
+      source: PLAN_SOURCE,
+      filter: ['all', ['!', ['get', 'routed']], ['!', ['get', 'pending']]],
+      layout: { 'line-cap': 'butt', 'line-join': 'round' },
+      paint: {
+        'line-color': SELECTION.SELECTED_OUTLINE,
+        // Wide enough to be grabbed, faint enough not to read as a route. The two are
+        // separable because a dash is what says "not a route", not the weight.
+        'line-width': 3,
+        'line-opacity': 0.5,
+        'line-dasharray': [2, 2.5],
+      },
+    },
+
+    // Not a route *yet*. The same dash in the plan's own colour, and each side pulses its
+    // opacity while any leg is outstanding — the one place where something moves on its
+    // own, because it is the one place that is waiting on somebody else.
+    {
+      id: PLAN_PENDING_LAYER,
+      type: 'line',
+      source: PLAN_SOURCE,
+      filter: ['get', 'pending'],
+      layout: { 'line-cap': 'butt', 'line-join': 'round' },
+      paint: {
+        'line-color': ACCENT,
+        'line-width': 3,
+        'line-opacity': PENDING_OPACITY.rest,
+        'line-dasharray': [2, 2.5],
+      },
+    },
+
+    // The stretch the two bars on the elevation profile enclose, over the line it is part of.
+    // It **keeps that line's own colour** — `colourHi`, or the plan's or the ride's on the phone,
+    // which says which by `role` — and is picked out by a white casing rather than by being
+    // repainted: a stretch drawn in ink would answer *which piece* by destroying the answer to
+    // *what is this line*, which is the colour it is drawn in.
+    {
+      id: RANGE_CASING_LAYER,
+      type: 'line',
+      source: RANGE_SOURCE,
+      layout: ROUND,
+      paint: { 'line-color': '#ffffff', 'line-width': RANGE_CASING_WIDTH },
+    },
+    {
+      id: RANGE_LAYER,
+      type: 'line',
+      source: RANGE_SOURCE,
+      layout: ROUND,
+      paint: {
+        'line-color': [
+          'coalesce',
+          ['get', 'colourHi'],
+          ['match', ['get', 'role'], 'ridden', RIDDEN_COLOUR, ACCENT],
+        ],
+        'line-width': ROUTE_WIDTH,
+      },
+    },
+
+    // Subtle, and on the line rather than beside it: a shaping hint is a property of the
+    // route, not a place on the map. It wears the route's colour for the same reason the
+    // route does — leaving one part of the plan dark would read as an oversight.
+    {
+      id: PLAN_SHAPING_LAYER,
+      type: 'circle',
+      source: PLAN_POINTS_SOURCE,
+      filter: ['!', ['get', 'poi']],
+      minzoom: SHAPING_MIN_ZOOM,
+      paint: {
+        'circle-color': '#ffffff',
+        'circle-radius': ['case', HELD, 6, 3.5],
+        'circle-stroke-width': ['case', HELD, 2, 1.5],
+        'circle-stroke-color': ACCENT,
+        'circle-opacity': ['case', HELD, 1, 0.9],
+      },
+    },
+
+    // A stop is the plan, so it is the plan's colour, ringed in white to hold against
+    // the terrain the way every other marker on this map does.
+    {
+      id: PLAN_POI_LAYER,
+      type: 'circle',
+      source: PLAN_POINTS_SOURCE,
+      filter: ['get', 'poi'],
+      paint: {
+        'circle-color': ACCENT,
+        'circle-radius': ['case', HELD, 11, 7],
+        'circle-stroke-width': ['case', HELD, 3, 2.5],
+        'circle-stroke-color': '#ffffff',
+      },
+    },
+
+    // A ring rather than a pin: the place under the pointer in a list of results is not
+    // part of the plan, and drawing it like a stop would say it was. Hollow, accent-
+    // coloured, and above everything, because it is answering "which one is that?".
+    {
+      id: PLAN_PREVIEW_LAYER,
+      type: 'circle',
+      source: PLAN_PREVIEW_SOURCE,
+      metadata: WEB,
+      paint: {
+        'circle-color': 'rgba(13, 138, 95, 0.18)',
+        'circle-radius': 11,
+        'circle-stroke-width': 2.5,
+        'circle-stroke-color': ACCENT,
+      },
+    },
+
+    {
+      id: PLAN_POI_LABEL_LAYER,
+      type: 'symbol',
+      source: PLAN_POINTS_SOURCE,
+      filter: ['get', 'poi'],
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-font': ['noto_sans_bold'],
+        'text-size': 12,
+        'text-offset': [0, 1.1],
+        'text-anchor': 'top',
+        'text-optional': true,
+      },
+      paint: {
+        'text-color': SELECTION.SELECTED_OUTLINE,
+        'text-halo-color': 'rgba(255, 255, 255, 0.92)',
+        'text-halo-width': 1.6,
+      },
+    },
+
+    // Where the elevation profile's cursor is, or a place picked off the map on the phone.
+    // White with the same dark outline everything else is cased in — the one combination
+    // that holds against the pale basemap, the satellite imagery and the line underneath,
+    // which between them cover every value a single flat colour could have been.
+    {
+      id: CURSOR_LAYER,
+      type: 'circle',
+      source: CURSOR_SOURCE,
+      paint: {
+        'circle-color': '#ffffff',
+        'circle-radius': 7,
+        'circle-stroke-width': 3,
+        'circle-stroke-color': SELECTION.SELECTED_OUTLINE,
+      },
+    },
+
+    // Where the phone faces: a fading cone out of the rider, from the compass rather than the
+    // course — what a rider stopped at a junction wants to know, and a course cannot say.
+    // Turned with the map, so it points the same way whichever way up the map is; under the
+    // rider's dot, which the phone draws over everything. Its blue is not the accent, which the
+    // plan line is and which a cone lying along it would vanish into.
+    {
+      id: RIDER_FACING_LAYER,
+      type: 'symbol',
+      source: RIDER_SOURCE,
+      metadata: { ...APP, imageColour: '#2f6fd6' },
+      layout: {
+        'icon-image': RIDER_FACING_IMAGE,
+        'icon-anchor': 'center',
+        'icon-rotate': ['get', 'bearing'],
+        'icon-rotation-alignment': 'map',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    },
+  ],
+}
+
 export function addPlanLayers(map: MapLibreMap): void {
-  map.addSource(PLAN_SOURCE, { type: 'geojson', data: EMPTY })
-  map.addSource(PLAN_POINTS_SOURCE, { type: 'geojson', data: EMPTY })
-  map.addSource(PLAN_PREVIEW_SOURCE, { type: 'geojson', data: EMPTY })
-
-  map.addLayer({
-    id: PLAN_CASING_LAYER,
-    type: 'line',
-    source: PLAN_SOURCE,
-    filter: ['get', 'routed'],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': SELECTION.SELECTED_OUTLINE,
-      'line-width': ROUTE_CASING_WIDTH,
-      'line-opacity': 0.55,
-    },
-  })
-
-  map.addLayer({
-    id: PLAN_LINE_LAYER,
-    type: 'line',
-    source: PLAN_SOURCE,
-    filter: ['get', 'routed'],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': ACCENT, 'line-width': ROUTE_WIDTH },
-  })
-
-  // Not a route, and never going to be one: the engine could not connect these two.
-  // Dashed and uncased, so it reads as a gap in the plan rather than as part of it — the
-  // shape survives, the claim does not. Still a full-width hit target, which is what
-  // keeps the leg draggable even though it has no route to shape yet.
-  map.addLayer({
-    id: PLAN_FAILED_LAYER,
-    type: 'line',
-    source: PLAN_SOURCE,
-    filter: ['all', ['!', ['get', 'routed']], ['!', ['get', 'pending']]],
-    layout: { 'line-cap': 'butt', 'line-join': 'round' },
-    paint: {
-      'line-color': SELECTION.SELECTED_OUTLINE,
-      // Wide enough to be grabbed, faint enough not to read as a route. The two are
-      // separable because a dash is what says "not a route", not the weight.
-      'line-width': 3,
-      'line-opacity': 0.5,
-      'line-dasharray': [2, 2.5],
-    },
-  })
-
-  // Not a route *yet*. The same dash in the plan's own colour, and `MapView` pulses its
-  // opacity while any leg is outstanding — the one place in this app where something
-  // moves on its own, because it is the one place that is waiting on somebody else.
-  map.addLayer({
-    id: PLAN_PENDING_LAYER,
-    type: 'line',
-    source: PLAN_SOURCE,
-    filter: ['get', 'pending'],
-    layout: { 'line-cap': 'butt', 'line-join': 'round' },
-    paint: {
-      'line-color': ACCENT,
-      'line-width': 3,
-      'line-opacity': PENDING_OPACITY.rest,
-      'line-dasharray': [2, 2.5],
-    },
-  })
-
-  // Subtle, and on the line rather than beside it: a shaping hint is a property of the
-  // route, not a place on the map. It wears the route's colour for the same reason the
-  // route does — leaving one part of the plan dark would read as an oversight.
-  map.addLayer({
-    id: PLAN_SHAPING_LAYER,
-    type: 'circle',
-    source: PLAN_POINTS_SOURCE,
-    filter: ['!', ['get', 'poi']],
-    minzoom: SHAPING_MIN_ZOOM,
-    paint: {
-      'circle-color': '#ffffff',
-      'circle-radius': 3.5,
-      'circle-stroke-width': 1.5,
-      'circle-stroke-color': ACCENT,
-      'circle-opacity': 0.9,
-    },
-  })
-
-  // A stop is the plan, so it is the plan's colour, ringed in white to hold against
-  // the terrain the way every other marker on this map does.
-  map.addLayer({
-    id: PLAN_POI_LAYER,
-    type: 'circle',
-    source: PLAN_POINTS_SOURCE,
-    filter: ['get', 'poi'],
-    paint: {
-      'circle-color': ACCENT,
-      'circle-radius': 7,
-      'circle-stroke-width': 2.5,
-      'circle-stroke-color': '#ffffff',
-    },
-  })
-
-  // A ring rather than a pin: the place under the pointer in a list of results is not
-  // part of the plan, and drawing it like a stop would say it was. Hollow, accent-
-  // coloured, and above everything, because it is answering "which one is that?".
-  map.addLayer({
-    id: PLAN_PREVIEW_LAYER,
-    type: 'circle',
-    source: PLAN_PREVIEW_SOURCE,
-    paint: {
-      'circle-color': 'rgba(13, 138, 95, 0.18)',
-      'circle-radius': 11,
-      'circle-stroke-width': 2.5,
-      'circle-stroke-color': ACCENT,
-    },
-  })
-
-  map.addLayer({
-    id: PLAN_POI_LABEL_LAYER,
-    type: 'symbol',
-    source: PLAN_POINTS_SOURCE,
-    filter: ['get', 'poi'],
-    layout: {
-      'text-field': ['get', 'label'],
-      'text-font': ['noto_sans_bold'],
-      'text-size': 12,
-      'text-offset': [0, 1.1],
-      'text-anchor': 'top',
-      'text-optional': true,
-    },
-    paint: {
-      'text-color': SELECTION.SELECTED_OUTLINE,
-      'text-halo-color': 'rgba(255, 255, 255, 0.92)',
-      'text-halo-width': 1.6,
-    },
-  })
+  addOverlays(map, PLAN_OVERLAYS)
 }
 
 /** Whether the plan is on screen at all. Cheaper than tearing six layers down. */

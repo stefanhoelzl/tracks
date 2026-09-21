@@ -41,6 +41,13 @@ const PALETTE = [
   '#a0357e',
 ]
 
+/**
+ * The ride being recorded, on the phone: the palette's second hue, not the accent. The plan is the
+ * accent because it is the thing you edit; a ride is data, which the accent never is — and a green
+ * over the green plan would not show.
+ */
+export const RIDDEN_COLOUR = PALETTE[1] as string
+
 /** Not a category: what *not set* and an uncoloured track are drawn in. */
 const NEUTRAL = '#8a9691'
 

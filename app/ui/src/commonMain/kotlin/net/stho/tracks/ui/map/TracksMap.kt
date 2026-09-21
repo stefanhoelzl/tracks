@@ -34,10 +34,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 import kotlinx.coroutines.delay
@@ -53,25 +50,8 @@ import net.stho.tracks.sensors.Heading
 import net.stho.tracks.ui.resources.Res
 import net.stho.tracks.ui.theme.Tokens
 import org.maplibre.compose.camera.CameraPosition
-import org.maplibre.compose.expressions.dsl.asString
-import org.maplibre.compose.expressions.dsl.const
-import org.maplibre.compose.expressions.dsl.feature
-import org.maplibre.compose.expressions.dsl.format
-import org.maplibre.compose.expressions.dsl.image
-import org.maplibre.compose.expressions.dsl.interpolate
-import org.maplibre.compose.expressions.dsl.linear
-import org.maplibre.compose.expressions.dsl.span
-import org.maplibre.compose.expressions.dsl.textOffset
-import org.maplibre.compose.expressions.dsl.zoom
-import org.maplibre.compose.expressions.value.IconRotationAlignment
-import org.maplibre.compose.expressions.value.LineCap
-import org.maplibre.compose.expressions.value.LineJoin
-import org.maplibre.compose.expressions.value.SymbolAnchor
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
-import org.maplibre.compose.layers.CircleLayer
-import org.maplibre.compose.layers.LineLayer
-import org.maplibre.compose.layers.SymbolLayer
 import org.maplibre.compose.location.LocationMeasurement
 import org.maplibre.compose.location.LocationPuck
 import org.maplibre.compose.location.LocationPuckColors
@@ -80,7 +60,6 @@ import org.maplibre.compose.map.MapState
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.sources.GeoJsonData
-import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.compose.style.TransitionOptions
 import org.maplibre.spatialk.geojson.BoundingBox
@@ -88,6 +67,14 @@ import org.maplibre.spatialk.geojson.Position
 import org.maplibre.spatialk.units.Bearing
 import org.maplibre.spatialk.units.extensions.degrees
 import org.maplibre.spatialk.units.extensions.meters
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import kotlinx.serialization.json.JsonObject
+import org.maplibre.compose.map.StyleLoadState
+import org.maplibre.compose.sources.GeoJsonSourceHandle
 
 // -------------------------------------------------------------------------------------------------------------------
 // The app's map. Nothing in these signatures names a MapLibre type, and nothing outside this package imports one:
@@ -95,16 +82,27 @@ import org.maplibre.spatialk.units.extensions.meters
 // -------------------------------------------------------------------------------------------------------------------
 
 /**
- * A style the map can draw — the style document itself, as JSON.
+ * A style the map can draw — the style document itself, as JSON, with the overlays (`Overlays.kt`) already in it.
  *
  * Offline data (M13) is another way to make one, not another parameter on the map.
  */
-class MapStyle(val json: String) {
+class MapStyle(val json: String, internal val facingColour: Color = FACING_COLOUR) {
     companion object {
-        /** VersaTiles' `colorful`, washed as the web washes it: `pnpm style:app` writes it with the web's own code. */
-        suspend fun colorful(): MapStyle = MapStyle(Res.readBytes("files/colorful.json").decodeToString())
+        /**
+         * VersaTiles' `colorful`, washed as the web washes it, with the web's overlays over it: `pnpm style:app` writes
+         * both files with the web's own code.
+         */
+        suspend fun colorful(): MapStyle {
+            val overlays = Res.readBytes("files/overlays.json").decodeToString()
+            val style = Res.readBytes("files/colorful.json").decodeToString()
+            val facing = imageColour(overlays, OverlayIds.RIDER_FACING_LAYER)?.let(::hexColour) ?: FACING_COLOUR
+            return MapStyle(withOverlays(style, overlays), facing)
+        }
     }
 }
+
+/** `#rrggbb`, as the overlays write a colour. */
+internal fun hexColour(hex: String): Color = Color(0xFF000000 or hex.removePrefix("#").toLong(16))
 
 sealed interface MapCamera {
     /**
@@ -206,41 +204,19 @@ fun TracksMap(
     }
 }
 
-/** The plan's weights, from the web's plan-layers.ts: lighter than a selected track, since the plan has no competition. */
-private val PLAN_WIDTH = listOf(6 to 2.0, 10 to 2.8, 14 to 3.6)
-private val PLAN_CASING_WIDTH = listOf(6 to 3.6, 10 to 4.8, 14 to 6.0)
-private const val PLAN_CASING_OPACITY = 0.55f
-
-/** What the plan line drops to outside a stretch selected on the profile. The stretch keeps its colour. */
-private const val HELD_BACK = 0.28f
-
-/** The white border around that stretch: wider than the plan's own casing, so it reads as picked out of the line. */
-private val HIGHLIGHT_CASING_WIDTH = listOf(6 to 5.6, 10 to 7.4, 14 to 9.2)
-
 /**
- * The track being recorded: the web palette's second hue (lib/colour.ts), not the accent. The plan is the accent because
- * it is the thing you edit; a ride is data, which the accent never is — and a green over the green plan would not show.
+ * What the plan line or the ride drops to while a stretch of it is picked out on the profile: the web's `HELD_BACK`
+ * (layers.ts). A live value, set on the layer as the stretch comes and goes, so it lives with the code that sets it.
  */
-private val RIDDEN_COLOUR = Color(0xFFCE7A0C)
+private const val HELD_BACK = 0.28
 
-/** A beeline's weight and dash, and how faint a routing one gets at the low of its pulse. */
-private val BEELINE_WIDTH = 3.dp
-private val BEELINE_DASH: List<Number> = listOf(2, 2.5)
-private const val UNROUTABLE_OPACITY = 0.5f
-private const val ROUTING_REST_OPACITY = 0.55f
-private const val ROUTING_LOW_OPACITY = 0.2f
+/** How faint a routing leg gets at the low of its pulse, and how long a pulse takes: the web's `PENDING_OPACITY`. */
+private const val ROUTING_REST_OPACITY = 0.55
+private const val ROUTING_LOW_OPACITY = 0.2
 private const val ROUTING_PERIOD_MS = 1100
-
-/** Below this a shaping point is noise: a dot on a line whose shape is the only thing readable. */
-private const val SHAPING_MIN_ZOOM = 10f
 
 /** How big a waypoint's handle is under a finger: bigger than the marker, which is drawn for the eye. */
 private val HANDLE_SIZE = 44.dp
-
-/** A stop's marker, and a waypoint's once a long press has picked it up. */
-private val STOP_RADIUS = 7.dp
-private val HELD_STOP_RADIUS = 11.dp
-private val HELD_SHAPING_RADIUS = 6.dp
 
 /** The map's labels a stop may take its name from, most specific first: things, then stations, then places. */
 private val NAMED_LAYERS = setOf(
@@ -253,26 +229,52 @@ private val NAMED_LAYERS = setOf(
 /** How far from a tap a label still names it. */
 private val NAME_REACH = 16.dp
 
-private fun widthByZoom(stops: List<Pair<Int, Double>>) =
-    interpolate(linear(), zoom(), *stops.map { (z, width) -> z to const(width.toFloat().dp) }.toTypedArray())
-
 private const val EMPTY_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
 
-private fun lineFeature(points: List<Coordinate>): String = points.joinToString(
+private fun collection(features: List<String>): String = features.joinToString(",", """{"type":"FeatureCollection","features":[""", "]}")
+
+private fun properties(vararg entries: Pair<String, Any>): String = JsonObject(
+    entries.associate { (key, value) ->
+        key to when (value) {
+            is Boolean -> JsonPrimitive(value)
+            is Number -> JsonPrimitive(value)
+            else -> JsonPrimitive(value.toString())
+        }
+    },
+).toString()
+
+/** A line, or nothing: MapLibre refuses a line of fewer than two points. */
+private fun lineFeature(points: List<Coordinate>, properties: String = "{}"): String? = points.takeIf { it.size >= 2 }?.joinToString(
     separator = ",",
-    prefix = """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[""",
+    prefix = """{"type":"Feature","properties":$properties,"geometry":{"type":"LineString","coordinates":[""",
     postfix = "]}}",
 ) { "[${it.lon},${it.lat}]" }
 
-/** Lines as one collection. MapLibre refuses a line of fewer than two points, so those are left out. */
-private fun linesJson(lines: List<List<Coordinate>>): String =
-    lines.filter { it.size >= 2 }.joinToString(",", """{"type":"FeatureCollection","features":[""", "]}", transform = ::lineFeature)
+private fun pointFeature(at: Coordinate, properties: String = "{}"): String =
+    """{"type":"Feature","properties":$properties,"geometry":{"type":"Point","coordinates":[${at.lon},${at.lat}]}}"""
 
-private fun pointsJson(marks: List<WaypointMark>): String = marks.joinToString(
-    ",",
-    """{"type":"FeatureCollection","features":[""",
-    "]}",
-) { """{"type":"Feature","properties":{"label":${JsonPrimitive(it.label)}},"geometry":{"type":"Point","coordinates":[${it.at.lon},${it.at.lat}]}}""" }
+/**
+ * The plan's legs, as `plan-layers.ts` reads them: `routed` for a route, `pending` for a leg still being routed, and
+ * neither for a straight line that is not going to be one. Without a drawing, the plan is one routed line.
+ */
+private fun planJson(plan: List<Coordinate>, drawing: PlanDrawing?): String {
+    val legs = drawing?.legs ?: listOf(LegLine(plan, LegState.Routed))
+    return collection(
+        legs.mapIndexedNotNull { index, leg ->
+            lineFeature(
+                leg.coordinates,
+                properties("leg" to index, "routed" to (leg.state == LegState.Routed), "pending" to (leg.state == LegState.Routing)),
+            )
+        },
+    )
+}
+
+/** The waypoints: stops (`poi`) and shaping points, and which one a finger holds, which is drawn larger. */
+private fun waypointsJson(marks: List<WaypointMark>, held: Int?): String = collection(
+    marks.mapIndexed { index, mark ->
+        pointFeature(mark.at, properties("index" to index, "poi" to mark.stop, "label" to mark.label, "held" to (index == held)))
+    },
+)
 
 private fun Fix.measurement() = LocationMeasurement(
     position = Position(longitude = at.lon, latitude = at.lat),
@@ -290,12 +292,8 @@ private const val FIELD_OF_VIEW_DEG = 60.0
 /** How far the cone reaches from the rider before it has faded out. */
 private val FACING_REACH = 46.dp
 
-/** The cone's blue: not the accent, which the plan line is, and which a cone lying along it would vanish into. */
+/** The cone's blue, until the overlays name it (`rider-facing`'s `metadata.imageColour`): the web's own choice. */
 private val FACING_COLOUR = Color(0xFF2F6FD6)
-
-private fun pointJson(at: Coordinate?): String = at?.let {
-    """{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[${it.lon},${it.lat}]}}"""
-} ?: EMPTY_COLLECTION
 
 /**
  * A cone [sweepDeg] wide, pointing up from the centre and fading out towards its edge: rotated by the heading, it points
@@ -308,6 +306,36 @@ private class FacingCone(private val color: Color, private val sweepDeg: Float) 
         val fade = Brush.radialGradient(listOf(color.copy(alpha = 0.55f), color.copy(alpha = 0f)), center = center, radius = size.minDimension / 2)
         // Compose measures angles clockwise from three o'clock; up is -90°.
         drawArc(brush = fade, startAngle = -90f - sweepDeg / 2, sweepAngle = sweepDeg, useCenter = true)
+    }
+}
+
+/** The facing cone, as the style image the `rider-facing` layer draws: FACING_REACH across each way from the rider. */
+private fun facingCone(colour: Color, density: Density): ImageBitmap {
+    val side = with(density) { (FACING_REACH * 2).toPx() }
+    val size = Size(side, side)
+    val bitmap = ImageBitmap(side.toInt(), side.toInt())
+    val painter = FacingCone(colour, FIELD_OF_VIEW_DEG.toFloat())
+    CanvasDrawScope().draw(density, LayoutDirection.Ltr, Canvas(bitmap), size) { with(painter) { draw(size) } }
+    return bitmap
+}
+
+/** Keeps a style source holding [json], once the style is [loaded] — and again after every reload, which empties it. */
+@Composable
+private fun Feed(state: MapState, loaded: Boolean, source: String, json: String) {
+    LaunchedEffect(state, loaded, json) {
+        if (!loaded) return@LaunchedEffect
+        val handle = state.style.sources[source] as? GeoJsonSourceHandle
+        checkNotNull(handle?.asMutable) { "overlays.json has no GeoJSON source '$source'" }.setData(GeoJsonData.JsonString(json))
+    }
+}
+
+/** Keeps a style layer's paint [property] at [value]: the few overlay values that are live rather than styled. */
+@Composable
+private fun Paint(state: MapState, loaded: Boolean, layer: String, property: String, value: Double) {
+    LaunchedEffect(state, loaded, value) {
+        if (!loaded) return@LaunchedEffect
+        checkNotNull(state.style.layers[layer]?.asMutable) { "overlays.json has no layer '$layer'" }
+            .setPaintProperty(property, JsonPrimitive(value))
     }
 }
 
@@ -344,25 +372,26 @@ private fun MapLibreMap(
     val layoutDirection = LocalLayoutDirection.current
     val scope = rememberCoroutineScope()
 
-    // What each layer draws. Without a drawing, the plan is one routed line.
-    val riddenJson = remember(ridden) { linesJson(listOf(ridden)) }
-    val highlightJson = remember(highlight) { linesJson(listOf(highlight)) }
-    val routedJson = remember(plan, drawing) {
-        linesJson(drawing?.legs?.filter { it.state == LegState.Routed }?.map { it.coordinates } ?: listOf(plan))
-    }
-    val routingJson = remember(drawing) { linesJson(drawing?.legs?.filter { it.state == LegState.Routing }?.map { it.coordinates } ?: emptyList()) }
-    val unroutableJson = remember(drawing) { linesJson(drawing?.legs?.filter { it.state == LegState.Unroutable }?.map { it.coordinates } ?: emptyList()) }
-    // The waypoint a finger holds is drawn larger, by layers of its own, so it shows it has been picked up.
+    // The waypoint a finger holds is drawn larger, so it shows it has been picked up.
     var held by remember { mutableStateOf<Int?>(null) }
     val marks = drawing?.waypoints ?: emptyList()
-    val heldMark = held?.let(marks::getOrNull)
-    val stopsJson = remember(drawing) { pointsJson(marks.filter { it.stop }) }
-    val restingStopsJson = remember(drawing, held) { pointsJson(marks.filterIndexed { i, it -> it.stop && i != held }) }
-    val shapingJson = remember(drawing, held) { pointsJson(marks.filterIndexed { i, it -> !it.stop && i != held }) }
-    val heldStopJson = remember(drawing, held) { pointsJson(listOfNotNull(heldMark?.takeIf { it.stop })) }
-    val heldShapingJson = remember(drawing, held) { pointsJson(listOfNotNull(heldMark?.takeUnless { it.stop })) }
     // How many fingers are on the map, handles included: a second one ends a pick-up or a drag.
     var fingers by remember { mutableIntStateOf(0) }
+
+    // What each overlay source holds, in the properties `overlays.ts` paints from.
+    val planJson = remember(plan, drawing) { planJson(plan, drawing) }
+    val waypointsJson = remember(drawing, held) { waypointsJson(marks, held) }
+    val riddenJson = remember(ridden) { collection(listOfNotNull(lineFeature(ridden))) }
+    // The stretch picked out on the profile keeps the colour of the line it is part of, which `role` names.
+    val rangeJson = remember(highlight, highlightRidden) {
+        collection(listOfNotNull(lineFeature(highlight, properties("role" to if (highlightRidden) "ridden" else "plan"))))
+    }
+    val cursorJson = remember(marker) { collection(listOfNotNull(marker?.let { pointFeature(it) })) }
+    val facing = heading
+    val riderJson = remember(fix?.at, facing?.degrees) {
+        val at = fix?.at
+        if (at == null || facing == null) EMPTY_COLLECTION else collection(listOf(pointFeature(at, properties("bearing" to facing.degrees))))
+    }
 
     // The one thing on the map that moves on its own, because it is the one thing waiting on somebody else.
     val waiting = drawing != null && drawing.pulse && drawing.legs.any { it.state == LegState.Routing }
@@ -378,6 +407,7 @@ private fun MapLibreMap(
         }
     }
     val routingOpacity = if (waiting && low) ROUTING_LOW_OPACITY else ROUTING_REST_OPACITY
+    val picking = highlight.size > 1
 
     // Start where the camera is going when that is known, rather than flying in: every tile a fly-in passes through is
     // one more download, on a phone that may be on a hillside's last bar of signal.
@@ -398,164 +428,6 @@ private fun MapLibreMap(
         baseStyle = remember(style) { BaseStyle.Json(style.json) },
         initialCameraPosition = initialCamera,
     ) {
-        val routedSource = rememberGeoJsonSource(GeoJsonData.JsonString(routedJson))
-        LineLayer(
-            id = "plan-casing",
-            source = routedSource,
-            color = const(Tokens.ink),
-            opacity = const(PLAN_CASING_OPACITY),
-            width = widthByZoom(PLAN_CASING_WIDTH),
-            cap = const(LineCap.Round),
-            join = const(LineJoin.Round),
-        )
-        LineLayer(
-            id = "plan",
-            source = routedSource,
-            color = const(Tokens.accent),
-            // Held back while a stretch of it is selected on the profile, so the stretch drawn over it reads as
-            // *this piece* rather than as a second line.
-            opacity = const(if (highlight.size > 1 && !highlightRidden) HELD_BACK else 1f),
-            width = widthByZoom(PLAN_WIDTH),
-            cap = const(LineCap.Round),
-            join = const(LineJoin.Round),
-        )
-
-        // The stretch the two bars enclose, over the line it is part of: **the plan's own colour**, picked out by a
-        // white border rather than repainted. A stretch drawn in ink would answer *which piece* by destroying the
-        // answer to *what is this line*.
-        val highlightSource = rememberGeoJsonSource(GeoJsonData.JsonString(highlightJson))
-        LineLayer(
-            id = "plan-highlight-casing",
-            source = highlightSource,
-            color = const(Color.White),
-            width = widthByZoom(HIGHLIGHT_CASING_WIDTH),
-            cap = const(LineCap.Round),
-            join = const(LineJoin.Round),
-        )
-        LineLayer(
-            id = "plan-highlight",
-            source = highlightSource,
-            color = const(if (highlightRidden) RIDDEN_COLOUR else Tokens.accent),
-            width = widthByZoom(PLAN_WIDTH),
-            cap = const(LineCap.Round),
-            join = const(LineJoin.Round),
-        )
-
-        // Over the plan, at the plan's weight: where you went, drawn on where you meant to.
-        LineLayer(
-            id = "ridden",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(riddenJson)),
-            color = const(RIDDEN_COLOUR),
-            opacity = const(if (highlight.size > 1 && highlightRidden) HELD_BACK else 1f),
-            width = widthByZoom(PLAN_WIDTH),
-            cap = const(LineCap.Round),
-            join = const(LineJoin.Round),
-        )
-
-        // Could not be routed: dashed and uncased, so it reads as a gap in the plan rather than as part of it.
-        LineLayer(
-            id = "plan-unroutable",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(unroutableJson)),
-            color = const(Tokens.ink),
-            opacity = const(UNROUTABLE_OPACITY),
-            width = const(BEELINE_WIDTH),
-            dasharray = const(BEELINE_DASH),
-            cap = const(LineCap.Butt),
-            join = const(LineJoin.Round),
-        )
-        // Not a route yet: the same dash in the plan's own colour.
-        LineLayer(
-            id = "plan-routing",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(routingJson)),
-            color = const(Tokens.accent),
-            opacity = const(routingOpacity),
-            opacityTransition = TransitionOptions(duration = (ROUTING_PERIOD_MS / 2).milliseconds),
-            width = const(BEELINE_WIDTH),
-            dasharray = const(BEELINE_DASH),
-            cap = const(LineCap.Butt),
-            join = const(LineJoin.Round),
-        )
-
-        // A shaping point is a property of the route, not a place: small, white, on the line, in the route's colour.
-        CircleLayer(
-            id = "plan-shaping",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(shapingJson)),
-            minZoom = SHAPING_MIN_ZOOM,
-            color = const(Color.White),
-            opacity = const(0.9f),
-            radius = const(3.5.dp),
-            strokeWidth = const(1.5.dp),
-            strokeColor = const(Tokens.accent),
-        )
-        CircleLayer(
-            id = "plan-shaping-held",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(heldShapingJson)),
-            color = const(Color.White),
-            radius = const(HELD_SHAPING_RADIUS),
-            strokeWidth = const(2.dp),
-            strokeColor = const(Tokens.accent),
-        )
-        // A stop is the plan, so it is the plan's colour, ringed in white to hold against the terrain.
-        CircleLayer(
-            id = "plan-stops",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(restingStopsJson)),
-            color = const(Tokens.accent),
-            radius = const(STOP_RADIUS),
-            strokeWidth = const(2.5.dp),
-            strokeColor = const(Color.White),
-        )
-        CircleLayer(
-            id = "plan-stops-held",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(heldStopJson)),
-            color = const(Tokens.accent),
-            radius = const(HELD_STOP_RADIUS),
-            strokeWidth = const(3.dp),
-            strokeColor = const(Color.White),
-        )
-        SymbolLayer(
-            id = "plan-stop-labels",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(stopsJson)),
-            textField = format(span(feature.get("label").asString())),
-            textFont = const(listOf("noto_sans_bold")),
-            textSize = const(12.sp),
-            textOffset = textOffset(0.em, 1.1.em),
-            textAnchor = const(SymbolAnchor.Top),
-            textOptional = const(true),
-            textColor = const(Tokens.ink),
-            textHaloColor = const(Color.White.copy(alpha = 0.92f)),
-            textHaloWidth = const(1.6.dp),
-        )
-
-        // A place picked off the map, as a profile tap picks one: a ring in ink, which neither the plan nor the ride is.
-        CircleLayer(
-            id = "picked",
-            source = rememberGeoJsonSource(GeoJsonData.JsonString(pointJson(marker))),
-            color = const(Color.White),
-            radius = const(7.dp),
-            strokeWidth = const(3.dp),
-            strokeColor = const(Tokens.ink),
-        )
-
-        // Where the phone faces: a fading cone out of the dot, FIELD_OF_VIEW_DEG wide, from the compass rather than the
-        // course. It is what you are looking at, which a rider stopped at a junction wants to know and a course cannot
-        // say. Turned with the map, so it points the same way whichever way up the map is. Under the dot, so the dot
-        // stays where you are.
-        val facing = currentHeading
-        val rider = currentFix
-        val facingSource = rememberGeoJsonSource(GeoJsonData.JsonString(pointJson(rider?.at)))
-        val facingPainter = remember { FacingCone(FACING_COLOUR, FIELD_OF_VIEW_DEG.toFloat()) }
-        SymbolLayer(
-            id = "rider-facing",
-            source = facingSource,
-            visible = facing != null && rider != null,
-            iconImage = image(facingPainter, size = DpSize(FACING_REACH * 2, FACING_REACH * 2)),
-            iconAnchor = const(SymbolAnchor.Center),
-            iconRotate = const((facing?.degrees ?: 0.0).toFloat()),
-            iconRotationAlignment = const(IconRotationAlignment.Map),
-            iconAllowOverlap = const(true),
-            iconIgnorePlacement = const(true),
-        )
-
         // Accent, and the white rim is what keeps it off the plan line it rides on — the line is the same green, so
         // without the rim the dot would sit inside its own colour. It was ink for exactly that reason and the rim
         // answers it better: you are the app's own colour, like everything else you can act on. The library's own
@@ -576,6 +448,33 @@ private fun MapLibreMap(
 
     LaunchedEffect(state) {
         state.events.collect { if (it == MapEvent.Idle) currentOnIdle() }
+    }
+
+    // The overlays are layers of the style (`Overlays.kt`): fed by id once it has loaded, and again whenever it reloads.
+    val loaded = state.style.loadState == StyleLoadState.Ready
+    Feed(state, loaded, OverlayIds.PLAN_SOURCE, planJson)
+    Feed(state, loaded, OverlayIds.PLAN_POINTS_SOURCE, waypointsJson)
+    Feed(state, loaded, OverlayIds.RIDDEN_SOURCE, riddenJson)
+    Feed(state, loaded, OverlayIds.RANGE_SOURCE, rangeJson)
+    Feed(state, loaded, OverlayIds.CURSOR_SOURCE, cursorJson)
+    Feed(state, loaded, OverlayIds.RIDER_SOURCE, riderJson)
+
+    // Held back while a stretch of it is picked out, so the stretch drawn over it reads as *this piece* rather than as a
+    // second line.
+    Paint(state, loaded, OverlayIds.PLAN_LINE_LAYER, "line-opacity", if (picking && !highlightRidden) HELD_BACK else 1.0)
+    Paint(state, loaded, OverlayIds.RIDDEN_LAYER, "line-opacity", if (picking && highlightRidden) HELD_BACK else 1.0)
+    Paint(state, loaded, OverlayIds.PLAN_PENDING_LAYER, "line-opacity", routingOpacity)
+
+    val density = LocalDensity.current
+    LaunchedEffect(state, loaded) {
+        if (!loaded) return@LaunchedEffect
+        state.style.layers[OverlayIds.PLAN_PENDING_LAYER]?.asMutable
+            ?.setPaintTransition("line-opacity", TransitionOptions(duration = (ROUTING_PERIOD_MS / 2).milliseconds))
+        // Where the phone faces: FIELD_OF_VIEW_DEG wide, painted here in the overlays' colour for it, and turned by the
+        // layer to the heading each rider feature carries.
+        if (state.style.images[OverlayIds.RIDER_FACING_IMAGE] == null) {
+            state.style.images.add(OverlayIds.RIDER_FACING_IMAGE, facingCone(style.facingColour, density))
+        }
     }
 
     // Exactly one camera effect, keyed on the state, reading its inputs through snapshotFlow: a new fix every second
