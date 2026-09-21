@@ -1,4 +1,4 @@
-import { colorful } from '@versatiles/style'
+import { osm, type TileJSONSpecification } from '@versatiles/style'
 
 /**
  * The vector basemap's style decisions, apart from the MapLibre wiring in `basemap.ts`.
@@ -12,6 +12,31 @@ import { colorful } from '@versatiles/style'
 export const TILES = 'https://tiles.versatiles.org'
 
 /**
+ * The two tilesets, spelled out rather than asked of their `tiles.json`: that would be a request
+ * before the first tile, and the TileJSON's own tile URLs are relative, which MapLibre cannot
+ * resolve. The zoom ranges are what overzoom the last level, and the attributions are what the map
+ * credits.
+ */
+export const OSM_TILES: TileJSONSpecification = {
+  tilejson: '3.0.0',
+  tiles: [`${TILES}/tiles/osm/{z}/{x}/{y}`],
+  minzoom: 0,
+  maxzoom: 14,
+  bounds: [-180, -85.0511287798066, 180, 85.0511287798066],
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+}
+
+/** Terrarium-encoded, 512 px, z0–12. The same source feeds hillshade and contours. */
+export const ELEVATION_TILES: TileJSONSpecification = {
+  tilejson: '3.0.0',
+  tiles: [`${TILES}/tiles/elevation/{z}/{x}/{y}`],
+  minzoom: 0,
+  maxzoom: 12,
+  bounds: [-180, -85.051129, 180, 85.051129],
+  attribution: '<a href="https://mapterhorn.com/attribution">© Mapterhorn</a>',
+}
+
+/**
  * VersaTiles' own hillshade, tuned down.
  *
  * Relief has to stay under everything: a warm highlight and a cool shadow at low
@@ -23,24 +48,90 @@ export const HILLSHADE = {
   highlightColor: '#fffaf0',
   accentColor: '#8a9691',
   exaggeration: 0.35,
-  illuminationDirection: 315,
 } as const
 
-export async function washedColorful() {
-  const style = await colorful({
-    baseUrl: TILES,
-    hillshade: HILLSHADE,
+/**
+ * Light from the north-west, the way a relief map is lit, so a valley reads as a valley rather
+ * than as a ridge. v6 has no option for the hillshade's direction, so it is set on the layer.
+ */
+export const LIGHT = { direction: 315, altitude: 45 } as const
+
+/**
+ * What v6 changed and this map keeps as it was: a flat map, where v6 defaults to a globe at the
+ * world zooms, and no sky, which MapLibre would draw over a pitched or globe view.
+ */
+const AS_BEFORE = {
+  projection: 'mercator',
+  sky: false,
+  sun: { direction: LIGHT.direction, altitude: LIGHT.altitude, anchor: 'map' },
+} as const
+
+export function washedColorful() {
+  const style = osm({
+    theme: 'colorful',
+    urls: { base: TILES, osm: OSM_TILES, elevation: ELEVATION_TILES },
+    features: { hillshade: HILLSHADE },
     // Barely held back. An earlier pass desaturated this by a third to keep the
     // tracks dominant, and took the terrain down with it — woodland, scrub and rock
     // are most of what a map of the Alps has to say. A slight wash towards the paper
     // the app is drawn on is enough to seat it under the lines.
-    recolor: { saturate: -0.05, gamma: 1.02, blend: 0.06, blendColor: '#eef1ee' },
-    language: 'en',
+    recolor: { saturate: -0.05, gamma: 1.02, blend: { amount: 0.06, color: '#eef1ee' } },
+    text: { language: 'en' },
+    ...AS_BEFORE,
   })
-  return { ...style, layers: withPlaceLabels(withWaterLabels(withWayNetworks(style.layers))) }
+  const layers = withPlaceLabels(withWaterLabels(withWayNetworks(withLight(style.layers))))
+  return { ...style, layers }
 }
 
-type Layer = Awaited<ReturnType<typeof colorful>>['layers'][number]
+/** The hillshade lit from `LIGHT`, which v6 cannot be told. */
+export function withLight<L extends { type: string; paint?: object }>(layers: L[]): L[] {
+  return layers.map((layer) =>
+    layer.type === 'hillshade'
+      ? {
+          ...layer,
+          paint: {
+            ...layer.paint,
+            'hillshade-illumination-direction': LIGHT.direction,
+            'hillshade-illumination-altitude': LIGHT.altitude,
+          },
+        }
+      : layer,
+  )
+}
+
+/**
+ * Water names, which VersaTiles draws from v6 on — rivers and canals from z12, streams and ditches
+ * from z14, lakes by size — in its own pale blue.
+ *
+ * Here in the water's own blue, darkened until it holds against the paper: there is no italic in
+ * the glyphs VersaTiles serves, so colour is what separates a water name from a street name. Set
+ * after the recolour rather than as a palette colour, so the wash does not move it.
+ */
+export const WATER_LABEL_COLOUR = '#2f6fa8'
+
+/**
+ * How often a river's name repeats along it, in px: tighter than MapLibre's 250, so a name is
+ * always within a phone screen of wherever you are looking.
+ */
+export const WATER_LABEL_SPACING = 160
+
+function withWaterLabels<L extends { id: string; paint?: object; layout?: object }>(
+  layers: L[],
+): L[] {
+  return layers.map((layer) => {
+    if (!layer.id.startsWith('label-water-')) return layer
+    const layout = layer.layout as { 'symbol-placement'?: string } | undefined
+    return {
+      ...layer,
+      ...(layout?.['symbol-placement'] === 'line'
+        ? { layout: { ...layout, 'symbol-spacing': WATER_LABEL_SPACING } }
+        : {}),
+      paint: { ...layer.paint, 'text-color': WATER_LABEL_COLOUR },
+    }
+  })
+}
+
+type Layer = ReturnType<typeof osm>['layers'][number]
 type LineLayer = Extract<Layer, { type: 'line' }>
 type LinePaint = NonNullable<LineLayer['paint']>
 type Filter = NonNullable<LineLayer['filter']>
@@ -110,6 +201,9 @@ export const SORTED_FROM = 14
 /** Ways Shortbread has no bike layer for, but which are signed for bikes. */
 const SHARED_PATHS = ['path', 'footway', 'bridleway']
 
+/** Streets signed for bikes that VersaTiles has no bike layer for. */
+const UNMARKED_BIKE_STREETS = ['track', 'service']
+const DESIGNATED: unknown[] = ['==', ['get', 'bicycle'], 'designated']
 const UNPAVED: unknown[] = ['==', ['get', 'surface'], 'unpaved']
 const NOT_UNPAVED: unknown[] = ['!=', ['get', 'surface'], 'unpaved']
 
@@ -149,6 +243,16 @@ function withWayNetworks(layers: Layer[]): Layer[] {
       continue
     }
     if (/^(tunnel-|bridge-)?street-.+-bicycle$/.test(layer.id)) {
+      if (layer.id === `${structure}street-minor-bicycle`) {
+        // v6 draws designated minor streets and pedestrian zones, and no longer tracks and service
+        // roads — which is where a signed bike route leaves the tarmac. So those two are ours.
+        for (const kind of UNMARKED_BIKE_STREETS) {
+          const match = [['==', ['get', 'kind'], kind], DESIGNATED, ...onStructure(structure)]
+          out.push(
+            ...network(layer, `${structure}street-${kind}-bicycle`, structure, match, BIKE_COLOUR),
+          )
+        }
+      }
       out.push(...network(layer, layer.id, structure, [layer.filter], BIKE_COLOUR))
       continue
     }
@@ -225,83 +329,7 @@ function onStructure(structure: string): unknown[] {
 }
 
 /**
- * Water names, which `colorful` draws nowhere at all.
- *
- * Shortbread carries `water_lines_labels` — rivers and canals from z12, streams from z14 — and
- * `water_polygons_labels`, and the style has no symbol layer for either: a river on this map is
- * an anonymous blue line however far you follow it, which is exactly how it reads on a ride.
- *
- * Placed along the line and repeated every `WATER_LABEL_SPACING` px, so a name is always within
- * a phone screen of wherever you are looking. The blue is the water's own, darkened until it
- * holds against the paper; there is no italic in the glyphs VersaTiles serves, so colour is what
- * separates a water name from a street name.
- *
- * They go in under the place labels: where a village name and a stream name want the same pixels,
- * the village wins.
- */
-export const WATER_LABEL_COLOUR = '#2f6fa8'
-export const WATER_LABEL_SPACING = 160
-
-function waterLabel(
-  id: string,
-  sourceLayer: string,
-  filter: unknown,
-  minzoom: number,
-  size: number[][],
-) {
-  return {
-    id,
-    type: 'symbol',
-    source: 'versatiles-shortbread',
-    'source-layer': sourceLayer,
-    minzoom,
-    filter,
-    layout: {
-      'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-      'text-font': ['noto_sans_regular'],
-      'symbol-placement': sourceLayer === 'water_lines_labels' ? 'line' : 'point',
-      'symbol-spacing': WATER_LABEL_SPACING,
-      'text-size': { stops: size },
-    },
-    paint: {
-      'text-color': WATER_LABEL_COLOUR,
-      'text-halo-color': 'rgba(254,254,254,0.8)',
-      'text-halo-width': 2,
-      'text-halo-blur': 1,
-    },
-  }
-}
-
-function withWaterLabels(layers: Layer[]): Layer[] {
-  const water = [
-    waterLabel(
-      'label-water-river',
-      'water_lines_labels',
-      ['match', ['get', 'kind'], ['river', 'canal'], true, false],
-      12,
-      [
-        [12, 10],
-        [16, 13],
-      ],
-    ),
-    waterLabel('label-water-stream', 'water_lines_labels', ['==', ['get', 'kind'], 'stream'], 14, [
-      [14, 9],
-      [17, 12],
-    ]),
-    waterLabel('label-water-area', 'water_polygons_labels', ['has', 'name'], 11, [
-      [11, 10],
-      [15, 13],
-    ]),
-  ] as unknown as Layer[]
-
-  // Under the place labels, which are the first `label-place-` symbol layer onwards.
-  const at = layers.findIndex((layer) => layer.id.startsWith('label-place-'))
-  if (at < 0) return [...layers, ...water]
-  return [...layers.slice(0, at), ...water, ...layers.slice(at)]
-}
-
-/**
- * Place names from the zoom their data starts at, rather than from the zoom `colorful` chose.
+ * Place names from the zoom their data starts at, rather than from the zoom VersaTiles chose.
  *
  * Measured against the tiles: `place_labels` carries village, hamlet, locality and
  * isolated_dwelling from z10 — the style held village to z11 and hamlet to z13, so a 20 km view

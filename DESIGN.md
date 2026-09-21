@@ -443,7 +443,7 @@ table lookups.
 
 [VersaTiles](https://versatiles.org/) serves OpenStreetMap-derived vector tiles with no API
 key, no usage fees and no user tracking, on the CC-0 Shortbread schema. The style is
-`@versatiles/style`'s `colorful`, barely held back — a slight wash towards the paper the app is
+`@versatiles/style`'s `colorful` theme, barely held back — a slight wash towards the paper the app is
 drawn on, and nothing else. It began as `graybeard`, on the principle that the tracks should own
 the only colour on screen; that read as a wireframe rather than as a map of anywhere. The first
 correction desaturated `colorful` by a third and took the terrain down with it, which is most of
@@ -464,6 +464,17 @@ tuned here to sit under the track colours rather than compete with them. Contour
 `maplibre-contour`, which generates contour vector tiles from the same DEM in a worker: always on
 above z11, with no toggle, because a contour is a property of the basemap and this app has no
 map-options surface for one control to live in.
+
+The style moved to `@versatiles/style` 6 in September 2026, because it had to: v6's release took down v5's
+`basics` sprite sheet, and with it every POI icon on the web and the phone alike. The screenshot tests could
+not see it — they serve a committed copy of every asset — which is the price of never touching the network in
+CI, and worth knowing. v6's `osm()` builds a style with no I/O at all, so both tilesets are spelled out in
+`colorful.ts` rather than asked of their `tiles.json`, and the phone's copy builds offline. What v6 changed and
+this map did not want is set back by hand: a flat map rather than a globe at the world zooms, no sky, the
+relief lit from the north-west, and river names every 160 px. What v6 improved is kept: it now draws water
+names itself — lakes by size, ditches too — so ours went and only their colour stayed; woodland reads greener
+at the overview zooms; and designated streets are drawn from its own bike layers, apart from tracks and service
+roads, which it no longer marks and this style does.
 
 The bike network and trails are part of the same washed style: cycleways and anything `bicycle=designated` in the
 accent washed towards the paper, and paths, steps and unpaved footways in a trail blaze's red, both from z13, both

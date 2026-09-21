@@ -1,32 +1,22 @@
 import { featureFilter, validateStyleMin } from '@maplibre/maplibre-gl-style-spec'
 import type { FilterSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl'
-import { setupServer } from 'msw/node'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   BIKE_COLOUR,
   HIKING_COLOUR,
+  LIGHT,
   SORTED_FROM,
   UNSORTED_PATH_COLOUR,
+  WATER_LABEL_COLOUR,
+  WATER_LABEL_SPACING,
   WAY_NETWORK,
   washedColorful,
 } from './colorful.ts'
-import { elevationTileJson } from './elevation-fixture.ts'
 
 type LineLayer = Extract<LayerSpecification, { type: 'line' }>
 
-// The elevation TileJSON comes from the committed fixture: this suite stays offline.
-const server = setupServer(elevationTileJson)
-
-let style: StyleSpecification
-let ids: string[]
-
-// Built here rather than at the top level, which would run before the server listens.
-beforeAll(async () => {
-  server.listen({ onUnhandledRequest: 'error' })
-  style = (await washedColorful()) as StyleSpecification
-  ids = style.layers.map((l) => l.id)
-})
-afterAll(() => server.close())
+const style = washedColorful() as StyleSpecification
+const ids = style.layers.map((l) => l.id)
 
 const layer = (id: string) => {
   const found = style.layers.find((l) => l.id === id)
@@ -119,5 +109,56 @@ describe('the way networks on the basemap', () => {
     expect(layer('tunnel-way-hiking:unpaved').paint?.['line-opacity']).toBe(
       WAY_NETWORK.tunnelOpacity,
     )
+  })
+})
+
+describe('the basemap on @versatiles/style 6', () => {
+  it('asks for the sprite sheet VersaTiles still publishes', () => {
+    // v5's `basics` sheet was taken down with v6's release, and every POI icon went with it.
+    expect(style.sprite).toEqual([
+      { id: 'base', url: 'https://tiles.versatiles.org/assets/sprites/base' },
+    ])
+    const icons = JSON.stringify(style.layers).match(/"(\w+):icon-/g) ?? []
+    expect(new Set(icons)).toEqual(new Set(['"base:icon-']))
+  })
+
+  it('stays the flat, skyless map it was before v6', () => {
+    expect(style.projection).toEqual({ type: 'mercator' })
+    expect(style.sky).toBeUndefined()
+  })
+
+  it('lights the relief from the north-west', () => {
+    const hillshade = style.layers.find((l) => l.type === 'hillshade')
+    expect(hillshade?.paint).toMatchObject({
+      'hillshade-illumination-direction': LIGHT.direction,
+      'hillshade-illumination-altitude': LIGHT.altitude,
+    })
+  })
+
+  it('names water in the water label blue', () => {
+    for (const id of ids.filter((id) => id.startsWith('label-water-'))) {
+      const label = style.layers.find((l) => l.id === id) as Extract<
+        LayerSpecification,
+        { type: 'symbol' }
+      >
+      expect(label.paint?.['text-color']).toBe(WATER_LABEL_COLOUR)
+    }
+  })
+
+  it('repeats a river’s name often enough to find it on a phone', () => {
+    for (const id of ['label-water-river', 'label-water-stream']) {
+      const label = style.layers.find((l) => l.id === id) as Extract<
+        LayerSpecification,
+        { type: 'symbol' }
+      >
+      expect(label.layout?.['symbol-spacing']).toBe(WATER_LABEL_SPACING)
+    }
+  })
+
+  it('names every tile source it draws from, with no TileJSON left to fetch', () => {
+    for (const source of Object.values(style.sources)) {
+      expect(source).not.toHaveProperty('url')
+      expect((source as { tiles: string[] }).tiles[0]).toMatch(/^https:\/\//)
+    }
   })
 })
