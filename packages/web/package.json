@@ -15,7 +15,7 @@
     "@tanstack/react-query": "^5.102.3",
     "@tracks/core": "workspace:*",
     "@tracks/routing": "workspace:*",
-    "@versatiles/style": "^5.13.1",
+    "@versatiles/style": "^6.0.1",
     "@zip.js/zip.js": "^2.9.0",
     "csv-parse": "^6.2.1",
     "echarts": "^6.1.0",

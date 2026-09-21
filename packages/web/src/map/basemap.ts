@@ -4,7 +4,14 @@ import type { StyleSpecification } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
 // `?worker&url` bundles the worker *and its imports*, then hands back the URL — see below.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-import { HILLSHADE, TILES, washedColorful } from './colorful.ts'
+import {
+  ELEVATION_TILES,
+  HILLSHADE,
+  OSM_TILES,
+  TILES,
+  washedColorful,
+  withLight,
+} from './colorful.ts'
 
 /**
  * The basemap, in one module.
@@ -30,8 +37,8 @@ import { HILLSHADE, TILES, washedColorful } from './colorful.ts'
  */
 maplibregl.setWorkerUrl(workerUrl)
 
-/** Terrarium-encoded, 512 px, z0–12. The same source feeds hillshade and contours. */
-const ELEVATION = `${TILES}/tiles/elevation/{z}/{x}/{y}`
+/** The hillshade's own DEM, which the contours are generated from too. */
+const ELEVATION = ELEVATION_TILES.tiles[0] as string
 
 /** The same server's raster imagery, WebP. */
 const SATELLITE = `${TILES}/tiles/satellite/{z}/{x}/{y}`
@@ -81,22 +88,20 @@ export type Basemap = 'map' | 'satellite'
  * on the vector map — imagery shows what the ground is covered in and nothing at all
  * about how steep it is.
  */
-async function satelliteStyle(): Promise<StyleSpecification> {
-  return (await satellite({
-    baseUrl: TILES,
-    tiles: [SATELLITE],
-    hillshade: HILLSHADE,
-    language: 'en',
-  })) as StyleSpecification
+function satelliteStyle(): StyleSpecification {
+  const style = satellite({
+    urls: { base: TILES, satellite: SATELLITE, osm: OSM_TILES, elevation: ELEVATION_TILES },
+    features: { hillshade: HILLSHADE },
+    osmOverlay: { text: { language: 'en' } },
+    projection: 'mercator',
+    sky: false,
+  })
+  return { ...style, layers: withLight(style.layers) } as StyleSpecification
 }
 
 export async function basemapStyle(kind: Basemap = 'map'): Promise<StyleSpecification> {
-  if (kind === 'satellite') return withContours(await satelliteStyle())
-  return withContours(await vectorStyle())
-}
-
-async function vectorStyle(): Promise<StyleSpecification> {
-  return (await washedColorful()) as StyleSpecification
+  if (kind === 'satellite') return withContours(satelliteStyle())
+  return withContours(washedColorful() as StyleSpecification)
 }
 
 /** Contours are generated from the DEM, so they belong to whatever is underneath. */
