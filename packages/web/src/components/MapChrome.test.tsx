@@ -8,6 +8,7 @@ function setup(
   canFitAll = true,
   basemap: 'map' | 'satellite' = 'map',
   planning = false,
+  open = false,
 ) {
   const onToggleGrouping = vi.fn()
   const onToggleBasemap = vi.fn()
@@ -17,6 +18,7 @@ function setup(
     <MapChrome
       grouped={grouped}
       planning={planning}
+      open={open}
       basemap={basemap}
       canFitAll={canFitAll}
       onToggleGrouping={onToggleGrouping}
@@ -118,6 +120,28 @@ describe('the basemap switch', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Zoom out to the whole route' }))
     expect(onFitAll).toHaveBeenCalled()
+  })
+
+  it('names the open activity as what it frames, and waits for its extent', async () => {
+    const { onFitAll } = setup(true, true, 'map', false, true)
+
+    // Opening an activity is a filter term, so the extent it flies to is that activity's.
+    expect(screen.queryByRole('button', { name: 'Zoom out to all activities' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Zoom to this activity' }))
+    expect(onFitAll).toHaveBeenCalled()
+  })
+
+  it('is disabled while the open activity has no extent to fly to', () => {
+    setup(true, false, 'map', false, true)
+
+    const button = screen.getByRole('button', { name: 'Zoom to this activity' })
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('frames the route while planning, even with an activity open', () => {
+    setup(true, true, 'map', true, true)
+
+    expect(screen.getByRole('button', { name: 'Zoom out to the whole route' })).toBeTruthy()
   })
 
   it('keeps both outside planning', () => {

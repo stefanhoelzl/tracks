@@ -12,6 +12,7 @@ export function MapChrome({
   grouped,
   basemap,
   planning,
+  open,
   canFitAll,
   onToggleGrouping,
   onToggleBasemap,
@@ -27,6 +28,11 @@ export function MapChrome({
    * cannot click has nothing to offer, and *fit everything* means the route instead.
    */
   planning: boolean
+  /**
+   * An activity is open. It is a filter term, so the extent the button flies to is that
+   * activity's own — only the words change.
+   */
+  open: boolean
   /** False when there is nothing outside the viewport to fly to. */
   canFitAll: boolean
   onToggleGrouping: () => void
@@ -37,7 +43,11 @@ export function MapChrome({
   insetLeft: number
 }) {
   const label = grouped ? 'Grouping nearby starts' : 'Showing every track'
-  const fit = planning ? 'Zoom out to the whole route' : 'Zoom out to all activities'
+  const fit = planning
+    ? 'Zoom out to the whole route'
+    : open
+      ? 'Zoom to this activity'
+      : 'Zoom out to all activities'
 
   return (
     <>

@@ -74,8 +74,9 @@ export function App({ email }: { email: string }) {
   /**
    * Planning shadows the other modes rather than replacing their state. The filter is
    * still filtering the tracks underneath — and still on screen, since only the right
-   * panel follows the mode — and `activity=` is left exactly as it was. Only the plan
-   * is destroyed by leaving, and `setView` is where that happens.
+   * panel follows the mode — open activity included, so a plan started from one ride
+   * has only that ride under it. Only the plan is destroyed by leaving, and `setView` is
+   * where that happens.
    */
   const planning = view.mode === 'planning'
   const signOut = useSignOut()
@@ -137,10 +138,10 @@ export function App({ email }: { email: string }) {
   const activities = useActivities(filter)
   const tracks = useTracks(filter)
   const facets = useFacets(filter)
-  const detail = useActivityDetail(view.activity)
+  const detail = useActivityDetail(filter.id)
 
   const tagWrite = useTagWrite(filter)
-  const activityTags = useActivityTags(view.activity)
+  const activityTags = useActivityTags(filter.id)
 
   /**
    * The tab says what you are looking at.
@@ -155,7 +156,7 @@ export function App({ email }: { email: string }) {
       mode: view.mode,
       plan,
       activity: detail.data?.activity ?? null,
-      pending: view.activity !== null && detail.isPending,
+      pending: filter.id !== null && detail.isPending,
     }),
   )
 
@@ -461,15 +462,17 @@ export function App({ email }: { email: string }) {
   )
 
   /**
-   * Selecting is also the one thing that invalidates the cursor: it indexes into the
-   * track that was open, and the next one is a different array of a different length.
+   * Opening an activity is a filter change: it narrows everything to that one, which is
+   * what makes *fit everything* frame it. It is also the one thing that invalidates the
+   * cursor: that indexes into the track that was open, and the next one is a different
+   * array of a different length.
    */
   const select = useCallback(
     (id: number | null) => {
       setCursor(null)
-      setView({ ...view, activity: id })
+      setFilter({ ...filter, id })
     },
-    [view, setView],
+    [filter, setFilter],
   )
 
   /**
@@ -510,7 +513,7 @@ export function App({ email }: { email: string }) {
         filter={filter}
         extent={extent}
         hoveredId={hoveredId}
-        selectedId={view.activity}
+        selectedId={filter.id}
         cursor={cursor}
         panelInsets={insets}
         onHover={setHoveredId}
@@ -674,7 +677,7 @@ export function App({ email }: { email: string }) {
               onAddPlace={addPlace}
               onHoverPlace={previewPlace}
             />
-          ) : view.activity !== null ? (
+          ) : filter.id !== null ? (
             <DetailPanel
               detail={detail.data}
               tagTypes={tagTypes.data?.tagTypes ?? []}
@@ -697,7 +700,7 @@ export function App({ email }: { email: string }) {
               colourBy={colourBy}
               scale={scale}
               hoveredId={hoveredId}
-              selectedId={view.activity}
+              selectedId={filter.id}
               loading={activities.isLoading}
               error={listError}
               onHover={setHoveredId}
@@ -749,6 +752,7 @@ export function App({ email }: { email: string }) {
         grouped={view.grouped}
         basemap={view.basemap}
         planning={planning}
+        open={filter.id !== null}
         canFitAll={(planning ? routeExtent : extent) !== null}
         onToggleGrouping={() => setView({ ...view, grouped: !view.grouped })}
         onToggleBasemap={() =>
