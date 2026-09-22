@@ -1,5 +1,6 @@
 package net.stho.tracks.ui.riding
 
+import net.stho.tracks.ui.measure.MeasureOverrides
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -33,6 +34,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -73,6 +75,7 @@ import net.stho.tracks.ui.map.MapStyle
 import net.stho.tracks.ui.map.Orientation
 import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.ui.map.UNDER_MAP_CREDIT
+import net.stho.tracks.ui.measure.RecomposeCounts
 import net.stho.tracks.ui.plans.ElevationProfile
 import net.stho.tracks.ui.plans.StopList
 import net.stho.tracks.ui.plans.planDrawing
@@ -199,7 +202,7 @@ data class RideStats(val paused: Boolean, val distanceM: Double, val climbedM: D
  *
  * [heading] is read, not handed over: the compass is for the map alone, and it fires up to ~30 times a second while the
  * phone moves. Passed as a value it recomposed this whole screen on every one — the sheet, the figures, the profile,
- * none of which read it — which was a third of what the compass cost (app/docs/battery/REPORT.md).
+ * none of which read it — which was a third of what the compass cost (app/docs/BATTERY.md).
  */
 @Composable
 fun RidingScreen(
@@ -231,6 +234,7 @@ fun RidingScreen(
     onIdle: () -> Unit = {},
     sheet: @Composable BoxScope.() -> Unit = {},
 ) {
+    SideEffect { RecomposeCounts.ridingScreen++ }
     var orientation by remember { mutableStateOf(Orientation.HeadingUp) }
     var manual by remember { mutableStateOf(initiallyPickedM != null) }
     // Metres along the route, not along a page: it stays put as you ride, whichever page shows it.
@@ -282,7 +286,7 @@ fun RidingScreen(
                 style = it,
                 // Centred in what the inset leaves: a top inset a third of the gap down puts you two thirds down it.
                 camera = when {
-                    !manual -> MapCamera.Follow(orientation, RIDING_ZOOM, PaddingValues(top = top + gap / 3, bottom = sheetHeight))
+                    !manual -> MapCamera.Follow(orientation, MeasureOverrides.ridingZoom ?: RIDING_ZOOM, PaddingValues(top = top + gap / 3, bottom = sheetHeight))
                     picked != null -> MapCamera.Show(picked, PaddingValues(top = top, bottom = sheetHeight))
                     else -> MapCamera.Free
                 },

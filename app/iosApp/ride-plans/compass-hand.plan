@@ -1,0 +1,14 @@
+# The real compass at riding speed: the replay's fixes, the phone's own headings, 1° against the product's 5°.
+# Someone holds the phone and sways it as on a handlebar between the two `say` lines; the 1°/5° pairs are repeated
+# because a hand's motion varies more than the filter's effect does.
+#
+#   ./ride-table.py <results> base:hand-1 base:hand-5 hand-1:hand-5 hand-1b:hand-5b base:desk-5
+base
+say PICK UP the phone and keep swaying it gently, as on a handlebar, until told to put it down (~8 min)
+hand-1          TRACKS_REAL_HEADING=1 TRACKS_HEADING_FILTER=1
+hand-5          TRACKS_REAL_HEADING=1 TRACKS_HEADING_FILTER=5
+hand-1b         TRACKS_REAL_HEADING=1 TRACKS_HEADING_FILTER=1
+hand-5b         TRACKS_REAL_HEADING=1 TRACKS_HEADING_FILTER=5
+say PUT the phone DOWN flat and leave it (~4 min)
+desk-5          TRACKS_REAL_HEADING=1
+base-end
