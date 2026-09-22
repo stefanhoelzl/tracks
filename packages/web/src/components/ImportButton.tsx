@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import styles from './ImportButton.module.css'
 import type { ImportSource } from './ImportDialog.tsx'
@@ -13,6 +13,10 @@ import { Popover } from './ui/Popover.tsx'
  *
  * The icon carries it alone. No chevron beside it: a second glyph to say "this opens"
  * is what `aria-haspopup` says already, and the popover itself says the rest.
+ *
+ * A plus rather than the download arrow it wore until Export arrived beside it with a
+ * file and an arrow: two arrows pointing down, side by side, read as one control twice.
+ * Import adds activities; Export is the one that downloads.
  */
 
 const SOURCES: Array<{ value: ImportSource; label: string; detail: string }> = [
@@ -25,7 +29,7 @@ export function ImportButton({ onPick }: { onPick: (source: ImportSource) => voi
 
   return (
     <div className={styles.anchor}>
-      <IconButton icon={Download} label="Import" expanded={open} onClick={() => setOpen(!open)} />
+      <IconButton icon={Plus} label="Import" expanded={open} onClick={() => setOpen(!open)} />
 
       <Popover open={open} onClose={() => setOpen(false)} width={196}>
         {SOURCES.map((source) => (

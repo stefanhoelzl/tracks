@@ -676,6 +676,18 @@ are choosing between is which of them you are reading. Two of them until M8 adde
 the control was built to hold a set rather than a boolean, and `?analytics=true` became
 `?mode=` when the set grew.
 
+Beside Import is **Export**, its other half: everything the filter matches, as one GPX with a
+`<trk>` per activity — the list, viewport and all, in its order, so with one activity open it is
+that one. Import wore the download arrow until then and wears a plus now; two arrows pointing down,
+side by side, read as one control twice. There is no dialog, because the chips already say what
+goes in: a click saves `tracks-<date>.gpx`, the button counts `37 / 197` while it runs, and a second
+click cancels. The file is written in the tab from the detail route, four activities at a time,
+for the reason imports are read there — a whole account is a million points against the edge's
+128 MB. Each track carries its title, its sport as stored, and per point the position, height and
+time; `gpx-writer.ts` is tested by reading its output back with the importer's own parser. All or
+nothing: one failed fetch stops the rest and saves no file, because a file that looks complete and
+is missing a ride is worse than none. An activity with no track has nothing to write, and is left out.
+
 Picking a source opens a modal — a real `<dialog>`, so the platform supplies the focus trap
 and the layer above the map canvas — which moves through the form, the reading, the writing
 and a summary. Nothing closes on its own: a run with failures is something to read, and

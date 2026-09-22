@@ -1,0 +1,56 @@
+/* The icon button's footprint, grown into a pill that carries the count while it runs. */
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.running {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+/* Hovering says what a click does: the spinner gives way to the cross. */
+.cancel {
+  display: none;
+}
+
+.running:hover .cancel {
+  display: block;
+}
+
+.running:hover .spin {
+  display: none;
+}
+
+.failed {
+  background: var(--sunk);
+  color: var(--bad);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
