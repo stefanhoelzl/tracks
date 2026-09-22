@@ -52,6 +52,14 @@ const bboxSchema = z
   .refine(([w, s, e, n]) => w <= e && s <= n, 'bbox min must not exceed max')
 
 const shape = z.object({
+  /**
+   * The open activity. A term like any other, ANDed with the rest: opening an activity
+   * narrows the map, the counts and the extent to it, so *fit everything* frames it and
+   * there is one answer to what the map is showing rather than a filter and a selection
+   * beside it. Written as `activity=`, the key it had as view state, so older links open
+   * what they always opened.
+   */
+  id: z.number().int().positive().nullable(),
   tags: z.array(tagTermSchema),
   /**
    * Free text, matched against the title. A filter term like any other — it is what
@@ -80,6 +88,7 @@ export type Filter = z.infer<typeof shape>
  */
 export function emptyFilter(): Filter {
   return {
+    id: null,
     tags: [],
     q: null,
     from: null,
@@ -130,8 +139,10 @@ export const filterSchema = z.preprocess((input) => {
   const bbox = params.get('bbox')
 
   const q = params.get('q')
+  const id = params.get('activity')
 
   return {
+    id: id === null || id.trim() === '' ? null : Number(id),
     tags: params.getAll('tag'),
     // Whitespace is not a search: it would narrow nothing and hold a chip saying so.
     q: q === null || q.trim() === '' ? null : q,
@@ -161,6 +172,7 @@ export function parseFilter(input: unknown): Filter {
 export function formatFilter(filter: Filter): URLSearchParams {
   const params = new URLSearchParams()
 
+  if (filter.id !== null) params.set('activity', String(filter.id))
   for (const term of filter.tags) params.append('tag', formatTagTerm(term))
   if (filter.q !== null) params.set('q', filter.q)
   if (filter.from !== null) params.set('from', filter.from)
@@ -208,7 +220,6 @@ function modeOf(params: URLSearchParams): string {
 const viewShape = z.object({
   /** A registry type name, `year`, or null to fall back to the registry's first. */
   colourBy: z.string().nullable(),
-  activity: z.number().int().positive().nullable(),
   /**
    * Whether the map collapses nearby starts into clusters at low zoom.
    *
@@ -245,11 +256,9 @@ export type View = z.infer<typeof viewShape>
 
 export const viewSchema = z.preprocess((input) => {
   const params = asSearchParams(input)
-  const activity = params.get('activity')
 
   return {
     colourBy: params.get('colour_by'),
-    activity: activity === null || activity.trim() === '' ? null : Number(activity),
     // Grouping is the default, so only its absence is worth writing down.
     grouped: params.get('grouped') !== '0',
     // As is the vector map, so only satellite is.
@@ -269,7 +278,6 @@ export function parseView(input: unknown): View {
 export function formatView(view: View): URLSearchParams {
   const params = new URLSearchParams()
   if (view.colourBy !== null) params.set('colour_by', view.colourBy)
-  if (view.activity !== null) params.set('activity', String(view.activity))
   if (!view.grouped) params.set('grouped', '0')
   if (view.basemap === 'satellite') params.set('basemap', 'satellite')
   if (view.mode !== 'activities') params.set('mode', view.mode)

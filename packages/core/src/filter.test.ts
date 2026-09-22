@@ -96,12 +96,23 @@ describe('filter serialization', () => {
   it('rejects a sort key that is not a column', () => {
     expect(() => parseFilter('sort_key=title')).toThrow()
   })
+
+  it('reads the open activity from the key it had as view state', () => {
+    // Links carried `activity=` for a dozen milestones; they open what they always did.
+    expect(parseFilter('activity=42').id).toBe(42)
+    expect(parseFilter('').id).toBeNull()
+    expect(formatFilter({ ...emptyFilter(), id: 42 }).toString()).toBe('activity=42')
+  })
+
+  it('rejects an activity id that is not one', () => {
+    expect(() => parseFilter('activity=0')).toThrow()
+    expect(() => parseFilter('activity=abc')).toThrow()
+  })
 })
 
 /** The defaults, so a test states only the field it is about. */
 const VIEW: View = {
   colourBy: null,
-  activity: null,
   grouped: true,
   basemap: 'map',
   mode: 'activities',
@@ -113,11 +124,7 @@ const VIEW: View = {
 
 describe('view state', () => {
   it('is parsed apart from the filter, since the server has no use for it', () => {
-    expect(parseView('colour_by=trip&activity=123')).toEqual({
-      ...VIEW,
-      colourBy: 'trip',
-      activity: 123,
-    })
+    expect(parseView('colour_by=trip&activity=123')).toEqual({ ...VIEW, colourBy: 'trip' })
     expect(parseView('')).toEqual(VIEW)
   })
 
@@ -163,18 +170,9 @@ describe('view state', () => {
   })
 
   it('joins the filter in one URL', () => {
-    const filter = parseFilter('tag=sport:bike')
-    expect(
-      formatSearch(filter, {
-        ...VIEW,
-        colourBy: 'sport',
-        activity: 42,
-      }),
-    ).toBe('tag=sport%3Abike&colour_by=sport&activity=42')
-  })
-
-  it('rejects an activity id that is not one', () => {
-    expect(() => parseView('activity=0')).toThrow()
-    expect(() => parseView('activity=abc')).toThrow()
+    const filter = parseFilter('tag=sport:bike&activity=42')
+    expect(formatSearch(filter, { ...VIEW, colourBy: 'sport' })).toBe(
+      'activity=42&tag=sport%3Abike&colour_by=sport',
+    )
   })
 })

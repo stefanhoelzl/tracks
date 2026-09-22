@@ -869,10 +869,10 @@ export function MapView({
    * The bbox is deliberately not in it. Every fit ends in a `moveend` that writes the
    * viewport back as the new bbox, so keying on the whole filter would make each fit
    * the reason for the next one. Keyed on what the user *did* — changed a filter,
-   * picked an activity — a fit's own write cannot retrigger it, and the loop that cost
-   * the auto-fit in the first place cannot form.
+   * opened an activity, which is the same thing — a fit's own write cannot retrigger
+   * it, and the loop that cost the auto-fit in the first place cannot form.
    */
-  const fitKey = `${formatFilter({ ...filter, bbox: null })}|${selectedId ?? ''}`
+  const fitKey = formatFilter({ ...filter, bbox: null }).toString()
   const fitted = useRef<string | null>(null)
 
   useEffect(() => {
@@ -887,16 +887,14 @@ export function MapView({
       return
     }
 
-    // A selected activity is framed on its own; anything else frames everything that
-    // matches, which `extent` gives with the viewport term dropped — the tracks payload
-    // cannot, since the viewport is exactly what removed the rest of it.
-    const target =
-      selectedId !== null
-        ? detail && boundsOfCoordinates(detail.track.coordinates)
-        : extent && boundsOfCoordinates([extent.slice(0, 2), extent.slice(2, 4)])
+    // Everything that matches, which `extent` gives with the viewport term dropped — the
+    // tracks payload cannot, since the viewport is exactly what removed the rest of it.
+    // An open activity is a term in the filter, so this is its own box: the same target
+    // *fit everything* flies to, from the same number.
+    const target = extent && boundsOfCoordinates([extent.slice(0, 2), extent.slice(2, 4)])
 
-    // Not yet: the detail or the facets for this filter are still in flight. Leaving
-    // `fitted` alone means this runs again when they land, rather than never.
+    // Not yet: the facets for this filter are still in flight. Leaving `fitted` alone
+    // means this runs again when they land, rather than never.
     if (!target) return
 
     fitted.current = fitKey
@@ -910,7 +908,7 @@ export function MapView({
       duration: 700,
       maxZoom: 14,
     })
-  }, [ready, fitKey, extent, detail, selectedId, planning, panelInsets.left, panelInsets.right])
+  }, [ready, fitKey, extent, planning, panelInsets.left, panelInsets.right])
 
   /**
    * A shared plan link, framed once.

@@ -81,7 +81,6 @@ export interface UrlState {
 
 const EMPTY_VIEW: View = {
   colourBy: null,
-  activity: null,
   grouped: true,
   basemap: 'map',
   mode: 'activities',
@@ -148,9 +147,9 @@ export function useUrlState(): UrlState {
     // looking, not something you chose, and clearing filters should not move the map.
     // So does the plan: it is not a filter, and losing an hour of planning to a button
     // labelled *clear filters* would be this app's worst moment.
-    const { bbox } = parseFilter(window.location.search)
+    const { bbox, id } = parseFilter(window.location.search)
     write(
-      formatSearch({ ...emptyFilter(), bbox }, parseView(window.location.search)),
+      formatSearch({ ...emptyFilter(), bbox, id }, parseView(window.location.search)),
       currentHash(),
       'push',
     )

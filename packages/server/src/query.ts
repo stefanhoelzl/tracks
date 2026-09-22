@@ -134,6 +134,10 @@ export function whereFor(scope: Scope, exclude: Exclusion = {}): SQL {
   // owner, and nothing may ever exclude it.
   const parts: SQL[] = [sql`a.user_id = ${scope.userId}`]
 
+  // The open activity, ANDed like everything else and excluded by nothing: while one is
+  // open the facets count it alone, which is what the sidebar is then describing.
+  if (filter.id !== null) parts.push(sql`a.id = ${filter.id}`)
+
   const byType = new Map<string, TagTerm[]>()
   for (const term of filter.tags) {
     if (term.type === exclude.tagType) continue

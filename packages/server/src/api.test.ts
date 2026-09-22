@@ -324,6 +324,18 @@ describe('the REST surface', () => {
       ])
     })
 
+    it('narrows to the open activity, ANDed with every other term', async () => {
+      const hike = (await (
+        await signedIn('/api/activities?tag=sport:hike')
+      ).json()) as ActivitiesResponse
+      const id = hike.activities[0]!.id
+
+      expect(await titles(signedIn, `activity=${id}`)).toEqual(['Balkan hike'])
+      expect(await titles(signedIn, `activity=${id}&tag=sport:hike`)).toEqual(['Balkan hike'])
+      // A term the open activity fails empties the result rather than being overruled.
+      expect(await titles(signedIn, `activity=${id}&tag=sport:bike`)).toEqual([])
+    })
+
     it('sorts by any range key, in either direction', async () => {
       expect(await titles(signedIn, 'sort_key=distance&sort_order=asc')).toEqual([
         'Untyped', // nulls sort first ascending
@@ -368,6 +380,23 @@ describe('the REST surface', () => {
         elevationGainM: 1500,
         durationS: 10_800,
       })
+    })
+
+    it('frames and counts the open activity alone', async () => {
+      const hike = (await (
+        await signedIn('/api/activities?tag=sport:hike')
+      ).json()) as ActivitiesResponse
+      const id = hike.activities[0]!.id
+
+      // No facet excludes it, so the extent the map fits to is the activity's own box.
+      const body = await facets(`activity=${id}`)
+      expect(body.summary.count).toBe(1)
+      expect(facet(body, 'sport').values).toEqual([{ value: 'hike', count: 1 }])
+      const [west, south, east, north] = body.extent!
+      expect(west).toBeCloseTo(13.75, 6)
+      expect(south).toBeCloseTo(46.35, 6)
+      expect(east).toBeCloseTo(13.76, 6)
+      expect(north).toBeCloseTo(46.37, 6)
     })
 
     it('counts a tag type without applying that type own terms', async () => {

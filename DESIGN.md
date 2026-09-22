@@ -569,15 +569,14 @@ recorded — and never again: `filter.bbox === null` is the whole condition. Tha
 everything you have; from then on the map is the filter, and a control that only ever wanted to be
 on is not a choice worth offering.
 
-The camera still fits itself: to the selected activity when you pick one, and to everything
-matching otherwise. What makes that safe is *what the fit is keyed on*. Every fit ends in a
-`moveend` that writes the viewport back as the new bbox, so keying on the filter as a whole would
-make each fit the cause of the next. The key is the filter **with its bbox removed**, plus the
-selected id — what you did, not what the map did in response — so a fit's own write cannot
-retrigger it and the loop cannot form.
+The camera still fits itself, to everything matching — which, with an activity open, is that
+activity, since opening one is a filter term. What makes that safe is *what the fit is keyed on*.
+Every fit ends in a `moveend` that writes the viewport back as the new bbox, so keying on the
+filter as a whole would make each fit the cause of the next. The key is the filter **with its bbox
+removed** — what you did, not what the map did in response — so a fit's own write cannot retrigger
+it and the loop cannot form.
 
-A fit waits for the data that defines it: the detail for a selection, the facets for a filter
-change. Until they land the key stays unclaimed, so the fit happens when they arrive rather than
+A fit waits for the data that defines it: the facets for the filter it is keyed on. Until they land the key stays unclaimed, so the fit happens when they arrive rather than
 never. And `extent` is read as null while a request is in flight, because react-query holds the
 previous response as placeholder data and framing the old filter's extent for the new one would
 fly the camera somewhere it was never asked to go.
@@ -587,7 +586,11 @@ in the map chrome flies to `facets.extent`, the extent of everything matching th
 bbox term dropped. Self-excluded exactly as a facet is, and for the same reason — it answers "where
 is the rest of it?", which the viewport-filtered payload cannot, because the viewport is what
 removed it. The move then writes the wider viewport back as the new bbox, like any other pan. The
-area is never cleared; it is only ever replaced by looking somewhere else.
+area is never cleared; it is only ever replaced by looking somewhere else. With an activity open
+the same button reads *zoom to this activity* and flies to the same number, which is then that
+activity's box. It once framed everything matching even then, because the button and the auto-fit
+each decided what to frame and only one of them knew about the selection; making the selection a
+filter term left one answer for both to read.
 
 For the same reason the bbox is not a filter *term* anywhere in the UI — no chip in the top bar, no
 card in the sidebar, and no weight in *clear filters*, which now leaves the viewport exactly where
@@ -696,8 +699,10 @@ Cancelling while reading has sent nothing; cancelling while writing rolls back.
 
 A list row is a coloured bar plus title, distance, elevation, duration and date. The bar follows
 the active *colour by* rather than being hardwired to sport, so the list and the map never read as
-two different legends. Clicking one selects it — `?activity=123` — and the right panel swaps to the
-detail while the full-resolution track draws over the simplified one. Selection is single, and
+two different legends. Clicking one opens it — `?activity=123`, a filter term like any other and
+ANDed with the rest — and the right panel swaps to the detail while the map narrows to that one
+track, drawn at full resolution. Back is the way out; there is no previous and next, since the rest
+of the list is exactly what the term removed. Selection is single, and
 stays that way: the checkboxes and shift-click ranges were being kept for the bulk-tagging flow,
 and that flow turned out not to want them.
 
@@ -801,9 +806,16 @@ point. Every point the profile draws is one the track recorded, so the two index
 lookup and never by interpolation, and the marker still lands on a real coordinate. One index,
 resolved from whichever end moved, so the two can never disagree about which point is meant.
 
-Nothing dims, and hovering and selecting look the same. Both were arrived at by removing things
-that seemed obviously right. Dimming the rest answered "which one is it?" by deleting the context
-that made the answer worth having. Painting the selection a fixed near-black threw away the sport
+Hovering and selecting look the same, and hovering dims nothing. Opening an activity does not dim
+the rest either: it removes it. It used to leave every other track on the map as context, on the
+argument that dimming answered "which one is it?" by deleting the context that made the answer
+worth having. That held for a highlight and failed for the camera — with the selection beside the
+filter rather than in it, *fit everything* framed the whole archive while one ride was open. Once
+the activity is a term the map, the counts, the analytics and the extent all say the same thing,
+and hover over the list is still where "which one is it?" is answered with the rest in view. It
+applies everywhere, the sidebar's counts included: no facet excludes it, so while an activity is
+open the sidebar describes that activity, and a tag edit that stops it matching empties the map
+while the detail stays open. Painting the selection a fixed near-black threw away the sport
 or trip its colour was carrying — saying "different kind of thing" where it meant "the one you
 picked". And drawing selection more heavily than hover implied a distinction that does not exist:
 both mean *this is the track you mean*, so they share one paint definition rather than two free to
@@ -936,15 +948,15 @@ bound simply means unbounded, so there is no `..` syntax to parse, escape or exp
 &from=2024-01-01&to=2024-12-31
 &bbox=13.68,46.31,13.86,46.44
 &distance_min=0&distance_max=50000&elevation_min=500&duration_max=7200&speed_min=4.2
-&sort_key=distance&sort_order=desc&colour_by=sport&activity=123&grouped=0
+&sort_key=distance&sort_order=desc&activity=123&colour_by=sport&grouped=0
 ```
 
 Units in the URL are **SI** — metres, seconds, metres per second — because those are the column
 units, so nothing converts on the way in and the boundary has no rounding question. The browser
 converts for display, which it must do anyway. `bbox` is GeoJSON order: `minLon,minLat,maxLon,maxLat`.
 
-The URL carries the filters *and* the view state that changes what you see — `colour_by`, the sort,
-the selected activity and whether the map groups — but not the camera. The camera auto-fits to the filter, so a bookmark
+The URL carries the filters — the open activity among them, as `activity=` — *and* the view state
+that changes what you see — `colour_by`, the sort and whether the map groups — but not the camera. The camera auto-fits to the filter, so a bookmark
 reproduces the view without storing it, and pan/zoom never churns history. The one case where the
 camera *is* meaningful is `bbox`, and there it is already a filter term.
 
@@ -1293,9 +1305,10 @@ briefly the other way round — the waypoint list took the sidebar's side — wh
 panels changed at once and the filter was reduced to chips in the top bar. Left where it is,
 the sidebar is still doing something while you plan: the tracks a plan is drawn over are the
 ones it narrowed, and narrowing them is most of the reason to plan on this map rather than
-in Komoot. A selected activity is shadowed the same way: `activity=` is left alone and the
-right panel just shows the plan instead. Planning shadows the other modes' state; only its
-own is destroyed by leaving.
+in Komoot. An open activity is part of that filter, so a plan started from one ride has only
+that ride underneath it; the right panel shows the plan instead of its detail, and leaving
+planning brings the detail back. Planning shadows the other modes' state; only its own is
+destroyed by leaving.
 
 The map chrome follows the mode too. *Fit everything* frames the **whole route** rather than
 the extent of the activities — the plan is what you are looking at, and the tracks behind it
