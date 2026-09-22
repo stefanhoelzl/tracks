@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { SignIn } from './SignIn.tsx'
+import { SignInDialog } from './SignIn.tsx'
 
 /**
  * The form, against a scripted server.
@@ -41,25 +41,46 @@ afterEach(() => {
   server.resetHandlers()
   posted = []
   cookieKept = true
+  signedIn = 0
 })
 afterAll(() => server.close())
+
+let signedIn = 0
 
 function renderSignIn() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <SignIn />
+      <SignInDialog
+        open
+        lapsed={false}
+        onCancel={() => {}}
+        onSignedIn={() => {
+          signedIn++
+        }}
+      />
     </QueryClientProvider>,
   )
   return client
 }
 
-describe('the sign-in page', () => {
+describe('the sign-in dialog', () => {
   it('says that the first sign-in is what sets the password', async () => {
     renderSignIn()
     // The one thing a person cannot discover by trying: a typo here is not rejected,
     // it is adopted. If this sentence goes, the behaviour becomes a trap.
     expect(screen.getByText(/first sign-in sets the password/i)).toBeTruthy()
+  })
+
+  it('says so when it is a session that ended', async () => {
+    const client = new QueryClient()
+    render(
+      <QueryClientProvider client={client}>
+        <SignInDialog open lapsed onCancel={() => {}} onSignedIn={() => {}} />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByText(/session has ended/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Continue signed out' })).toBeTruthy()
   })
 
   it('will not submit until there is an address and a long enough password', async () => {
@@ -83,9 +104,14 @@ describe('the sign-in page', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await waitFor(() => {
-      expect(client.getQueryData(['session'])).toEqual({ email: 'rider@example.com' })
+      expect(client.getQueryData(['session'])).toEqual({
+        email: 'rider@example.com',
+        lapsed: false,
+      })
     })
     expect(posted).toEqual([{ email: 'rider@example.com', password: 'the right one' }])
+    // Told, so the app can close it: a signed-in session is not what keeps it open.
+    expect(signedIn).toBe(1)
   })
 
   it('stays on the form when the browser drops the cookie, and says so', async () => {
@@ -100,6 +126,7 @@ describe('the sign-in page', () => {
 
     expect(await screen.findByText(/did not keep the session cookie/i)).toBeTruthy()
     expect(client.getQueryData(['session'])).toBeFalsy()
+    expect(signedIn).toBe(0)
   })
 
   it('shows the server’s sentence, and stays on the form', async () => {

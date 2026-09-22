@@ -78,6 +78,11 @@
   white-space: nowrap;
 }
 
+.view:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .viewOn {
   background: var(--surface);
   color: var(--ink);
@@ -101,4 +106,25 @@
   font-size: var(--text-sm);
   font-weight: 700;
   color: var(--accent);
+}
+
+/* Where Import and the account stand when signed in, and pushed to the far end the way
+   Import pushes them — the one action the signed-out bar has, in the accent. */
+.signIn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 6px 13px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+}
+
+.signIn:hover {
+  background: var(--accent-deep);
 }

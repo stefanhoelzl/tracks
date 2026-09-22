@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { NewType, SortKey, TagWrite } from '@tracks/core'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { ActivityList } from './components/ActivityList.tsx'
 import { AnalyticsPanel } from './components/AnalyticsPanel.tsx'
@@ -12,6 +12,7 @@ import { ImportDialog, type ImportSource } from './components/ImportDialog.tsx'
 import { MapChrome } from './components/MapChrome.tsx'
 import { type MapHandle, MapView } from './components/MapView.tsx'
 import { PlanPanel } from './components/PlanPanel.tsx'
+import { SignInDialog } from './components/SignIn.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { IconButton } from './components/ui/IconButton.tsx'
 import { Panel } from './components/ui/Panel.tsx'
@@ -29,7 +30,7 @@ import {
   updateWaypoint,
 } from './lib/plan-ops.ts'
 import { usePlanner } from './lib/planner.ts'
-import { useSignOut } from './lib/session.ts'
+import { type Access, useGiveUp, useSignOut } from './lib/session.ts'
 import { titleOf, useDocumentTitle } from './lib/title.ts'
 import { useUrlState } from './lib/url.ts'
 
@@ -38,8 +39,26 @@ const PANEL_W = 300
 const LIST_W = 356
 const RAIL_W = 44
 
-export function App({ email }: { email: string }) {
+export function App({ access }: { access: Access }) {
   const { filter, view, plan, error: urlError, setFilter, setView, setPlan, reset } = useUrlState()
+
+  /**
+   * Nobody gets the planner, and only the planner.
+   *
+   * Every other mode is made of an account's rows, so signed out the mode is planning
+   * whatever the address says — a link to somebody's activities opens as an empty plan
+   * rather than as a form. The address is corrected to match below, so that the plan you
+   * make is still yours in planning once you sign in, rather than hidden behind the mode
+   * the URL had been naming all along.
+   *
+   * A lapsed session is still somebody: its view stays as it was behind the dialog.
+   */
+  const signedIn = access !== null
+  const mode = signedIn ? view.mode : 'planning'
+
+  useEffect(() => {
+    if (!signedIn && view.mode !== 'planning') setView({ ...view, mode: 'planning' }, 'replace')
+  }, [signedIn, view, setView])
 
   /**
    * Planning shadows the other modes rather than replacing their state. The filter is
@@ -48,8 +67,11 @@ export function App({ email }: { email: string }) {
    * has only that ride under it. Only the plan is destroyed by leaving, and `setView` is
    * where that happens.
    */
-  const planning = view.mode === 'planning'
+  const planning = mode === 'planning'
   const signOut = useSignOut()
+  const giveUp = useGiveUp()
+  /** Whether nobody asked for the sign-in dialog. A lapsed session raises it by itself. */
+  const [signingIn, setSigningIn] = useState(false)
 
   // Transient by design: which panels are folded and what the pointer is over say
   // nothing about what you are looking at, so they have no business in a bookmark.
@@ -77,6 +99,7 @@ export function App({ email }: { email: string }) {
   const { tagTypes, activities, tracks, facets, detail, tagWrite, activityTags } = useLibrary(
     filter,
     filter.id,
+    signedIn && !access.lapsed,
   )
 
   /**
@@ -86,14 +109,19 @@ export function App({ email }: { email: string }) {
    * stays a statement about the app's state and knows nothing about fetching. `detail`
    * is pending whenever it is disabled, which is why the selection is asked about
    * first — an empty list would otherwise load forever in the tab strip.
+   *
+   * A lapsed session says so instead: a tab left in the background is otherwise still
+   * naming an activity it can no longer show you.
    */
   useDocumentTitle(
-    titleOf({
-      mode: view.mode,
-      plan,
-      activity: detail.data?.activity ?? null,
-      pending: filter.id !== null && detail.isPending,
-    }),
+    access?.lapsed
+      ? 'Sign in'
+      : titleOf({
+          mode,
+          plan,
+          activity: detail.data?.activity ?? null,
+          pending: filter.id !== null && detail.isPending,
+        }),
   )
 
   /**
@@ -153,7 +181,8 @@ export function App({ email }: { email: string }) {
   }, [tagTypes.data, tracks.data])
 
   const insets = {
-    left: (filtersOpen ? PANEL_W : RAIL_W) + 16,
+    // Signed out there is no sidebar at all, not even its rail: it has nothing to filter.
+    left: (signedIn ? (filtersOpen ? PANEL_W : RAIL_W) : 0) + 16,
     right: (listOpen ? LIST_W : RAIL_W) + 16,
   }
 
@@ -309,19 +338,30 @@ export function App({ email }: { email: string }) {
           filter={filter}
           tagTypes={tagTypes.data?.tagTypes ?? []}
           scale={scale}
-          mode={view.mode}
-          email={email}
+          mode={mode}
+          email={access?.email ?? null}
           onChange={setFilter}
           onClear={reset}
           onImport={setImporting}
           onMode={(mode) => setView({ ...view, mode })}
+          onSignIn={() => setSigningIn(true)}
           onSignOut={() => signOut.mutate()}
         />
       </div>
 
+      <SignInDialog
+        open={access === null ? signingIn : access.lapsed}
+        lapsed={access?.lapsed ?? false}
+        onCancel={() => {
+          setSigningIn(false)
+          if (access?.lapsed) giveUp()
+        }}
+        onSignedIn={() => setSigningIn(false)}
+      />
+
       <ImportDialog source={importing} onClose={() => setImporting(null)} onImported={onImported} />
 
-      {filtersOpen ? (
+      {!signedIn ? null : filtersOpen ? (
         <Panel className={styles.filters}>
           <div className={styles.panelHead}>
             <IconButton
@@ -455,7 +495,7 @@ export function App({ email }: { email: string }) {
         </Panel>
       )}
 
-      {view.mode === 'analytics' ? (
+      {mode === 'analytics' ? (
         <AnalyticsPanel
           // Every card is computed from these rows, which the list and the map have
           // already fetched — so opening the panel costs no request at all.

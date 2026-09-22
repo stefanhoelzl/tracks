@@ -1,35 +1,5 @@
-/* Centred with `margin: auto` on the card rather than by centring the container: a grid or
-   flex box centres by overflowing both ways, and a card taller than the window then has its
-   top cut off with nothing to scroll to. This centres while it fits and scrolls when it does
-   not — which is what an error appearing above the button asks for. */
-.page {
-  display: flex;
-  min-height: 100dvh;
-  padding: 24px;
-  background: var(--sunk);
-}
-
-.card {
-  margin: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: min(360px, 100%);
-  padding: 28px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
-  box-shadow: var(--shadow-md);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-}
-
+/* The fields and buttons of the one form, inside a Modal's panel — which is the surface,
+   the padding and the title, so none of those are here. */
 .note {
   margin: 0;
   font-size: var(--text-base);
@@ -75,12 +45,31 @@
   color: var(--bad);
 }
 
-.primary {
+.lapsed {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.primary,
+.secondary {
   font-family: var(--font-body);
   font-size: var(--text-base);
   font-weight: 700;
   padding: 9px 16px;
   border-radius: var(--radius-ctrl);
+}
+
+.primary {
   background: var(--accent);
   color: #fff;
 }
@@ -91,4 +80,13 @@
 
 .primary:disabled {
   opacity: 0.45;
+}
+
+.secondary {
+  background: var(--sunk);
+  color: var(--ink-2);
+}
+
+.secondary:hover {
+  background: var(--line);
 }

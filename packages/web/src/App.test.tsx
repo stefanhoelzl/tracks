@@ -1,10 +1,11 @@
 import polyline from '@mapbox/polyline'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { altitudesToScalars, encodeScalars, TRACK_PRECISION } from '@tracks/core'
 import { useImperativeHandle } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiFailure } from './lib/api.ts'
 
 /** What the app asked the map to do. Reset per test in `beforeEach`. */
 const flyTo = vi.fn()
@@ -157,8 +158,15 @@ const FACETS = {
 /** Every request the app makes, and what each one was asked for. */
 let requested: string[] = []
 
+/**
+ * Who the fake server thinks is asking. `null` answers every account route 401, which is
+ * both a visitor who never signed in and a session that has just lapsed.
+ */
+let signedInAs: string | null = 'rider@example.com'
+
 function route(url: string): unknown {
   const path = url.split('?')[0]!
+  if (path === '/api/session') return signedInAs ? { email: signedInAs } : null
   if (path === '/api/tag-types') return TAG_TYPES
   if (path === '/api/activities') return ACTIVITIES
   if (path === '/api/tracks') return TRACKS
@@ -172,7 +180,35 @@ async function renderApp() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <App email="rider@example.com" />
+      <App access={{ email: 'rider@example.com', lapsed: false }} />
+    </QueryClientProvider>,
+  )
+}
+
+/**
+ * The app as `main.tsx` mounts it: behind the session check, with 401s marking a session
+ * lapsed. Rebuilt here rather than imported, because `main.tsx` renders into the page the
+ * moment it is loaded.
+ */
+async function renderGated() {
+  const { App } = await import('./App.tsx')
+  const { lapse, useSession } = await import('./lib/session.ts')
+  const onError = (error: unknown) => {
+    if (error instanceof ApiFailure && error.status === 401) lapse(client)
+  }
+  const client = new QueryClient({
+    queryCache: new QueryCache({ onError }),
+    mutationCache: new MutationCache({ onError }),
+    defaultOptions: { queries: { retry: false } },
+  })
+  function Gate() {
+    const session = useSession()
+    if (session.isPending) return null
+    return <App access={session.data ?? null} />
+  }
+  render(
+    <QueryClientProvider client={client}>
+      <Gate />
     </QueryClientProvider>,
   )
 }
@@ -180,13 +216,31 @@ async function renderApp() {
 describe('the app', () => {
   beforeEach(() => {
     requested = []
+    signedInAs = 'rider@example.com'
     flyTo.mockClear()
     window.history.replaceState(null, '', '/')
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string, init?: RequestInit) => {
-        requested.push(`${init?.method ?? 'GET'} ${input}`)
-        return new Response(JSON.stringify(route(input)), {
+        const method = init?.method ?? 'GET'
+        requested.push(`${method} ${input}`)
+        if (input === '/api/session' && method === 'POST') {
+          signedInAs = JSON.parse(String(init?.body)).email
+        }
+        const body = route(input)
+        if (input.startsWith('/api/') && body === null) {
+          return new Response(JSON.stringify({ error: 'not signed in' }), {
+            status: 401,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (input.startsWith('/api/') && input !== '/api/session' && signedInAs === null) {
+          return new Response(JSON.stringify({ error: 'not signed in' }), {
+            status: 401,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        return new Response(JSON.stringify(body), {
           headers: { 'content-type': 'application/json' },
         })
       }),
@@ -540,5 +594,130 @@ describe('the app', () => {
     await waitFor(() =>
       expect(screen.getByTestId('reference-count').textContent).toBe('0 references'),
     )
+  })
+
+  describe('signed out', () => {
+    it('is the planner, and asks the server for nothing but who is asking', async () => {
+      signedInAs = null
+      window.history.replaceState(null, '', '/?mode=activities')
+      await renderGated()
+
+      await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+      // The address now says what is on screen, so a plan made here is still in
+      // planning once you sign in.
+      expect(new URLSearchParams(window.location.search).get('mode')).toBe('planning')
+
+      // The modes made of an account's rows stay in the switch, and cannot be pressed.
+      expect(
+        (screen.getByRole('button', { name: 'Activities' }) as HTMLButtonElement).disabled,
+      ).toBe(true)
+      expect(
+        (screen.getByRole('button', { name: 'Analytics' }) as HTMLButtonElement).disabled,
+      ).toBe(true)
+      expect(screen.queryByRole('button', { name: 'Import' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Show filters' })).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Sport' })).toBeNull()
+
+      expect(requested).toEqual(['GET /api/session'])
+    })
+
+    it('opens a shared plan as it was sent', async () => {
+      signedInAs = null
+      window.history.replaceState(
+        null,
+        '',
+        '/?mode=planning#at=_p~iF~ps%7CU_ulL~ugC&kinds=pp&poi=Vent&poi=Hut',
+      )
+      await renderGated()
+
+      await waitFor(() => expect(screen.getByText('Vent')).toBeTruthy())
+      expect(screen.getByText('Hut')).toBeTruthy()
+    })
+
+    it('signs in over the plan, and keeps it', async () => {
+      signedInAs = null
+      window.history.replaceState(null, '', '/#at=_p~iF~ps%7CU_ulL~ugC&kinds=pp&poi=Vent&poi=Hut')
+      await renderGated()
+      await waitFor(() => expect(screen.getByText('Vent')).toBeTruthy())
+      const hash = window.location.hash
+
+      await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+      const dialog = screen.getByRole('dialog', { name: 'Sign in' })
+      await userEvent.type(within(dialog).getByLabelText('Email'), 'rider@example.com')
+      await userEvent.type(within(dialog).getByLabelText('Password'), 'long enough')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Sign in' }))
+
+      // Still planning, the same plan, and the account's half arriving around it.
+      await waitFor(() => expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy())
+      expect(window.location.hash).toBe(hash)
+      expect(screen.getByText('Vent')).toBeTruthy()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(
+        (screen.getByRole('button', { name: 'Activities' }) as HTMLButtonElement).disabled,
+      ).toBe(false)
+    })
+
+    it('closes the dialog without signing in', async () => {
+      signedInAs = null
+      await renderGated()
+      await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+      await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(requested).toEqual(['GET /api/session'])
+    })
+  })
+
+  describe('a session that lapses', () => {
+    it('keeps the view behind the dialog, and carries on once signed in again', async () => {
+      window.history.replaceState(null, '', '/?tag=sport%3Ahike')
+      await renderGated()
+      await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+
+      // A write, so nothing on screen was asked for again: what 401s is the tag.
+      signedInAs = null
+      await userEvent.type(
+        screen.getByRole('textbox', { name: 'type:value' }),
+        'trip:Balkan 2026{enter}',
+      )
+
+      const dialog = await screen.findByRole('dialog', { name: 'Sign in' })
+      expect(within(dialog).getByText(/session has ended/)).toBeTruthy()
+      // What you were looking at is still there, under the dialog.
+      expect(screen.getByText('Orla Perc')).toBeTruthy()
+      expect(document.title).toMatch(/^Sign in/)
+
+      await userEvent.type(within(dialog).getByLabelText('Email'), 'rider@example.com')
+      await userEvent.type(within(dialog).getByLabelText('Password'), 'long enough')
+      requested = []
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Sign in' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      await waitFor(() =>
+        expect(requested.some((r) => r.startsWith('GET /api/activities?tag=sport%3Ahike'))).toBe(
+          true,
+        ),
+      )
+      expect(screen.getByText('Orla Perc')).toBeTruthy()
+    })
+
+    it('drops to the planner when the dialog is declined', async () => {
+      await renderGated()
+      await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+
+      signedInAs = null
+      await userEvent.click(screen.getByRole('button', { name: /^hike/ }))
+      await screen.findByRole('dialog', { name: 'Sign in' })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Continue signed out' }))
+
+      await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+      // Nothing fetched as somebody is left on screen.
+      expect(screen.queryByText('Orla Perc')).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Sport' })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
+    })
   })
 })
