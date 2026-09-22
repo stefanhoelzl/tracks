@@ -554,7 +554,8 @@ private fun MapLibreMap(
                     }.collectLatest { (fix, heading) ->
                         if (fix == null) return@collectLatest
                         val zoom = camera.zoom
-                        val bearing = mapBearing(camera.orientation, fix, heading, previous = state.cameraPosition.bearing)
+                        val current = state.cameraPosition.bearing
+                        val bearing = steadyBearing(mapBearing(camera.orientation, fix, heading, previous = current), current)
                         val aim = insetTarget(fix.at, zoom, bearing, camera.inset, layoutDirection)
                         val step = suspend {
                             state.animateCameraPosition(

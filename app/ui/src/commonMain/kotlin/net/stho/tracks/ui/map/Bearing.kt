@@ -1,6 +1,7 @@
 package net.stho.tracks.ui.map
 
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
@@ -60,3 +61,20 @@ fun compassTurnsMap(orientation: Orientation, fix: Fix?): Boolean = orientation 
 
 /** Moving fast enough that the GPS course, not the compass, says which way the map is turned. */
 private fun onCourse(fix: Fix?): Boolean = fix?.courseDeg != null && (fix.speedMps ?: 0.0) >= COURSE_MIN_SPEED_MPS
+
+/** How far the way you are going must move from the way the map is turned before the riding map turns after it. */
+const val TURN_THRESHOLD_DEG = 10.0
+
+/**
+ * The bearing the riding map turns to: [target], once it is more than [TURN_THRESHOLD_DEG] from [current], and
+ * [current] until then.
+ *
+ * The GPS course wobbles by a few degrees from one fix to the next. Followed exactly, the map turned a little every
+ * second, and a river running along the road — upright on a heading-up map — kept crossing the vertical, where MapLibre
+ * turns a line label round to keep it readable: its name swapped direction once a second. Held until the way you are
+ * going has really changed, the map turns in steps on a bend and not at all on a straight.
+ */
+fun steadyBearing(target: Double, current: Double): Double {
+    val apart = abs(((target - current) % 360 + 540) % 360 - 180)
+    return if (apart > TURN_THRESHOLD_DEG) target else current
+}
