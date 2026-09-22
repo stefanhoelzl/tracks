@@ -43,6 +43,13 @@ export class ApiFailure extends Error {
   }
 }
 
+/** One line for a banner, whatever was thrown. */
+export function message(error: unknown): string | null {
+  if (!error) return null
+  if (error instanceof ApiFailure) return error.message
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function get<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal })
 
