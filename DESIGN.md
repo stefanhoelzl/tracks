@@ -15,7 +15,8 @@ tagged, filtered and counted on your own machine.
 ## Scope
 
 You open it in a browser and sign in, and an account sees its own activities and nobody
-else's. The tool imports them from Strava and Komoot, draws them on a map, lets you tag
+else's. Planning a route needs no account: anybody who opens the site, or a plan link
+somebody sent them, gets the planner without signing in. The tool imports them from Strava and Komoot, draws them on a map, lets you tag
 and filter them, and counts them.
 
 It was local-only for six milestones and is not any more: it lives at `tracks.stho.net`,
@@ -254,6 +255,13 @@ no reset flow because there is no mail sender: a forgotten password is the hash 
 the same script and the account claimed again. Until it is claimed, whoever signs in first
 owns it — which is the whole reason the identifier is an address nobody guesses rather than
 a name somebody would.
+
+Nobody signed in still gets something: the planner, which reads no rows and so needs no
+account (*Planning — Without an account*). So the form is not a page the app stands behind
+but a dialog over it — raised by the top bar's Sign in, or by itself when a request made as
+somebody comes back 401. That is the one place a 401 is handled: the session is marked
+*lapsed*, and whatever was on screen stays there behind the dialog, because what you were
+looking at is still what you want once you are back.
 
 Everything the tool *produces* is now a single file: `data/tracks.db`.
 
@@ -1267,6 +1275,11 @@ A leg with no answer yet draws as a **dashed beeline that pulses**, in the plan'
 A spinner would need somewhere to live, and the thing being waited for is already on screen
 and already the right shape.
 
+Nothing here changed when planning opened to visitors. Their browsers ask brouter.de and
+Photon exactly as an account's do, with the same drop-not-drag and the same debounce, and
+nothing of ours sits between them. That is accepted as it stands: the link someone was sent
+is the traffic it is for.
+
 A leg BRouter *cannot* connect draws the same dash and holds still, because a failure that
 looks like it is loading is a failure nobody stops waiting for. Its row says why, and the
 totals exclude it and declare themselves incomplete. The alternative — silently beelining,
@@ -1322,6 +1335,39 @@ opening-fit-then-never-again rule the `bbox` filter settled on, for the same rea
 `?mode=planning#at=…` link that opened on the wrong continent would be reported as broken
 before anything else about it. Panning keeps writing `bbox`, because the tracks underneath
 are still filtered by it and that mechanism must not fork per mode.
+
+### Without an account
+
+Planning reads nothing of an account's — the plan is the fragment, the legs are brouter.de's,
+the names are Photon's — so it is the one mode a visitor can be given whole. A plan link sent
+to somebody opens as the plan, and the site's bare address opens as an empty one. That was
+the first reason; the second is you, on a machine you have never signed in on.
+
+Signed out, **every address is planning**. The other two modes are made of an account's rows,
+so a link to them opens the planner instead, and the address is corrected to say so — which
+is what keeps a plan made before signing in in planning afterwards, rather than hidden behind
+the mode the URL had been naming all along.
+
+The screen is the planner and nothing that reads rows. The top bar keeps the brand and the
+mode switch, with Activities and Analytics in it but unpressable — what signing in would get
+you is on the bar you are looking at, rather than behind a door you have to open to find out.
+No totals, no chips, no Import or Export; no filter sidebar and not even its rail, since there is
+nothing to filter; no tracks underneath. Dropped files still work: they never left the tab.
+
+**Sign in** takes the place of the account, and opens the form as a dialog over the plan.
+Signing in leaves you exactly where you were — the same mode, the same fragment — and the
+account's half arrives around the plan: the sidebar, your tracks dimmed under it, the other
+modes. Signing out is the reverse, and the plan stays.
+
+A session that **lapses mid-visit** is not the same as nobody. The view it was drawing stays
+up, stale, with the dialog over it; signing in again asks for all of it afresh and you carry
+on. Declining drops to the planner, as nobody, and everything fetched as somebody is removed
+on the way. A page loaded with a cookie that has already died cannot tell you from a stranger,
+so it opens as the planner and waits for you to ask.
+
+In code the line is a pair of hooks: `usePlanner` holds everything a plan is made with, and
+`useLibrary` every read and write made as somebody, switched off while there is nobody to ask
+for — so a visitor's only request to us is the one asking who they are.
 
 ### Tested at two levels
 
