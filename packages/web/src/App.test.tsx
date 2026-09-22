@@ -178,9 +178,13 @@ function route(url: string): unknown {
 async function renderApp() {
   const { App } = await import('./App.tsx')
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // Where `main.tsx`'s session check would have left it, since the account's queries ask
+  // the cache rather than the prop whether there is anybody to fetch for.
+  const access = { email: 'rider@example.com', lapsed: false }
+  client.setQueryData(['session'], access)
   render(
     <QueryClientProvider client={client}>
-      <App access={{ email: 'rider@example.com', lapsed: false }} />
+      <App access={access} />
     </QueryClientProvider>,
   )
 }
@@ -226,6 +230,10 @@ describe('the app', () => {
         requested.push(`${method} ${input}`)
         if (input === '/api/session' && method === 'POST') {
           signedInAs = JSON.parse(String(init?.body)).email
+        }
+        if (input === '/api/session' && method === 'DELETE') {
+          signedInAs = null
+          return new Response(null, { status: 204 })
         }
         const body = route(input)
         if (input.startsWith('/api/') && body === null) {
@@ -655,6 +663,24 @@ describe('the app', () => {
       expect(
         (screen.getByRole('button', { name: 'Activities' }) as HTMLButtonElement).disabled,
       ).toBe(false)
+    })
+
+    it('leaves nothing of the account on screen once signed out', async () => {
+      await renderGated()
+      await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+      expect(screen.getByTestId('track-count').textContent).toBe('1 tracks')
+      requested = []
+
+      await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+
+      await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+      // The totals and the tracks were the last filter's answer, and must not be carried
+      // over to the empty query that replaced it.
+      expect(screen.queryByText('1 activity')).toBeNull()
+      expect(screen.queryByText('24 km')).toBeNull()
+      expect(screen.getByTestId('track-count').textContent).toBe('0 tracks')
+      // Nor asked for again as nobody: forgetting them is not a reason to refetch them.
+      expect(requested).toEqual(['DELETE /api/session'])
     })
 
     it('closes the dialog without signing in', async () => {

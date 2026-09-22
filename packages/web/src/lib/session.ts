@@ -80,8 +80,8 @@ export function useSession() {
  * request to say whether it should be signed in at all.
  */
 function forget(queryClient: QueryClient): void {
-  queryClient.removeQueries({ predicate: asSomebody })
   queryClient.setQueryData<Access>(SESSION_KEY, null)
+  queryClient.removeQueries({ predicate: asSomebody })
 }
 
 /** Declining the dialog over a lapsed session: back to the planner, as nobody. */

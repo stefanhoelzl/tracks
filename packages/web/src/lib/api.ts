@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   type ActivitiesResponse,
   type ActivityDetailResponse,
@@ -100,6 +100,19 @@ function key(route: string, filter: Filter): [string, string] {
   return [route, formatFilter(filter).toString()]
 }
 
+/**
+ * The previous filter's answer, shown while the next one is asked for — and only while
+ * something is being asked for.
+ *
+ * Signing out removes these queries from the cache, but a mounted observer still holds
+ * what it last showed, and an unconditional placeholder hands that straight to the empty
+ * query that replaces it: the account's totals and tracks would stay drawn around the
+ * planner of somebody who is no longer anybody.
+ */
+function carryOver(enabled: boolean) {
+  return enabled ? keepPreviousData : undefined
+}
+
 export function useActivities(filter: Filter, enabled = true) {
   return useQuery({
     queryKey: key('activities', filter),
@@ -111,7 +124,7 @@ export function useActivities(filter: Filter, enabled = true) {
         signal,
       ),
     // The list must not flash empty while a slider is being dragged.
-    placeholderData: (previous) => previous,
+    placeholderData: carryOver(enabled),
   })
 }
 
@@ -129,7 +142,7 @@ export function useTracks(filter: Filter, enabled = true) {
           signal,
         ),
       ),
-    placeholderData: (previous) => previous,
+    placeholderData: carryOver(enabled),
   })
 }
 
@@ -139,7 +152,7 @@ export function useFacets(filter: Filter, enabled = true) {
     enabled,
     queryFn: ({ signal }) =>
       get<FacetsResponse>(`/api/facets?${formatFilter(filter)}`, facetsResponseSchema, signal),
-    placeholderData: (previous) => previous,
+    placeholderData: carryOver(enabled),
   })
 }
 
