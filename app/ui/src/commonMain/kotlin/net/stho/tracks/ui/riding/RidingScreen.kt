@@ -82,8 +82,15 @@ import net.stho.tracks.ui.theme.Shapes
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
 
-/** How close the riding map follows you: about 1.7 km of road across a phone. Following always comes back to it. */
-const val RIDING_ZOOM = 15.0
+/**
+ * How close the riding map follows you: about 1.7 km of road across a phone. Following always comes back to it.
+ *
+ * Just above 15, not on it. Every camera step is a MapLibre `flyTo`, which zooms out a little mid-flight even between
+ * two equal zooms, and MapLibre picks vector tiles by the zoom rounded down: at exactly 15 each step switched the tiles
+ * to 14 and back, and every river, stream and contour label — laid out per tile zoom — faded out and in once a second.
+ * A step's dip is a few thousandths of a zoom level; 0.05 keeps it on 15 and draws the same map.
+ */
+const val RIDING_ZOOM = 15.05
 
 /**
  * A page open, fixed: a line, a profile with room to read the climbs, and the done/to-come row under it.
