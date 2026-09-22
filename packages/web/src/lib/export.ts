@@ -14,6 +14,9 @@ import { GPX_HEAD, GPX_TAIL, gpxTrack } from './gpx-writer.ts'
  * "What the filter matches" is the list, the viewport included: the export is the rows
  * you are looking at, in their order. With an activity open that is one activity.
  *
+ * Through a share link it is the link's rows, from the link's routes: `root` is the page's
+ * `ApiRoot`, and the link already hands every one of these tracks to whoever holds it.
+ *
  * All or nothing. A failed fetch stops the rest and saves no file, because a file that
  * looks complete and is missing a ride is worse than no file. An activity with no track
  * is not a failure; it has nothing to write, and is left out.
@@ -29,9 +32,13 @@ export interface ExportProgress {
 
 export async function exportGpx(
   filter: Filter,
-  { signal, onProgress }: { signal: AbortSignal; onProgress: (progress: ExportProgress) => void },
+  {
+    signal,
+    onProgress,
+    root = '/api',
+  }: { signal: AbortSignal; onProgress: (progress: ExportProgress) => void; root?: string },
 ): Promise<Blob> {
-  const { activities } = await fetchActivities(filter, signal)
+  const { activities } = await fetchActivities(filter, signal, root)
   const total = activities.length
   const tracks: Array<string | null> = new Array(total).fill(null)
 
@@ -49,7 +56,7 @@ export async function exportGpx(
       const index = next++
       const activity = activities[index]
       if (!activity) continue
-      tracks[index] = gpxTrack(await fetchActivityDetail(activity.id, either))
+      tracks[index] = gpxTrack(await fetchActivityDetail(activity.id, either, root))
       onProgress({ done: ++done, total })
     }
   }

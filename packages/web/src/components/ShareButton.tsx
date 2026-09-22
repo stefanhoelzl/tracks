@@ -16,7 +16,8 @@ import {
   useShareUpdate,
 } from '../lib/api.ts'
 import { useSomebody } from '../lib/library.ts'
-import { describeShare, shareUrl } from '../lib/share.ts'
+import type { Plan } from '../lib/plan.ts'
+import { describeShare, planUrl, shareUrl } from '../lib/share.ts'
 import styles from './ShareButton.module.css'
 import { IconButton } from './ui/IconButton.tsx'
 import { Popover } from './ui/Popover.tsx'
@@ -98,6 +99,35 @@ export function ShareButton({
         </div>
       </Popover>
     </div>
+  )
+}
+
+/**
+ * Share, while planning: the plan's URL on the clipboard, and nothing made on the server.
+ *
+ * A plan already lives in its address, so there is nothing to create, label or revoke —
+ * and nothing to list, which is why there is no popover. The same button wherever
+ * Planning is: signed in, signed out, and over somebody's link.
+ */
+export function SharePlanButton({ plan }: { plan: Plan }) {
+  const [copied, setCopied] = useState(false)
+  const empty = plan.waypoints.length === 0
+
+  return (
+    <IconButton
+      icon={copied ? Check : Share2}
+      label={copied ? 'Copied' : empty ? 'Nothing to share yet' : 'Copy a link to this plan'}
+      onClick={
+        empty
+          ? undefined
+          : () => {
+              void navigator.clipboard.writeText(planUrl(window.location.origin, plan)).then(() => {
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              })
+            }
+      }
+    />
   )
 }
 

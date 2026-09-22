@@ -1,6 +1,7 @@
 import { formatView, parseFilter, type View } from '@tracks/core'
 import { activeTerms } from './filter-ops.ts'
 import { RANGE_UNITS } from './format.ts'
+import { formatPlan, type Plan } from './plan.ts'
 
 /**
  * Share links, as the browser spells them.
@@ -39,6 +40,17 @@ export function shareUrl(origin: string, token: string, view: View): string {
     mode: view.mode === 'planning' ? 'activities' : view.mode,
   }).toString()
   return `${origin}/share/${token}${params === '' ? '' : `?${params}`}`
+}
+
+/**
+ * The URL a plan is shared as: the planner at the root, and the plan in the fragment.
+ *
+ * No token and no filter. A plan is not anybody's rows — the planner needs no account —
+ * so whoever opens it gets the plan, over their own tracks if they have any. Which is also
+ * why a viewer planning over somebody's link hands out this rather than the link.
+ */
+export function planUrl(origin: string, plan: Plan): string {
+  return `${origin}/?mode=planning#${formatPlan(plan)}`
 }
 
 /**

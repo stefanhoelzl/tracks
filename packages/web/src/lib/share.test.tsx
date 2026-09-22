@@ -1,6 +1,7 @@
 import { parseView } from '@tracks/core'
 import { describe, expect, it } from 'vitest'
-import { describeShare, shareTokenOf, shareUrl } from './share.ts'
+import { parsePlan } from './plan.ts'
+import { describeShare, planUrl, shareTokenOf, shareUrl } from './share.ts'
 
 describe('shareTokenOf', () => {
   it('reads the token from a link’s path, and nothing else', () => {
@@ -10,6 +11,15 @@ describe('shareTokenOf', () => {
     expect(shareTokenOf('/share/')).toBeNull()
     expect(shareTokenOf('/share/a/b')).toBeNull()
     expect(shareTokenOf('/share/a.b')).toBeNull()
+  })
+})
+
+describe('planUrl', () => {
+  it('is the planner at the root with the plan in the fragment, and nothing else', () => {
+    const fragment = 'at=_p~iF~ps%7CU_ulL~ugC&kinds=pp&poi=Vent&poi=Hut'
+    const url = new URL(planUrl('https://x', parsePlan(fragment)))
+    expect(url.origin + url.pathname + url.search).toBe('https://x/?mode=planning')
+    expect(parsePlan(url.hash)).toEqual(parsePlan(fragment))
   })
 })
 

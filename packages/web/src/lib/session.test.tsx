@@ -118,4 +118,26 @@ describe('signing out', () => {
     // Nobody's activities may survive into the next person's session.
     await waitFor(() => expect(client.getQueryData(['tag-types'])).toBeUndefined())
   })
+
+  it('keeps what a share link showed, which was never the person’s to take with them', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const linkRows = ['activities', '', '/api/share/tok']
+    const ownRows = ['activities', '', '/api']
+    client.setQueryData(['shared-view', 'tok'], { label: 'Balkan 2026' })
+    client.setQueryData(linkRows, { activities: [] })
+    client.setQueryData(ownRows, { activities: [] })
+
+    render(
+      <QueryClientProvider client={client}>
+        <Probe />
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByText('in:rider@example.com')).toBeTruthy()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+
+    await waitFor(() => expect(client.getQueryData(ownRows)).toBeUndefined())
+    expect(client.getQueryData(linkRows)).toEqual({ activities: [] })
+    expect(client.getQueryData(['shared-view', 'tok'])).toEqual({ label: 'Balkan 2026' })
+  })
 })

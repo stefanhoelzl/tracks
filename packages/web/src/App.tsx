@@ -43,10 +43,11 @@ const RAIL_W = 44
  * The map, the panels and everything they do — for an account, for nobody, or through a
  * share link.
  *
- * A link is the signed-in app with less of it: `shared` set and `access` null. The reads
- * go to the link's routes (the `ApiRoot` above this decides that), there is no tag
- * anywhere, nothing writes, and Planning is not offered. What is left is exactly what was
- * shared, narrowed however the viewer likes.
+ * A link is the signed-in app with less of it: `shared` set, and `access` whoever is
+ * looking, which changes nothing about what they see. The reads go to the link's routes
+ * (the `ApiRoot` above this decides that), there is no tag anywhere and nothing writes.
+ * What is left is exactly what was shared, narrowed however the viewer likes — and the
+ * planner, which needs nobody's rows, over it.
  */
 export function App({ access, shared = null }: { access: Access; shared?: SharedView | null }) {
   const { filter, view, plan, error: urlError, setFilter, setView, setPlan, reset } = useUrlState()
@@ -64,15 +65,9 @@ export function App({ access, shared = null }: { access: Access; shared?: Shared
    * A lapsed session is still somebody: its view stays as it was behind the dialog.
    */
   const signedIn = access !== null
-  /** Whether there are rows on screen — an account's, or a link's. A link has no Planning. */
+  /** Whether there are rows on screen — an account's, or a link's. */
   const hasRows = signedIn || viewing
-  const mode = viewing
-    ? view.mode === 'planning'
-      ? 'activities'
-      : view.mode
-    : signedIn
-      ? view.mode
-      : 'planning'
+  const mode = hasRows ? view.mode : 'planning'
 
   useEffect(() => {
     if (!hasRows && view.mode !== 'planning') setView({ ...view, mode: 'planning' }, 'replace')
@@ -359,6 +354,7 @@ export function App({ access, shared = null }: { access: Access; shared?: Shared
           scale={scale}
           mode={mode}
           view={view}
+          plan={plan}
           email={access?.email ?? null}
           shared={shared}
           onChange={setFilter}
@@ -372,7 +368,7 @@ export function App({ access, shared = null }: { access: Access; shared?: Shared
       </div>
 
       <SignInDialog
-        open={viewing ? false : access === null ? signingIn : access.lapsed}
+        open={access === null ? signingIn : access.lapsed}
         lapsed={access?.lapsed ?? false}
         onCancel={() => {
           setSigningIn(false)

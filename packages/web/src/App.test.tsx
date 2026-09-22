@@ -310,10 +310,76 @@ describe('the app', () => {
     )
     expect(screen.queryByRole('button', { name: 'Import' })).toBeNull()
     expect(screen.queryByRole('button', { name: /share/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /Planning/ })).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'type:value' })).toBeNull()
     expect(document.title).toBe('Balkan 2026 · Tracks')
+
+    // What a link does offer: its rows as a GPX, a way in that leaves you here, and home.
+    expect(screen.getByRole('button', { name: 'Export this activity as GPX' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull()
+    expect(screen.getByRole('link', { name: /Balkan 2026/ }).getAttribute('href')).toBe('/')
+  })
+
+  it('through a share link, says who is signed in and still reads only the link', async () => {
+    const { App } = await import('./App.tsx')
+    const { ApiRoot } = await import('./lib/api.ts')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const access = { email: 'rider@example.com', lapsed: false }
+    client.setQueryData(['session'], access)
+    render(
+      <QueryClientProvider client={client}>
+        <ApiRoot.Provider value="/api/share/tok">
+          <App access={access} shared={{ label: 'Balkan 2026' }} />
+        </ApiRoot.Provider>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+    expect(screen.getByText('rider@example.com')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+
+    // Your own links and registry stay unasked: the link's rows are the link's.
+    const paths = requested.map((r) => r.split(' ')[1]!.split('?')[0])
+    expect(new Set(paths)).toEqual(
+      new Set(['/api/share/tok/activities', '/api/share/tok/tracks', '/api/share/tok/facets']),
+    )
+    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /share this filter/i })).toBeNull()
+  })
+
+  it('through a share link, plans over the link’s tracks and shares the plan alone', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    window.history.replaceState(
+      null,
+      '',
+      '/share/tok?mode=planning#at=_p~iF~ps%7CU_ulL~ugC&kinds=pp&poi=Vent&poi=Hut',
+    )
+    const { App } = await import('./App.tsx')
+    const { ApiRoot } = await import('./lib/api.ts')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <ApiRoot.Provider value="/api/share/tok">
+          <App access={null} shared={{ label: 'Balkan 2026' }} />
+        </ApiRoot.Provider>
+      </QueryClientProvider>,
+    )
+
+    const planningTab = await screen.findByRole('button', { name: /Planning/ })
+    expect(planningTab.getAttribute('aria-pressed')).toBe('true')
+    // The link's rows are still asked for: they are what the plan is drawn over.
+    await waitFor(() =>
+      expect(requested.some((r) => r.includes('/api/share/tok/tracks'))).toBe(true),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy a link to this plan' }))
+    // The planner at the root, the plan in the fragment: no token, no filter.
+    const copied = (writeText.mock.calls[0] as unknown as [string])[0]
+    expect(copied.startsWith(`${window.location.origin}/?mode=planning#at=`)).toBe(true)
+    expect(copied).toContain('poi=Vent&poi=Hut')
+    expect(copied).not.toContain('share')
   })
 
   it('writes a sidebar click to the URL and refetches every filtered route', async () => {

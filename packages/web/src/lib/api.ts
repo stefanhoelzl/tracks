@@ -186,10 +186,13 @@ export function useActivityDetail(id: number | null, enabled = true) {
   })
 }
 
-/** The list, outside the cache: the export reads it once and must not hold it. */
-export function fetchActivities(filter: Filter, signal?: AbortSignal) {
+/**
+ * The list, outside the cache: the export reads it once and must not hold it. `root` is
+ * the page's `ApiRoot`, as for the detail below.
+ */
+export function fetchActivities(filter: Filter, signal?: AbortSignal, root = '/api') {
   return get<ActivitiesResponse>(
-    `/api/activities?${formatFilter(filter)}`,
+    `${root}/activities?${formatFilter(filter)}`,
     activitiesResponseSchema,
     signal,
   )

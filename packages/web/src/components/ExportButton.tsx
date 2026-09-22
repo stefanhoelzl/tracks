@@ -1,6 +1,7 @@
 import type { Filter } from '@tracks/core'
 import { FileDown, LoaderCircle, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { ApiRoot } from '../lib/api.ts'
 import { type ExportProgress, exportFileName, exportGpx, saveFile } from '../lib/export.ts'
 import styles from './ExportButton.module.css'
 import { IconButton } from './ui/IconButton.tsx'
@@ -23,6 +24,7 @@ const FAILED_FOR_MS = 2500
 export function ExportButton({ filter, count }: { filter: Filter; count: number | undefined }) {
   const [state, setState] = useState<State>({ kind: 'idle' })
   const running = useRef<AbortController | null>(null)
+  const root = useContext(ApiRoot)
 
   // Leaving the page mid-export stops the fetches rather than saving into nowhere.
   useEffect(() => () => running.current?.abort(), [])
@@ -41,6 +43,7 @@ export function ExportButton({ filter, count }: { filter: Filter; count: number 
       const blob = await exportGpx(filter, {
         signal: controller.signal,
         onProgress: (progress) => setState({ kind: 'running', progress, controller }),
+        root,
       })
       if (!controller.signal.aborted) saveFile(blob, exportFileName())
       setState({ kind: 'idle' })

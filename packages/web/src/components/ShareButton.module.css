@@ -1,9 +1,7 @@
-/* First of the two actions, so it carries the margin that pushes both to the right edge;
-   and like Import, it never shrinks. */
+/* Like Import, it never shrinks. */
 .anchor {
   position: relative;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 /* The current filter has a live link. The accent, because it is state, not data. */
