@@ -1799,10 +1799,15 @@ app.
 
 **The target is ≤5 %/h in real riding** — screen on, outdoors, auto-brightness — measured in M17. It may not be
 reachable: at outdoor brightness the display alone can cost more than that, and the app cannot make sunlight
-cheaper. What the app can do is known: redraw the map a few times a second rather than at the display's 60–120 Hz,
-since the position only moves once a second; offer a dimmer riding style; and refresh the lock-screen snapshot
-less often. The screen being on only while a ride is recording, and the area around you re-centring only every 25
-km, are already on the cheap side of both.
+cheaper. The screen being on only while a ride is recording, and the area around you re-centring only every 25 km,
+are already on the cheap side of both.
+
+**What the app itself costs is measured** (`app/docs/BATTERY.md`; how it is measured: `app/docs/PROFILING.md`). The
+map was nearly all of it: MapLibre draws at the display's rate whenever anything on the map changes, and a riding map
+always had something changing. So the camera steps to each fix instead of gliding, the map draws at most 15 frames a
+second unless a finger or a flight is moving it, and the compass is read only by the map, turns it only below walking
+pace, and speaks every 5°. That takes **40%** off the app's CPU while navigating. A dimmer riding style and a rarer
+lock-screen snapshot are unmeasured; %/h is M17's, on a ride.
 
 ---
 
@@ -1992,7 +1997,7 @@ inspected through a SQLite browser.
 | **M14** | Riding | The screen you ride with. Navigate in a plan's ⋯ menu starts a recording that follows it, *Ride* one with no plan, and while a ride is on the riding screen is the app. Where you are is the nearest point on the route with the last match as the tie-break — forward-only snapping lost on the first out-and-back. A long press, not a tap, re-plans mid-ride; Edit plan opens the editor over the ride; recording never pauses. The screen stays on only while riding. Riding it reshaped the screen in the next pull request: one collapsing sheet with a page per stop ahead, average speed, controls behind ⋯, a three-state compass, and a Stop that Save ride? can take back. |
 | **M15** | Recording and the upload | A ride recorded on the phone lands in Tracks. The append-only journal that is also the upload queue, recording with the phone locked, the barometer, and a tally of distance, moving time and climb. Sign-in through the web's own session route with the cookie in the Keychain, and a queue that uploads saved rides through the unchanged import frame as `source: tracks`. CI records a replayed ride and uploads it to a dev server on every run. Shipped beside M12–M13 rather than after them, because it needed only the sensors and the import route. |
 | **M16** | *Planned* — the lock screen | The Live Activity and its picture, fed by the riding screen's own next stop and finish, so nothing is computed twice — and the numbers it needs from the phone: how often iOS lets a Live Activity refresh, and what drawing its picture costs. Re-scoped on the day it started: the battery and the release went to M17, because checking the handoff turned up enough in each to be a milestone. |
-| **M17** | *Planned* — battery and the release | The battery target measured on a real ride with the Live Activity running, and its levers pulled — the map redrawn a few times a second rather than at 120 Hz, a dimmer riding style, a rarer snapshot. Then TestFlight for every account: a signed build's pipeline, a privacy manifest and an encryption declaration, versions from the build settings, distribution signing beside the development signing that puts builds on the phone today, and the VersaTiles question answered before more than one phone downloads packs. |
+| **M17** | *Planned* — battery and the release | The battery target measured on a real ride with the Live Activity running. The map's levers are already pulled and measured on the phone: 40% off the app's CPU (*Battery*). A dimmer riding style and a rarer snapshot follow if the ride says they are needed. Then TestFlight for every account: a signed build's pipeline, a privacy manifest and an encryption declaration, versions from the build settings, distribution signing beside the development signing that puts builds on the phone today, and the VersaTiles question answered before more than one phone downloads packs. |
 | **M18** | The icon set, and the door | The first real ride's notes, turned into an icon rule. Nothing is drawn behind an icon — the accent disc goes, and a control floating on the map is framed by a circle that is part of the glyph. Colour is meaning: green goes forward and is the thing to press, red takes something away, black is neutral. A waypoint becomes one of four marks, `o->`, `->o`, `-o-`, `o⌒o`, drawn once and used by both the phone's dialog and the web's, and at the head of every stop-list row. The camera button becomes two filled glyphs with no circle, showing the mode the map is in *or would go into*. The sign-in sheet's buttons stop being pushed off the bottom of the screen by an error as long as whatever the network threw: the fix is in the `Sheet` harness, so the ride title, the waypoint name and the place search get it too, and a failure is now one short sentence per kind. Numbered after M17 because it came from riding the app, not from the plan. |
 | **M19** | One elevation profile | The same drawing, the same numbers and the same gestures in the web's activity detail and plan panel, the phone's plan preview, its editor and its riding sheet. The web drops ECharts for this one chart and hand-draws SVG mirroring the Kotlin Canvas, over `lib/profile.ts` — axis choice, hit-testing, range figures, the done/to-come split — mirrored into Kotlin and pinned by `profile.json`. Axes with round steps and gridlines, a bar that reads `km · height · gradient` over a flanking row, and a stretch between two bars that reports distance, ↑ and ↓ and is drawn on the map. Kotlin→Wasm was weighed as the way to have one source instead of two, and declined: a few hundred lines of arithmetic do not pay for a JDK in the web's build path and a stdlib in the browser's bundle. |
 | **M20** | The riding sheet | Three detents, each adding below the one before: a line of figures, then the pages, then the stops. The pages become what you have ridden, a page per stop still ahead, and the whole trip — the leg you are on drawn stop to stop with a bar where you are. The large detent is the editor's own stop list, so *Edit plan* goes and with it the copy-to-follow it carried; a tap on a waypoint opens the editor's dialog, and every edit goes through the ride's one undo stack. Undo, redo and the camera move off the top of the screen to sit just above the sheet. Pause and Stop become buttons under the profile at the large detent, and the ⋯ menu goes. Left out: a free ride cannot be given a plan from the sheet, which needs making one and following it rather than a new layout. |
@@ -2210,8 +2215,8 @@ maintainers were not asked, because for one person's phone it was judged fine. T
 `download.versatiles.org` and hosted by us — a pipeline and a bill.
 
 **Whether ≤5 %/h survives the sun** — outdoors, the display alone may cost more than the target,
-and nothing the app does changes that. The levers are written down above; which of them is pulled,
-or whether the target moves, waits for the first TestFlight build.
+and nothing the app does changes that. The map's levers are pulled (*Battery*). Whether that is enough, or
+whether the target moves, waits for %/h measured on a real ride.
 
 **What the phone still has to say** — M10 answered memory and routing speed on a real phone: an
 iPhone SE2 with 3 GB never had less than 2 GB left, and routed 43% slower when hot. Still
