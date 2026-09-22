@@ -11,6 +11,8 @@ import {
   decodeScalars,
   encodeScalars,
   type FacetsResponse,
+  type Share,
+  type SharesResponse,
   type TagTypesResponse,
   TRACK_PRECISION,
   type TracksResponse,
@@ -841,6 +843,208 @@ describe('the REST surface', () => {
           sql`SELECT count(*) AS n FROM tag_types WHERE name = 'sport'`,
         ))!.n,
       ).toBe(1)
+    })
+  })
+
+  describe('share links', () => {
+    /** Anybody at all: no cookie, which is the whole point of a link. */
+    const stranger = (target: string) => app.request(target)
+
+    async function share(query: string, body: unknown = {}): Promise<Response> {
+      return signedIn(`/api/shares?${query}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    }
+
+    async function tokenFor(query: string, body: unknown = {}): Promise<string> {
+      return ((await (await share(query, body)).json()) as Share).token
+    }
+
+    async function publicTitles(token: string, query = ''): Promise<string[]> {
+      const response = await stranger(`/api/share/${token}/activities?${query}`)
+      expect(response.status).toBe(200)
+      return ((await response.json()) as ActivitiesResponse).activities.map((a) => a.title!)
+    }
+
+    async function idOf(title: string): Promise<number> {
+      const list = (await (await signedIn('/api/activities')).json()) as ActivitiesResponse
+      return list.activities.find((a) => a.title === title)!.id
+    }
+
+    const patch = (token: string, body: unknown) =>
+      signedIn(`/api/shares/${token}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+    it('makes one link per filter, leaving the viewport and the sort out of it', async () => {
+      const first = await share('tag=trip:Alps', { label: '  Alps  ' })
+      expect(first.status).toBe(201)
+      const made = (await first.json()) as Share
+      expect(made.token).toMatch(/^[A-Za-z0-9_-]{22}$/)
+      expect(made.filter).toBe('tag=trip%3AAlps')
+      expect(made.label).toBe('Alps')
+      expect(made.expired).toBe(false)
+
+      // Panned elsewhere and sorted differently, it is still the same filter.
+      const again = await share('tag=trip:Alps&bbox=0,0,1,1&sort_key=distance', { label: 'x' })
+      expect(again.status).toBe(200)
+      const same = (await again.json()) as Share
+      expect(same.token).toBe(made.token)
+      expect(same.label).toBe('Alps')
+
+      const listed = (await (await signedIn('/api/shares')).json()) as SharesResponse
+      expect(listed.shares.map((s) => s.token)).toEqual([made.token])
+    })
+
+    it('stores a blank label as none', async () => {
+      expect(((await (await share('q=ride', { label: '   ' })).json()) as Share).label).toBeNull()
+    })
+
+    it('opens without a cookie, and says only its label', async () => {
+      const token = await tokenFor('tag=trip:Alps', { label: 'Alps' })
+
+      const response = await stranger(`/api/share/${token}`)
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ label: 'Alps' })
+      expect(response.headers.get('cache-control')).toBe('no-store')
+    })
+
+    it('shows what the filter matches, and never a tag', async () => {
+      const token = await tokenFor('tag=trip:Alps')
+      const alps = await idOf('Alps ride')
+
+      expect(await publicTitles(token)).toEqual(['Alps ride'])
+
+      const list = (await (
+        await stranger(`/api/share/${token}/activities`)
+      ).json()) as ActivitiesResponse
+      expect(list.activities[0]!.tags).toEqual([])
+
+      const tracks = (await (await stranger(`/api/share/${token}/tracks`)).json()) as TracksResponse
+      expect(tracks.tracks.map((t) => [t.id, t.tags])).toEqual([[alps, []]])
+
+      const facets = (await (await stranger(`/api/share/${token}/facets`)).json()) as FacetsResponse
+      expect(facets.summary.count).toBe(1)
+      expect(facets.tags).toEqual([])
+
+      const detail = await stranger(`/api/share/${token}/activities/${alps}`)
+      expect(detail.status).toBe(200)
+      const body = (await detail.json()) as ActivityDetailResponse
+      expect(body.activity.title).toBe('Alps ride')
+      expect(body.activity.tags).toEqual([])
+      expect(body.track.polyline).not.toBe('')
+    })
+
+    it('stays live: a ride tagged later is in the link', async () => {
+      const token = await tokenFor('tag=trip:Alps')
+      await signedIn('/api/tags?q=Night', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ add: ['trip:Alps'] }),
+      })
+      expect(await publicTitles(token)).toEqual(['Night ride', 'Alps ride'])
+    })
+
+    it('lets a viewer narrow, and never widen', async () => {
+      const token = await tokenFor('tag=sport:bike')
+
+      expect(await publicTitles(token)).toEqual(['Night ride', 'Alps ride'])
+      expect(await publicTitles(token, 'distance_min=30000')).toEqual(['Alps ride'])
+      // A run matches the viewer's search and not the link: the AND keeps it out.
+      expect(await publicTitles(token, 'q=Home')).toEqual([])
+    })
+
+    it('refuses a tag in the viewer’s filter, so counts cannot probe for one', async () => {
+      const token = await tokenFor('tag=sport:bike')
+      const response = await stranger(`/api/share/${token}/facets?tag=trip:Alps`)
+      expect(response.status).toBe(400)
+      expect(((await response.json()) as ApiError).issues?.[0]?.path).toBe('tags')
+    })
+
+    it('keeps the link’s own terms when a facet excludes the viewer’s', async () => {
+      // The run is 10 km. The link starts at 15, so its axis must too — even while the
+      // distance facet leaves out the viewer's own distance term to count its axis.
+      const token = await tokenFor('distance_min=15000')
+      const facets = (await (
+        await stranger(`/api/share/${token}/facets?distance_min=30000`)
+      ).json()) as FacetsResponse
+      expect(facets.summary.count).toBe(1)
+      expect(facets.ranges.distance.min).toBe(15_000)
+    })
+
+    it('opens no activity outside the filter, and says so as it would of none', async () => {
+      const token = await tokenFor('tag=trip:Alps')
+      const outside = await stranger(`/api/share/${token}/activities/${await idOf('Home run')}`)
+      const nowhere = await stranger(`/api/share/${token}/activities/99999`)
+
+      expect(outside.status).toBe(404)
+      expect(nowhere.status).toBe(404)
+      expect(Object.keys((await outside.json()) as ApiError)).toEqual(
+        Object.keys((await nowhere.json()) as ApiError),
+      )
+    })
+
+    it('stops at its expiry, and comes back when extended', async () => {
+      const token = await tokenFor('tag=trip:Alps')
+
+      const expired = (await (await patch(token, { expiresOn: '2020-01-01' })).json()) as Share
+      expect(expired.expired).toBe(true)
+
+      const gone = await stranger(`/api/share/${token}/activities`)
+      const never = await stranger('/api/share/AAAAAAAAAAAAAAAAAAAAAA/activities')
+      expect(gone.status).toBe(404)
+      expect(await gone.json()).toEqual(await never.json())
+
+      // Still listed, so it can be extended — to the same URL.
+      const listed = (await (await signedIn('/api/shares')).json()) as SharesResponse
+      expect(listed.shares.map((s) => [s.token, s.expired])).toEqual([[token, true]])
+
+      await patch(token, { expiresOn: '2999-12-31' })
+      expect(await publicTitles(token)).toEqual(['Alps ride'])
+    })
+
+    it('is gone when revoked, exactly as if it never was', async () => {
+      const token = await tokenFor('tag=trip:Alps')
+
+      const revoked = await signedIn(`/api/shares/${token}`, { method: 'DELETE' })
+      expect(revoked.status).toBe(204)
+
+      const gone = await stranger(`/api/share/${token}`)
+      const never = await stranger('/api/share/AAAAAAAAAAAAAAAAAAAAAA')
+      expect(gone.status).toBe(404)
+      expect(await gone.json()).toEqual(await never.json())
+    })
+
+    it('is managed by its owner and nobody else', async () => {
+      const token = await tokenFor('tag=trip:Alps')
+
+      expect((await stranger('/api/shares')).status).toBe(401)
+
+      const them = (await claimed(db, 'stranger@example.com')).id
+      const theirHash = (await db.select().from(users).where(eq(users.id, them)).get())!
+        .passwordHash!
+      const cookie = `tracks_session=${await signSession(theirHash, them, Date.now() + 60_000)}`
+      const asThem = (target: string, init?: RequestInit) =>
+        app.request(target, { ...init, headers: { ...init?.headers, cookie } })
+
+      const listed = (await (await asThem('/api/shares')).json()) as SharesResponse
+      expect(listed.shares).toEqual([])
+      expect(
+        (
+          await asThem(`/api/shares/${token}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ label: 'mine now' }),
+          })
+        ).status,
+      ).toBe(404)
+      expect((await asThem(`/api/shares/${token}`, { method: 'DELETE' })).status).toBe(404)
+
+      expect(await publicTitles(token)).toEqual(['Alps ride'])
     })
   })
 

@@ -2,8 +2,10 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@ta
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
-import { ApiFailure } from './lib/api.ts'
+import { LinkGone } from './components/LinkGone.tsx'
+import { ApiFailure, ApiRoot, useSharedView } from './lib/api.ts'
 import { lapse, useSession } from './lib/session.ts'
+import { shareTokenOf } from './lib/share.ts'
 import './styles/global.css'
 
 /**
@@ -50,10 +52,33 @@ function Gate() {
   return <App access={session.data ?? null} />
 }
 
+/**
+ * A share link's gate: whether the link works, asked instead of who you are.
+ *
+ * Nobody signs in here — the token is the credential — so the session is never asked
+ * for, and being signed in changes nothing: your own link opens as anybody else sees it.
+ * Everything under it reads from the link's routes, which is what `ApiRoot` says.
+ */
+function SharedGate({ token }: { token: string }) {
+  const shared = useSharedView(token)
+
+  if (shared.isPending) return null
+  if (!shared.data) return <LinkGone />
+
+  return (
+    <ApiRoot.Provider value={`/api/share/${token}`}>
+      <App access={null} shared={shared.data} />
+    </ApiRoot.Provider>
+  )
+}
+
+/** Read once: a link and the app are different pages, and nothing moves between them. */
+const token = shareTokenOf(window.location.pathname)
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={client}>
-      <Gate />
+      {token ? <SharedGate token={token} /> : <Gate />}
     </QueryClientProvider>
   </StrictMode>,
 )

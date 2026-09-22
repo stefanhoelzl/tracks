@@ -1,4 +1,4 @@
-import type { FacetsResponse, Filter, Mode, TagType } from '@tracks/core'
+import type { FacetsResponse, Filter, Mode, SharedView, TagType, View } from '@tracks/core'
 import { ChartColumn, List, LogIn, LogOut, Route } from 'lucide-react'
 import { useId } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
@@ -8,6 +8,7 @@ import { ExportButton } from './ExportButton.tsx'
 import { FilterChips } from './FilterChips.tsx'
 import { ImportButton } from './ImportButton.tsx'
 import type { ImportSource } from './ImportDialog.tsx'
+import { ShareButton } from './ShareButton.tsx'
 import styles from './TopBar.module.css'
 import { IconButton } from './ui/IconButton.tsx'
 import { Panel } from './ui/Panel.tsx'
@@ -43,6 +44,12 @@ const MODES = [
  * writes an account's rows goes — the totals, the chips, Import and Export — and the two modes made
  * of those rows stay in the switch, unpressable: what signing in would get you is on the
  * bar you are looking at, rather than behind a door you have to open to find out.
+ *
+ * Through a share link it is the signed-in bar with everything that belongs to an
+ * account taken off it: no Share, Import, Export or address, no Planning, and no way in —
+ * a link is somebody else's, and signing in would not make it yours. The link's label
+ * stands where the name does, because it is what the sender called what you are looking
+ * at; the chips are the viewer's own, since the link's filter is never shown.
  */
 export function TopBar({
   summary,
@@ -50,11 +57,14 @@ export function TopBar({
   tagTypes,
   scale,
   mode,
+  view,
   email,
+  shared,
   onChange,
   onClear,
   onImport,
   onMode,
+  onOpenShare,
   onSignIn,
   onSignOut,
 }: {
@@ -63,16 +73,24 @@ export function TopBar({
   tagTypes: TagType[]
   scale: ColourScale
   mode: Mode
+  view: View
   /** Null when nobody is signed in. */
   email: string | null
+  /** Seen through a share link: what it is called. */
+  shared: SharedView | null
   onChange: (next: Filter) => void
   onClear: () => void
   onImport: (source: ImportSource) => void
   onMode: (mode: Mode) => void
+  /** Apply one of your links' filters to your own view. */
+  onOpenShare: (filter: Filter) => void
   onSignIn: () => void
   onSignOut: () => void
 }) {
   const signedIn = email !== null
+  /** Whether there are rows to read — an account's, or a link's. */
+  const reading = signedIn || shared !== null
+  const modes = shared ? MODES.filter(({ mode: value }) => value !== 'planning') : MODES
 
   return (
     <Panel className={styles.bar}>
@@ -80,7 +98,11 @@ export function TopBar({
         <span className={styles.mark}>
           <Mark />
         </span>
-        <span className={styles.name}>Tracks</span>
+        {shared?.label ? (
+          <span className={styles.label}>{shared.label}</span>
+        ) : (
+          <span className={styles.name}>Tracks</span>
+        )}
       </div>
 
       {summary ? (
@@ -97,7 +119,7 @@ export function TopBar({
         </div>
       ) : null}
 
-      {signedIn ? (
+      {reading ? (
         <FilterChips
           filter={filter}
           tagTypes={tagTypes}
@@ -110,14 +132,14 @@ export function TopBar({
       {/* No group role: each segment names itself and says whether it is the one
           showing, which is everything a group label would have added. */}
       <div className={styles.views}>
-        {MODES.map(({ mode: value, label, icon: Icon }) => (
+        {modes.map(({ mode: value, label, icon: Icon }) => (
           <button
             key={value}
             type="button"
             className={[styles.view, mode === value ? styles.viewOn : ''].join(' ')}
             aria-pressed={mode === value}
-            disabled={!signedIn && value !== 'planning'}
-            title={!signedIn && value !== 'planning' ? 'Sign in to see your activities' : undefined}
+            disabled={!reading && value !== 'planning'}
+            title={!reading && value !== 'planning' ? 'Sign in to see your activities' : undefined}
             onClick={() => onMode(value)}
           >
             <Icon size={14} strokeWidth={2} />
@@ -126,8 +148,9 @@ export function TopBar({
         ))}
       </div>
 
-      {signedIn ? (
+      {shared ? null : signedIn ? (
         <>
+          <ShareButton filter={filter} view={view} tagTypes={tagTypes} onOpen={onOpenShare} />
           <ImportButton onPick={onImport} />
           <ExportButton filter={filter} count={summary?.count} />
 

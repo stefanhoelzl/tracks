@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import type { NewType, SortKey, TagWrite } from '@tracks/core'
+import type { NewType, SharedView, SortKey, TagWrite } from '@tracks/core'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
@@ -39,8 +39,18 @@ const PANEL_W = 300
 const LIST_W = 356
 const RAIL_W = 44
 
-export function App({ access }: { access: Access }) {
+/**
+ * The map, the panels and everything they do — for an account, for nobody, or through a
+ * share link.
+ *
+ * A link is the signed-in app with less of it: `shared` set and `access` null. The reads
+ * go to the link's routes (the `ApiRoot` above this decides that), there is no tag
+ * anywhere, nothing writes, and Planning is not offered. What is left is exactly what was
+ * shared, narrowed however the viewer likes.
+ */
+export function App({ access, shared = null }: { access: Access; shared?: SharedView | null }) {
   const { filter, view, plan, error: urlError, setFilter, setView, setPlan, reset } = useUrlState()
+  const viewing = shared !== null
 
   /**
    * Nobody gets the planner, and only the planner.
@@ -54,11 +64,19 @@ export function App({ access }: { access: Access }) {
    * A lapsed session is still somebody: its view stays as it was behind the dialog.
    */
   const signedIn = access !== null
-  const mode = signedIn ? view.mode : 'planning'
+  /** Whether there are rows on screen — an account's, or a link's. A link has no Planning. */
+  const hasRows = signedIn || viewing
+  const mode = viewing
+    ? view.mode === 'planning'
+      ? 'activities'
+      : view.mode
+    : signedIn
+      ? view.mode
+      : 'planning'
 
   useEffect(() => {
-    if (!signedIn && view.mode !== 'planning') setView({ ...view, mode: 'planning' }, 'replace')
-  }, [signedIn, view, setView])
+    if (!hasRows && view.mode !== 'planning') setView({ ...view, mode: 'planning' }, 'replace')
+  }, [hasRows, view, setView])
 
   /**
    * Planning shadows the other modes rather than replacing their state. The filter is
@@ -99,6 +117,7 @@ export function App({ access }: { access: Access }) {
   const { tagTypes, activities, tracks, facets, detail, tagWrite, activityTags } = useLibrary(
     filter,
     filter.id,
+    viewing,
   )
 
   /**
@@ -112,15 +131,15 @@ export function App({ access }: { access: Access }) {
    * A lapsed session says so instead: a tab left in the background is otherwise still
    * naming an activity it can no longer show you.
    */
+  const title = titleOf({
+    mode,
+    plan,
+    activity: detail.data?.activity ?? null,
+    pending: filter.id !== null && detail.isPending,
+  })
+  // Through a link, its label is the quiet case the brand is for an account.
   useDocumentTitle(
-    access?.lapsed
-      ? 'Sign in'
-      : titleOf({
-          mode,
-          plan,
-          activity: detail.data?.activity ?? null,
-          pending: filter.id !== null && detail.isPending,
-        }),
+    access?.lapsed ? 'Sign in' : title === '' && shared?.label ? shared.label : title,
   )
 
   /**
@@ -153,7 +172,8 @@ export function App({ access }: { access: Access }) {
    * The default stays out of the URL — writing it would mean every link carried a
    * choice nobody made — so it is resolved here, where the registry is known.
    */
-  const colourBy = view.colourBy ?? tagTypes.data?.tagTypes[0]?.name ?? null
+  // A link carries no tags, so the one colouring it can offer is the year.
+  const colourBy = viewing ? 'year' : (view.colourBy ?? tagTypes.data?.tagTypes[0]?.name ?? null)
 
   /**
    * The colour layout, rebuilt only when the value sets change.
@@ -181,7 +201,7 @@ export function App({ access }: { access: Access }) {
 
   const insets = {
     // Signed out there is no sidebar at all, not even its rail: it has nothing to filter.
-    left: (signedIn ? (filtersOpen ? PANEL_W : RAIL_W) : 0) + 16,
+    left: (hasRows ? (filtersOpen ? PANEL_W : RAIL_W) : 0) + 16,
     right: (listOpen ? LIST_W : RAIL_W) + 16,
   }
 
@@ -338,18 +358,21 @@ export function App({ access }: { access: Access }) {
           tagTypes={tagTypes.data?.tagTypes ?? []}
           scale={scale}
           mode={mode}
+          view={view}
           email={access?.email ?? null}
+          shared={shared}
           onChange={setFilter}
           onClear={reset}
           onImport={setImporting}
           onMode={(mode) => setView({ ...view, mode })}
+          onOpenShare={setFilter}
           onSignIn={() => setSigningIn(true)}
           onSignOut={() => signOut.mutate()}
         />
       </div>
 
       <SignInDialog
-        open={access === null ? signingIn : access.lapsed}
+        open={viewing ? false : access === null ? signingIn : access.lapsed}
         lapsed={access?.lapsed ?? false}
         onCancel={() => {
           setSigningIn(false)
@@ -358,9 +381,15 @@ export function App({ access }: { access: Access }) {
         onSignedIn={() => setSigningIn(false)}
       />
 
-      <ImportDialog source={importing} onClose={() => setImporting(null)} onImported={onImported} />
+      {viewing ? null : (
+        <ImportDialog
+          source={importing}
+          onClose={() => setImporting(null)}
+          onImported={onImported}
+        />
+      )}
 
-      {!signedIn ? null : filtersOpen ? (
+      {!hasRows ? null : filtersOpen ? (
         <Panel className={styles.filters}>
           <div className={styles.panelHead}>
             <IconButton
@@ -388,7 +417,7 @@ export function App({ access }: { access: Access }) {
                 setWriteResult(null)
                 setFilter(next, mode)
               }}
-              onWrite={onWrite}
+              onWrite={viewing ? undefined : onWrite}
             />
           </div>
         </Panel>
@@ -457,7 +486,7 @@ export function App({ access }: { access: Access }) {
               loading={detail.isLoading}
               writing={activityTags.isPending}
               error={message(detail.error)}
-              onTags={onActivityTags}
+              onTags={viewing ? undefined : onActivityTags}
               cursor={cursor}
               onRange={setRange}
               onCursor={setCursor}

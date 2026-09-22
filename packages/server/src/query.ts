@@ -79,6 +79,16 @@ export interface Owner {
 export interface Scope extends Owner {
   readonly filter: Filter
   readonly bboxIds: readonly number[] | null
+  /**
+   * A share link's filter, which everything read through the link stays inside.
+   *
+   * Part of the boundary rather than of the filter, so it is treated like the owner:
+   * emitted unconditionally, and never dropped by an `Exclusion` — a facet counting
+   * what a value *would* give you must not count what the link does not show. It
+   * carries no viewport and no sort; `shareFilterOf` removes both before it is stored.
+   * Null everywhere except the public routes.
+   */
+  readonly base: Filter | null
 }
 
 /** `substr` rather than `LIKE 'type:%'` — a type name may contain `_`, a LIKE wildcard. */
@@ -126,13 +136,27 @@ function tagTypeCondition(terms: TagTerm[]): SQL | null {
  *
  * Never empty: an unfiltered read still says whose rows it wants, so callers can
  * interpolate it unconditionally and the owner is in every statement by construction.
+ * A share link's base filter follows the owner, and is in every statement read
+ * through the link by the same construction.
  */
 export function whereFor(scope: Scope, exclude: Exclusion = {}): SQL {
-  const { filter, bboxIds } = scope
   // First and unconditional. `Exclusion` drops a facet's own terms so the sidebar can
   // count what selecting a value would give you; there is no such question about the
-  // owner, and nothing may ever exclude it.
+  // owner, and nothing may ever exclude it. Nor the link's filter, for the same reason.
   const parts: SQL[] = [sql`a.user_id = ${scope.userId}`]
+  if (scope.base !== null) parts.push(...termsFor(scope.base, null))
+  parts.push(...termsFor(scope.filter, scope.bboxIds, exclude))
+
+  return sql.join(parts, sql` AND `)
+}
+
+/** One filter's terms, less what `exclude` drops. The owner is `whereFor`'s alone. */
+function termsFor(
+  filter: Filter,
+  bboxIds: readonly number[] | null,
+  exclude: Exclusion = {},
+): SQL[] {
+  const parts: SQL[] = []
 
   // The open activity, ANDed like everything else and excluded by nothing: while one is
   // open the facets count it alone, which is what the sidebar is then describing.
@@ -190,7 +214,7 @@ export function whereFor(scope: Scope, exclude: Exclusion = {}): SQL {
     if (max !== null) parts.push(sql`${RANGE_EXPR[key]} <= ${max}`)
   }
 
-  return sql.join(parts, sql` AND `)
+  return parts
 }
 
 /** `id` breaks ties, so two activities with equal distance never swap between requests. */

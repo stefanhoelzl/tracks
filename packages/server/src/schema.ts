@@ -120,3 +120,33 @@ export const tagTypes = sqliteTable(
     unique('tag_types_user_sort_unique').on(t.userId, t.sort),
   ],
 )
+
+/**
+ * A public link to a filter.
+ *
+ * The filter is stored and not the activities it matched, so a link is live: a ride
+ * imported tomorrow that matches is in it tomorrow. It is `shareFilterOf` — the query
+ * string with the viewport and the sort left out — so one filter has one link, and the
+ * browser finds it by comparing strings.
+ *
+ * The token is the primary key and the whole of the URL. 128 random bits, because the
+ * token is the only thing standing between a stranger and the rows it opens; there is
+ * nothing to enumerate and no second factor. Revoking is deleting the row.
+ */
+export const shareLinks = sqliteTable(
+  'share_links',
+  {
+    token: text('token').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    filter: text('filter').notNull(),
+    /** Shown to the viewer in place of the filter. Null says just "Tracks". */
+    label: text('label'),
+    /** The last day it works, inclusive, as a UTC date. Null never expires. */
+    expiresOn: text('expires_on'),
+    /** UTC instant, ISO8601. */
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [unique('share_links_user_filter').on(t.userId, t.filter)],
+)

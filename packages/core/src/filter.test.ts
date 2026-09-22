@@ -7,6 +7,7 @@ import {
   parseFilter,
   parseView,
   RANGE_KEYS,
+  shareFilterOf,
   type View,
 } from './filter.ts'
 
@@ -174,5 +175,22 @@ describe('view state', () => {
     expect(formatSearch(filter, { ...VIEW, colourBy: 'sport' })).toBe(
       'activity=42&tag=sport%3Abike&colour_by=sport',
     )
+  })
+})
+
+describe('shareFilterOf', () => {
+  it('keeps every choice and drops the viewport and the sort', () => {
+    const filter = parseFilter(
+      'tag=trip:Alps&q=col&from=2024-01-01&distance_min=40000&bbox=1,2,3,4&sort_key=distance&sort_order=asc',
+    )
+    expect(shareFilterOf(filter)).toBe('tag=trip%3AAlps&q=col&from=2024-01-01&distance_min=40000')
+  })
+
+  it('leaves out the open activity, so a link shares the lot rather than one ride', () => {
+    expect(shareFilterOf(parseFilter('activity=7&tag=trip:Alps'))).toBe('tag=trip%3AAlps')
+  })
+
+  it('is the empty string for the empty filter, wherever the map is', () => {
+    expect(shareFilterOf({ ...emptyFilter(), bbox: [0, 0, 1, 1] })).toBe('')
   })
 })

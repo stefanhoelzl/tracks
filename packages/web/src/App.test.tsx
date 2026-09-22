@@ -172,6 +172,13 @@ function route(url: string): unknown {
   if (path === '/api/tracks') return TRACKS
   if (path === '/api/facets') return FACETS
   if (path === '/api/tags') return { changed: 1 }
+  if (path === '/api/shares') return { shares: [] }
+  if (path === '/api/share/tok') return { label: 'Balkan 2026' }
+  if (path === '/api/share/tok/activities')
+    return { activities: ACTIVITIES.activities.map((a) => ({ ...a, tags: [] })) }
+  if (path === '/api/share/tok/tracks')
+    return { tracks: TRACKS.tracks.map((t) => ({ ...t, tags: [] })) }
+  if (path === '/api/share/tok/facets') return { ...FACETS, tags: [] }
   throw new Error(`unrouted ${url}`)
 }
 
@@ -274,10 +281,39 @@ describe('the app', () => {
     expect(screen.getByRole('region', { name: 'Sport' })).toBeTruthy()
     expect(screen.getByTestId('track-count').textContent).toBe('1 tracks')
 
+    // Your links too, so the Share button can say whether this filter already has one.
     const paths = requested.map((r) => r.split(' ')[1]!.split('?')[0])
     expect(new Set(paths)).toEqual(
-      new Set(['/api/tag-types', '/api/activities', '/api/tracks', '/api/facets']),
+      new Set(['/api/tag-types', '/api/activities', '/api/tracks', '/api/facets', '/api/shares']),
     )
+  })
+
+  it('through a share link, reads the link’s routes and offers nothing an account does', async () => {
+    const { App } = await import('./App.tsx')
+    const { ApiRoot } = await import('./lib/api.ts')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <ApiRoot.Provider value="/api/share/tok">
+          <App access={null} shared={{ label: 'Balkan 2026' }} />
+        </ApiRoot.Provider>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+    expect(screen.getByText('Balkan 2026')).toBeTruthy()
+
+    // No registry, no links, no account: only the three filtered reads, under the link.
+    const paths = requested.map((r) => r.split(' ')[1]!.split('?')[0])
+    expect(new Set(paths)).toEqual(
+      new Set(['/api/share/tok/activities', '/api/share/tok/tracks', '/api/share/tok/facets']),
+    )
+    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /share/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Planning/ })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'type:value' })).toBeNull()
+    expect(document.title).toBe('Balkan 2026 · Tracks')
   })
 
   it('writes a sidebar click to the URL and refetches every filtered route', async () => {

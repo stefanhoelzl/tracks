@@ -14,12 +14,18 @@ export function Popover({
   open,
   onClose,
   width,
+  align = 'start',
   children,
 }: {
   open: boolean
   onClose: () => void
   /** Omitted to span the control it is anchored to, which is what a field wants. */
   width?: number
+  /**
+   * Which edge of the control it lines up with. `end` for a wide popover near the
+   * window's right edge, which would otherwise hang off it.
+   */
+  align?: 'start' | 'end'
   children: React.ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -47,7 +53,11 @@ export function Popover({
   if (!open) return null
 
   return (
-    <div ref={ref} className={styles.popover} style={{ width }}>
+    <div
+      ref={ref}
+      className={[styles.popover, align === 'end' ? styles.end : ''].join(' ')}
+      style={{ width }}
+    >
       <Panel elevated className={styles.panel}>
         {children}
       </Panel>
