@@ -78,3 +78,35 @@ What surprised the bands:
   e.g. turning the cone only on changes of a few degrees, or not at all above walking pace.
 - The replay delivers one heading per heading event whatever `headingFilter` is, so the 5° filter is unmeasured
   here; on a real ride it can only lower the 30 Hz figure towards the 1 Hz one.
+
+## The 5° heading filter, measured
+
+A second session on the SE2 (2026-09-22), with the rig switched to the replayed ride's fixes and the phone's **real**
+compass (`TRACKS_REAL_HEADING=1`), and `headingFilter` overridden (`TRACKS_HEADING_FILTER`). The ride is above walking
+pace, so the compass turns only the facing cone, not the camera. The phone was held in the hand and swayed as on a
+handlebar, filter 1° / 5° / 1° / 5°, then laid on the desk. Bands written first, in the scratchpad's
+`fixes/filter-bands.txt`.
+
+| run | headings/s | cores | over the replay's compass (0.363) |
+|---|---:|---:|---:|
+| replay compass, 1 heading/s (reference, start / end) | 1.0 | 0.394 / 0.363 | — |
+| hand, 1° | 9.5 | 0.438 | +0.075 |
+| hand, 5° | 4.1 | 0.408 | +0.045 |
+| hand, 1° again | 32.1 | 0.475 | +0.112 |
+| hand, 5° again | 5.6 | 0.419 | +0.056 |
+| desk, 1° | 0.0 | 0.367 | +0.004 |
+| desk, 5° | 0.0 | 0.364 | +0.001 |
+
+The reference is 0.363, the end run, which matches the previous session's fixes build (0.363) and the desk runs. The
+first run of the session read 0.394, with the extra entirely on GCD worker threads (0.072 against 0.044 in every
+other run): the first launch after an install, and not the app's own work.
+
+- **The filter does its job on the heading count:** 4–6 headings a second at 5°, whatever the hand did, against 9.5
+  and 32 at 1° as the sway varied. The 5° runs repeat within 0.011 cores; the 1° runs, 0.038 apart, follow the motion.
+- **It roughly halves what a moving compass costs:** +0.045–0.056 cores at 5° against +0.075–0.112 at 1°. Not in
+  proportion to the headings, as the bands expected: at 15 fps the map is either resting or drawing, and four or five
+  headings a second already keep it drawing much of the time (13 fps against 11 on the replay's compass).
+- **A still phone costs nothing** at either filter: CoreLocation delivers no headings at all.
+- **Left:** ~0.05 cores (≈14% of the navigating app) while the phone is moving on the bar. That is the facing cone's
+  turning keeping the map from resting — turning it only on larger changes, or drawing it without a symbol re-layout,
+  is where it would go. The magnetometer's own power is outside the app's CPU and not measured.
