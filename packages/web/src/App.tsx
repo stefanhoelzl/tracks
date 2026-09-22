@@ -1,8 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { NewType, SortKey, TagWrite } from '@tracks/core'
-import type { LatLon, Place, Waypoint } from '@tracks/routing'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { ActivityList } from './components/ActivityList.tsx'
 import { AnalyticsPanel } from './components/AnalyticsPanel.tsx'
@@ -16,57 +15,28 @@ import { PlanPanel } from './components/PlanPanel.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { IconButton } from './components/ui/IconButton.tsx'
 import { Panel } from './components/ui/Panel.tsx'
-import { type PinTarget, WaypointDialog } from './components/WaypointDialog.tsx'
-import {
-  ApiFailure,
-  useActivities,
-  useActivityDetail,
-  useActivityTags,
-  useFacets,
-  useTagTypes,
-  useTagWrite,
-  useTracks,
-} from './lib/api.ts'
+import { WaypointDialog } from './components/WaypointDialog.tsx'
+import { message } from './lib/api.ts'
 import { buildScale, type ColourGroup, TYPE_GROUP } from './lib/colour.ts'
 import { setBbox } from './lib/filter-ops.ts'
-import { parsePlan } from './lib/plan.ts'
+import { useLibrary } from './lib/library.ts'
 import {
   addWaypoint,
   kindIsAChoice,
-  legLabel,
   moveWaypoint,
-  nearestLeg,
-  type Placement,
-  placementAt,
   removeWaypoint,
   setKind,
   updateWaypoint,
 } from './lib/plan-ops.ts'
-import { planBounds, planTrack } from './lib/plan-track.ts'
-import { type Reference, readReference, referenceBounds } from './lib/references.ts'
-import { geocoder, usePlanLegs } from './lib/routing.ts'
+import { usePlanner } from './lib/planner.ts'
 import { useSignOut } from './lib/session.ts'
 import { titleOf, useDocumentTitle } from './lib/title.ts'
 import { useUrlState } from './lib/url.ts'
-
-/**
- * How long the pointer has to rest on a search result before the map goes there.
- *
- * Below noticing when you meant the row, and above the cost of sweeping past four on
- * the way to the fifth.
- */
-const HOVER_DWELL_MS = 160
 
 /** Kept in step with the token file, which the map needs as numbers for its padding. */
 const PANEL_W = 300
 const LIST_W = 356
 const RAIL_W = 44
-
-function message(error: unknown): string | null {
-  if (!error) return null
-  if (error instanceof ApiFailure) return error.message
-  return error instanceof Error ? error.message : String(error)
-}
 
 export function App({ email }: { email: string }) {
   const { filter, view, plan, error: urlError, setFilter, setView, setPlan, reset } = useUrlState()
@@ -100,48 +70,14 @@ export function App({ email }: { email: string }) {
    * selection, and only the thing that owns both can hold it.
    */
   const [range, setRange] = useState<Range | null>(null)
-  /**
-   * The provisional pin, and what its dialog is about.
-   *
-   * Transient by the same rule as the rest of this block: it belongs to neither the plan
-   * nor the URL. `at` is where it sits; the target says whether it is committing a new
-   * waypoint or editing one that already exists.
-   */
-  const [pin, setPin] = useState<{ at: LatLon; target: PinTarget } | null>(null)
-  /** The search result under the pointer, ringed on the map. Transient, like the pin. */
-  const [preview, setPreview] = useState<LatLon | null>(null)
-  const dwell = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  /**
-   * Dropped files, and the one still being read.
-   *
-   * In memory and nowhere else. A reference is the one thing here that is neither in
-   * the URL nor on the server: a file's points are two orders of magnitude past what a
-   * fragment can carry, and it is a thing you are looking at rather than making. A
-   * reload asks for the file again, which is the stated cost.
-   */
-  const [references, setReferences] = useState<Reference[]>([])
-  /** What is on screen, for the reader — which runs outside React's render. */
-  const referencesLive = useRef<Reference[]>([])
-  referencesLive.current = references
-  const [reading, setReading] = useState<{ name: string; progress: number | null } | null>(null)
-  const [readError, setReadError] = useState<string | null>(null)
-  /** Which reference row is expanded to its profile. One at a time. */
-  const [openReference, setOpenReference] = useState<string | null>(null)
-  const readAbort = useRef<AbortController | null>(null)
-
   const queryClient = useQueryClient()
 
   const mapHandle = useRef<MapHandle>(null)
 
-  const tagTypes = useTagTypes()
-  const activities = useActivities(filter)
-  const tracks = useTracks(filter)
-  const facets = useFacets(filter)
-  const detail = useActivityDetail(filter.id)
-
-  const tagWrite = useTagWrite(filter)
-  const activityTags = useActivityTags(filter.id)
+  const { tagTypes, activities, tracks, facets, detail, tagWrite, activityTags } = useLibrary(
+    filter,
+    filter.id,
+  )
 
   /**
    * The tab says what you are looking at.
@@ -232,234 +168,31 @@ export function App({ email }: { email: string }) {
 
   const zoom = useCallback((delta: number) => mapHandle.current?.zoomBy(delta), [])
 
-  // --- Planning -------------------------------------------------------------
-
-  const { legs, pending: legsPending, error: legsError } = usePlanLegs(plan, planning)
-
-  /**
-   * Every routed leg as one track, computed here so the panel and the map read the same
-   * array — which is what makes the elevation cursor one index rather than two roundings
-   * of one position, exactly as it already is for an activity.
-   */
-  const planned = useMemo(() => planTrack(legs), [legs])
-
-  /**
-   * What *fit everything* means while planning.
-   *
-   * The extent of the activities is the wrong answer there — the plan is what you are
-   * looking at, and the tracks behind it are context you dimmed on purpose.
-   */
-  const routeExtent = useMemo(() => {
-    if (!planning) return null
-    const plan_ = planBounds(plan.waypoints, legs)
-    const files = referenceBounds(references)
-    if (!plan_ || !files) return plan_ ?? files
-    // Both, when both are there: while planning against somebody's route, *everything*
-    // means the pair of them — framing only your own half hides what you are aiming at.
-    return [
-      Math.min(plan_[0], files[0]),
-      Math.min(plan_[1], files[1]),
-      Math.max(plan_[2], files[2]),
-      Math.max(plan_[3], files[3]),
-    ] as [number, number, number, number]
-  }, [planning, plan.waypoints, legs, references])
-
-  /**
-   * Name a stop from whatever is there, after the fact.
-   *
-   * Lazily, and only for POIs — a shaping point wants no name, which is also exactly
-   * what BRouter wants for one, so the gesture people repeat costs no request. The plan
-   * is re-read from the URL rather than closed over: the lookup takes a moment, and the
-   * address bar is the authority on what the plan is by the time it returns.
-   */
-  const nameStop = useCallback(
-    async (at: LatLon, index: number) => {
-      const name = await geocoder.reverse(at).catch(() => null)
-      if (!name) return
-
-      const current = parsePlan(window.location.hash)
-      const waypoint = current.waypoints[index]
-      if (waypoint?.kind !== 'poi' || waypoint.name !== null) return
-      // Replace: the name is the tail of the click that added it, not a second edit.
-      setPlan(updateWaypoint(current, index, { name }), 'replace')
-    },
-    [setPlan],
-  )
-
-  const addFromPin = useCallback(
-    (kind: Waypoint['kind'], placement: Placement) => {
-      if (pin?.target.state !== 'new') return
-
-      const index = placementAt(plan, legs, placement, pin.target.leg, pin.at)
-      const name = kind === 'poi' ? pin.target.name : null
-
-      setPlan(addWaypoint(plan, { ...pin.at, kind, name }, index))
-      setPin(null)
-      if (kind === 'poi' && name === null) void nameStop(pin.at, index)
-    },
-    [pin, plan, legs, setPlan, nameStop],
-  )
-
-  /**
-   * Adding a searched place straight from its row, without the pin in between.
-   *
-   * The placement is resolved here for the same reason `dropPin` resolves the leg here:
-   * which leg is nearest is a question about the plan, and the search field has no
-   * business knowing the answer.
-   */
-  const addPlace = useCallback(
-    (place: Place, placement: Placement) => {
-      const at = { lat: place.lat, lon: place.lon }
-      const index = placementAt(plan, legs, placement, nearestLeg(plan, legs, at), at)
-      setPlan(addWaypoint(plan, { ...at, kind: 'poi', name: place.name }, index))
-      setPin(null)
-      setPreview(null)
-      // Every way of choosing a searched place ends up looking at it. A stop that
-      // appeared somewhere off screen is a stop you have to go and find.
-      mapHandle.current?.flyTo(at)
-    },
-    [plan, legs, setPlan],
-  )
-
-  /**
-   * Ring the place under the pointer, and go and look at it.
-   *
-   * After a short dwell, not immediately: pointing at a row means *that one*, but
-   * sweeping down five rows on the way to the fifth does not mean the first four, and a
-   * camera that chased every one of them would be unreadable. A sixth of a second is
-   * below noticing when you meant it and above the cost when you did not.
-   */
-  const previewPlace = useCallback((place: Place | null) => {
-    clearTimeout(dwell.current)
-    setPreview(place ? { lat: place.lat, lon: place.lon } : null)
-    if (!place) return
-
-    const at = { lat: place.lat, lon: place.lon }
-    dwell.current = setTimeout(() => mapHandle.current?.flyTo(at), HOVER_DWELL_MS)
-  }, [])
-
-  useEffect(() => () => clearTimeout(dwell.current), [])
-
-  /**
-   * Reading dropped files, one after another.
-   *
-   * Serial rather than parallel: each one is a stream being decoded and parsed on this
-   * thread, and three at once would interleave their chunks and make every one of them
-   * slower. A file that fails costs itself and is named — the ones beside it still
-   * load, which is M3.5's rule about a bad frame, unchanged.
-   */
-  const onDropFiles = useCallback(async (files: File[]) => {
-    if (readAbort.current) readAbort.current.abort(new Error('superseded'))
-    const controller = new AbortController()
-    readAbort.current = controller
-
-    const failures: string[] = []
-    for (const file of files) {
-      if (controller.signal.aborted) break
-      setReading({ name: file.name, progress: null })
-      try {
-        // The slots already on screen, so two references never land on one colour —
-        // read from the ref, because a file dropped beside this one has already added
-        // its own since this loop started.
-        const taken = new Set(referencesLive.current.map((reference) => reference.slot))
-        const loaded = await readReference(file, taken, {
-          signal: controller.signal,
-          onProgress: (read, total) =>
-            setReading({ name: file.name, progress: total === null ? null : read / total }),
-        })
-        setReferences((current) => {
-          const next = [...current, ...loaded]
-          referencesLive.current = next
-          return next
-        })
-        // Framed as it lands, once — the rule the plan's own opening fit follows. A
-        // file that drew three countries away would be reported as broken before
-        // anything else about it.
-        const bounds = referenceBounds(loaded)
-        if (bounds) mapHandle.current?.fitBounds(bounds)
-      } catch (error) {
-        if (controller.signal.aborted) break
-        failures.push(message(error) ?? `${file.name} could not be read`)
-      }
-    }
-
-    if (readAbort.current === controller) {
-      readAbort.current = null
-      setReading(null)
-    }
-    setReadError(failures.length > 0 ? failures.join(' · ') : null)
-  }, [])
-
-  /** Stops the file being read. One flag, checked between chunks. */
-  const cancelRead = useCallback(() => {
-    readAbort.current?.abort(new Error('cancelled'))
-    readAbort.current = null
-    setReading(null)
-  }, [])
-
-  const dismissReference = useCallback((id: string) => {
-    setReferences((current) => current.filter((reference) => reference.id !== id))
-    setOpenReference((current) => (current === id ? null : current))
-  }, [])
-
-  /**
-   * The line the elevation cursor is about, when an open reference owns it.
-   *
-   * The cursor is one index and always has been; what changes here is which array it
-   * indexes into. Opening a row hands that array to the map so the marker lands on the
-   * reference rather than at the same offset along the plan.
-   */
-  const cursorTrack = useMemo(() => {
-    const open = references.find((reference) => reference.id === openReference)
-    return open ? open.points.map((point): [number, number] => [point.lon, point.lat]) : null
-  }, [references, openReference])
-
-  /** Opening a different line invalidates the cursor: it indexed into the old one. */
-  const openReferenceRow = useCallback((id: string | null) => {
-    setCursor(null)
-    setOpenReference(id)
-  }, [])
-
-  /**
-   * Leaving planning takes the references with it, exactly as it takes the plan.
-   *
-   * The mode owns its transient state and destroys it on the way out — the rule that
-   * means this app has no Clear button anywhere. Coming back is a fresh drop.
-   */
-  useEffect(() => {
-    if (planning) return
-    readAbort.current?.abort(new Error('left planning'))
-    readAbort.current = null
-    setReferences([])
-    setReading(null)
-    setReadError(null)
-    setOpenReference(null)
-  }, [planning])
-
-  const editing = pin?.target.state === 'edit' ? pin.target.index : null
-
-  const openWaypoint = useCallback(
-    (index: number) => {
-      const waypoint = plan.waypoints[index]
-      if (waypoint) setPin({ at: waypoint, target: { state: 'edit', index, waypoint } })
-    },
-    [plan],
-  )
-
-  /**
-   * A place, and the leg it is nearest — which is what makes *insert* and *shaping
-   * point* offerable from a click anywhere rather than only from a click on the line.
-   */
-  const dropPin = useCallback(
-    (at: LatLon, name: string | null) => {
-      const leg = nearestLeg(plan, legs, at)
-      setPin({
-        at,
-        target: { state: 'new', leg, between: leg === null ? null : legLabel(plan, leg), name },
-      })
-    },
-    [plan, legs],
-  )
+  const {
+    legs,
+    legsPending,
+    legsError,
+    planned,
+    routeExtent,
+    pin,
+    setPin,
+    editing,
+    preview,
+    references,
+    reading,
+    readError,
+    openReference,
+    cursorTrack,
+    addFromPin,
+    addPlace,
+    previewPlace,
+    onDropFiles,
+    cancelRead,
+    dismissReference,
+    openReferenceRow,
+    openWaypoint,
+    dropPin,
+  } = usePlanner({ plan, setPlan, planning, mapHandle, setCursor })
 
   /**
    * Opening an activity is a filter change: it narrows everything to that one, which is
