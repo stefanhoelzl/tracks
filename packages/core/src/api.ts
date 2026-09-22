@@ -277,6 +277,81 @@ export const sessionSchema = z.object({
 
 export type Session = z.infer<typeof sessionSchema>
 
+/**
+ * A share link, as its owner sees it.
+ *
+ * `filter` is the stored query string — `shareFilterOf` of the filter it was made from —
+ * so the browser can tell whether the filter on screen is already shared by comparing
+ * two strings, and can open a link's filter by parsing one.
+ */
+export const shareSchema = z.object({
+  /** 128 random bits, base64url. The whole of what the public URL carries. */
+  token: z.string(),
+  filter: z.string(),
+  /** What the viewer's top bar says instead of the filter. Null says just "Tracks". */
+  label: z.string().nullable(),
+  /** The last day the link works, inclusive, UTC. Null for a link that does not expire. */
+  expiresOn: z.string().nullable(),
+  /** UTC instant, ISO8601. */
+  createdAt: z.string(),
+  /** Past `expiresOn`. Still listed, so extending it brings the same URL back. */
+  expired: z.boolean(),
+})
+
+export type Share = z.infer<typeof shareSchema>
+
+export const sharesResponseSchema = z.object({
+  shares: z.array(shareSchema),
+})
+
+export type SharesResponse = z.infer<typeof sharesResponseSchema>
+
+const expiresOnSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD')
+  .nullable()
+
+/**
+ * A label is trimmed, and a blank one is no label — the same thing the viewer sees
+ * either way, so there is no reason to store the difference.
+ */
+const labelSchema = z
+  .string()
+  .max(120)
+  .nullable()
+  .transform((label) => (label === null || label.trim() === '' ? null : label.trim()))
+
+/**
+ * Making a link. The filter is the query string, like a tag write's target; the body is
+ * only what the filter cannot say.
+ */
+export const shareCreateSchema = z.object({
+  label: labelSchema.default(null),
+  expiresOn: expiresOnSchema.default(null),
+})
+
+export type ShareCreate = z.input<typeof shareCreateSchema>
+
+/** Changing one. An absent field is left alone; a null one is cleared. */
+export const shareUpdateSchema = z.object({
+  label: labelSchema.optional(),
+  expiresOn: expiresOnSchema.optional(),
+})
+
+export type ShareUpdate = z.input<typeof shareUpdateSchema>
+
+/**
+ * What a public link tells a stranger about itself: the label, and nothing else.
+ *
+ * Not the filter, which may name tags; not the owner, whose address is the account's
+ * one secret; not the expiry, which is nobody's business but the sender's.
+ */
+export const sharedViewSchema = z.object({
+  label: z.string().nullable(),
+})
+
+export type SharedView = z.infer<typeof sharedViewSchema>
+
 /** What a 4xx carries. One shape, so the browser has one thing to render. */
 export const apiErrorSchema = z.object({
   error: z.string(),

@@ -23,6 +23,16 @@
   justify-content: center;
 }
 
+.label {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .name {
   font-size: var(--text-xl);
   font-weight: 800;

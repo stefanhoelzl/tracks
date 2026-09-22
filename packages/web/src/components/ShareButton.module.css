@@ -1,0 +1,214 @@
+/* First of the two actions, so it carries the margin that pushes both to the right edge;
+   and like Import, it never shrinks. */
+.anchor {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* The current filter has a live link. The accent, because it is state, not data. */
+.dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  pointer-events: none;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 7px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.warn {
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: var(--radius-ctrl);
+  background: var(--sunk);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--bad);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--bad);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.field > span,
+.heading {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field input {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--ink);
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-ctrl);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.field input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.primary {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 700;
+  border-radius: var(--radius-ctrl);
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 7px 14px;
+  color: var(--surface);
+  background: var(--accent);
+}
+
+.primary:hover {
+  background: var(--accent-deep);
+}
+
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.heading {
+  margin-bottom: 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 4px;
+  border-radius: 8px;
+}
+
+.row:hover {
+  background: var(--sunk);
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faded {
+  color: var(--muted);
+}
+
+.rowMeta {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.expired {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  color: var(--bad);
+  background: var(--sunk);
+}
+
+/* The filter a link shares, under its label: what the viewer gets, not what they read. */
+.terms {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The link for the filter on screen: tinted rather than labelled, the accent's own wash. */
+.here,
+.here:hover {
+  background: var(--accent-soft);
+}

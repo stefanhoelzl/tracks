@@ -91,9 +91,14 @@ function toRow(raw: RawRow): ActivityRow {
  * table — and the two costs sit the right way round, since a wide viewport reads the most
  * geometry exactly where the bounding boxes were already nearly enough.
  */
-export async function scopeFor(db: Conn, owner: Owner, filter: Filter): Promise<Scope> {
+export async function scopeFor(
+  db: Conn,
+  owner: Owner,
+  filter: Filter,
+  base: Filter | null = null,
+): Promise<Scope> {
   const { userId } = owner
-  if (filter.bbox === null) return { userId, filter, bboxIds: null }
+  if (filter.bbox === null) return { userId, filter, bboxIds: null, base }
 
   const [west, south, east, north] = filter.bbox
   // `polyline IS NOT NULL` rather than a decode guarded downstream: an activity with no
@@ -109,7 +114,7 @@ export async function scopeFor(db: Conn, owner: Owner, filter: Filter): Promise<
     .filter((row) => crossesViewport(polyline.decode(row.polyline), filter.bbox!))
     .map((row) => row.id)
 
-  return { userId, filter, bboxIds }
+  return { userId, filter, bboxIds, base }
 }
 
 export async function listActivities(db: Db, scope: Scope): Promise<ActivityRow[]> {
@@ -155,16 +160,23 @@ interface TrackColumns {
   track_times: string | null
 }
 
+/**
+ * One activity, if the scope admits it.
+ *
+ * A scope rather than an owner, because a share link reaches this too, and an id is
+ * the easiest thing in the world to change by hand: being the owner's is not enough,
+ * it has to be inside what the link shows.
+ */
 export async function activityDetail(
   db: Db,
-  owner: Owner,
+  scope: Scope,
   id: number,
 ): Promise<ActivityDetailResponse | null> {
   const raw = await first<RawRow & TrackColumns>(
     db,
     sql`SELECT ${ROW_COLUMNS}, a.track_geometry, a.track_altitudes, a.track_times
         FROM activities a
-        WHERE a.id = ${id} AND a.user_id = ${owner.userId}`,
+        WHERE a.id = ${id} AND ${whereFor(scope)}`,
   )
   // Not "no such activity" but "not yours, or no such activity" — the route turns both
   // into the same 404, because telling them apart is telling a stranger what exists.

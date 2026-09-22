@@ -1,0 +1,36 @@
+/* Centred with `margin: auto` on the card rather than by centring the container, so a card
+   taller than the window scrolls instead of losing its top. */
+.page {
+  display: flex;
+  min-height: 100dvh;
+  padding: 24px;
+  background: var(--sunk);
+}
+
+.card {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(360px, 100%);
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--muted);
+}

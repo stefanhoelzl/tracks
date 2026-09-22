@@ -192,6 +192,29 @@ export function formatFilter(filter: Filter): URLSearchParams {
 }
 
 /**
+ * What a share link stores: the filter, less the three terms that are not a choice.
+ *
+ * The viewport is always in the filter — it is where the map is pointed — so keeping it
+ * would pin every link to wherever you had panned, and no two shares of one trip would
+ * ever be the same link. The open activity is what you happened to be looking at, and
+ * keeping it would share one ride where you meant the lot. The sort orders rather than
+ * selects. All three are the viewer's own, like everything they do on top of what you
+ * shared.
+ *
+ * Both ends call this: the server to store it, the browser to ask whether the filter on
+ * screen already has a link. The same string on both sides is what makes that a lookup.
+ */
+export function shareFilterOf(filter: Filter): string {
+  return formatFilter({
+    ...filter,
+    id: null,
+    bbox: null,
+    sortKey: 'date',
+    sortOrder: 'desc',
+  }).toString()
+}
+
+/**
  * The three things the app can be showing.
  *
  * `activities` is the default and is never written down, like every other default here.

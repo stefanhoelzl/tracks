@@ -4,10 +4,16 @@ import {
   activityDetailSchema,
   activityTagsResponseSchema,
   activityTagsSchema,
+  emptyFilter,
   type Filter,
   facetsResponseSchema,
   parseFilter,
   sessionSchema,
+  shareCreateSchema,
+  sharedViewSchema,
+  shareSchema,
+  sharesResponseSchema,
+  shareUpdateSchema,
   signInSchema,
   tagTypesResponseSchema,
   tagWriteResponseSchema,
@@ -30,6 +36,14 @@ import {
 } from './queries.ts'
 import type { Owner, Scope } from './query.ts'
 import { loadRegistry } from './registry.ts'
+import {
+  createShare,
+  deleteShare,
+  listShares,
+  type ResolvedShare,
+  resolveShare,
+  updateShare,
+} from './shares.ts'
 import { TagWriteError, writeActivityTags, writeTags } from './tagging.ts'
 import { authenticate, findCredential } from './users.ts'
 
@@ -49,7 +63,8 @@ import { authenticate, findCredential } from './users.ts'
  * The import routes are the exception to the read-only shape, and the only place the
  * database is written, one activity at a time.
  *
- * Everything under `/api` except `/api/session` is behind the cookie, and every handler
+ * Everything under `/api` except `/api/session` and a share link's own routes,
+ * `/api/share/:token/…`, is behind the cookie, and every handler
  * behind it reads its `Owner` from the context rather than being told one. That is the
  * shape multi-tenancy takes here: the boundary is crossed once, in one middleware, and
  * what comes out the other side is the only thing the data layer will accept.
@@ -84,6 +99,15 @@ export interface ApiOptions {
 export interface Env {
   Variables: { owner: Owner }
 }
+
+/**
+ * The one answer a link that does not work gets — never issued, revoked or expired. The
+ * three are one sentence because telling them apart tells a stranger what once existed.
+ */
+const NO_LINK: ApiError = { error: 'no such link' }
+
+/** What a share link sends in place of every tag: nothing, whatever the rows carry. */
+const TAGLESS: string[] = []
 
 function issuesOf(error: z.ZodError) {
   return error.issues.map((issue) => ({
@@ -207,7 +231,9 @@ export function createApi(db: Db, options: ApiOptions = {}) {
    * no longer produces the key the cookie was made with.
    */
   app.use('/api/*', async (c, next) => {
-    if (c.req.path === '/api/session') return next()
+    // A share link is its own credential, resolved by the routes below rather than here.
+    // `/api/shares` — no slash — is the owner managing them, and is not skipped.
+    if (c.req.path === '/api/session' || c.req.path.startsWith('/api/share/')) return next()
 
     const account = await accountOf(c)
     if (!account) return c.json<ApiError>({ error: 'not signed in' }, 401)
@@ -310,7 +336,7 @@ export function createApi(db: Db, options: ApiOptions = {}) {
       return c.json<ApiError>({ error: 'activity id must be a positive integer' }, 400)
     }
 
-    const detail = await activityDetail(db, c.get('owner'), id)
+    const detail = await activityDetail(db, await scopeFor(db, c.get('owner'), emptyFilter()), id)
     if (!detail) return c.json<ApiError>({ error: `no activity ${id}` }, 404)
 
     return c.json(activityDetailSchema.parse(detail))
@@ -333,6 +359,148 @@ export function createApi(db: Db, options: ApiOptions = {}) {
   // never disagree.
   app.post('/api/import/select', imports.select)
   app.post('/api/import', imports.run)
+
+  // --- Share links, as their owner sees them --------------------------------------
+
+  app.get('/api/shares', async (c) =>
+    c.json(sharesResponseSchema.parse({ shares: await listShares(db, c.get('owner')) })),
+  )
+
+  /**
+   * The link for the filter in the query string — the filter named the way a tag write
+   * names its target, so what is shared and what the sidebar was showing are one parse.
+   *
+   * 201 when it was made, 200 when that filter already had one: asking twice is the
+   * same link, since a filter has exactly one.
+   */
+  app.post('/api/shares', async (c) => {
+    let filter: Filter
+    try {
+      filter = parseFilter(new URL(c.req.url).searchParams)
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json(badRequest(error), 400)
+      throw error
+    }
+
+    const body = shareCreateSchema.safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json(badBody(body.error), 400)
+
+    const { share, created } = await createShare(db, c.get('owner'), filter, body.data)
+    return c.json(shareSchema.parse(share), created ? 201 : 200)
+  })
+
+  app.patch('/api/shares/:token', async (c) => {
+    const body = shareUpdateSchema.safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json(badBody(body.error), 400)
+
+    const share = await updateShare(db, c.get('owner'), c.req.param('token'), body.data)
+    if (!share) return c.json<ApiError>(NO_LINK, 404)
+    return c.json(shareSchema.parse(share))
+  })
+
+  app.delete('/api/shares/:token', async (c) => {
+    if (!(await deleteShare(db, c.get('owner'), c.req.param('token')))) {
+      return c.json<ApiError>(NO_LINK, 404)
+    }
+    return c.body(null, 204)
+  })
+
+  // --- Share links, as a stranger sees them ---------------------------------------
+
+  /**
+   * The boundary, for somebody with a link and no account.
+   *
+   * The token is resolved into an owner and a base filter, and from there it is the same
+   * data layer every signed-in read uses — the base riding in the `Scope`, where
+   * `whereFor` puts it beside the owner and no facet may exclude it.
+   */
+  const withShare =
+    (handler: (c: Context, share: ResolvedShare) => Promise<Response>) => async (c: Context) => {
+      const share = await resolveShare(db, c.req.param('token') ?? '')
+      if (!share) return c.json<ApiError>(NO_LINK, 404)
+      return handler(c, share)
+    }
+
+  /**
+   * A viewer's own filter, on top of the link's.
+   *
+   * Narrowing only, which the AND in `whereFor` makes true by construction. The one term
+   * refused outright is a tag: no tag leaves the server through a link, and a count that
+   * answered `tag=with:Anna` would say whether one exists without ever sending it.
+   */
+  const withSharedFilter = (handler: (scope: Scope) => Promise<unknown>) =>
+    withShare(async (c, share) => {
+      let filter: Filter
+      try {
+        filter = parseFilter(new URL(c.req.url).searchParams)
+      } catch (error) {
+        if (error instanceof z.ZodError) return c.json(badRequest(error), 400)
+        throw error
+      }
+      if (filter.tags.length > 0) {
+        return c.json<ApiError>(
+          {
+            error: 'invalid filter',
+            issues: [{ path: 'tags', message: 'a shared view cannot be filtered by tag' }],
+          },
+          400,
+        )
+      }
+      return c.json(await handler(await scopeFor(db, share.owner, filter, share.base)))
+    })
+
+  /** What the page needs before it draws anything: whether the link works, and its name. */
+  app.get(
+    '/api/share/:token',
+    withShare(async (c, share) => c.json(sharedViewSchema.parse({ label: share.label }))),
+  )
+
+  app.get(
+    '/api/share/:token/activities',
+    withSharedFilter(async (scope) =>
+      activitiesResponseSchema.parse({
+        activities: (await listActivities(db, scope)).map((row) => ({ ...row, tags: TAGLESS })),
+      }),
+    ),
+  )
+
+  app.get(
+    '/api/share/:token/tracks',
+    withSharedFilter(async (scope) => {
+      const { tracks } = await listTracks(db, scope)
+      return tracksResponseSchema.parse({
+        tracks: tracks.map((track) => ({ ...track, tags: TAGLESS })),
+      })
+    }),
+  )
+
+  // An empty registry, so there is no tag facet to count and none to send.
+  app.get(
+    '/api/share/:token/facets',
+    withSharedFilter(async (scope) =>
+      facetsResponseSchema.parse(await facets(db, scope, new Map())),
+    ),
+  )
+
+  app.get(
+    '/api/share/:token/activities/:id',
+    withShare(async (c, share) => {
+      const id = Number(c.req.param('id'))
+      if (!Number.isInteger(id) || id <= 0) {
+        return c.json<ApiError>({ error: 'activity id must be a positive integer' }, 400)
+      }
+
+      // Inside the link's filter, not merely the owner's: an id is the easiest thing in
+      // a URL to change by hand.
+      const scope = await scopeFor(db, share.owner, emptyFilter(), share.base)
+      const detail = await activityDetail(db, scope, id)
+      if (!detail) return c.json<ApiError>({ error: `no activity ${id}` }, 404)
+
+      return c.json(
+        activityDetailSchema.parse({ ...detail, activity: { ...detail.activity, tags: TAGLESS } }),
+      )
+    }),
+  )
 
   return app
 }

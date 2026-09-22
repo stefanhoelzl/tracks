@@ -16,6 +16,9 @@ import { Label } from './ui/Label.tsx'
  * The chips are the control: each removes itself, and the field under them adds. Both
  * send the whole array — the panel is holding it anyway — so adding and removing are
  * one request rather than two routes that have to agree.
+ *
+ * Through a share link there are no tags to show — the server sends none — and nothing
+ * to edit, so `onTags` is absent and the whole group goes with it.
  */
 export function DetailPanel({
   detail,
@@ -41,7 +44,7 @@ export function DetailPanel({
   onCursor: (index: number | null) => void
   /** Told which stretch is selected, so the map can hold the rest back. */
   onRange: (range: Range | null) => void
-  onTags: (tags: string[], newType?: NewType) => Promise<unknown>
+  onTags: ((tags: string[], newType?: NewType) => Promise<unknown>) | undefined
   onBack: () => void
 }) {
   const labels = new Map(tagTypes.map((t) => [t.name, t.label]))
@@ -97,33 +100,35 @@ export function DetailPanel({
               note={`${group(detail.track.coordinates.length)} points at full resolution, drawn on the map.`}
             />
 
-            <div className={styles.group}>
-              <Label>Tags</Label>
-              <div className={styles.chips}>
-                {detail.activity.tags.map((tag) => {
-                  const at = tag.indexOf(':')
-                  const type = tag.slice(0, at)
-                  return (
-                    <Chip
-                      key={tag}
-                      type={labels.get(type)?.toLowerCase() ?? type}
-                      value={tag.slice(at + 1)}
-                      colour={scale.colourForTag(tag)}
-                      onRemove={() =>
-                        void onTags(detail.activity.tags.filter((held) => held !== tag))
-                      }
-                    />
-                  )
-                })}
+            {onTags ? (
+              <div className={styles.group}>
+                <Label>Tags</Label>
+                <div className={styles.chips}>
+                  {detail.activity.tags.map((tag) => {
+                    const at = tag.indexOf(':')
+                    const type = tag.slice(0, at)
+                    return (
+                      <Chip
+                        key={tag}
+                        type={labels.get(type)?.toLowerCase() ?? type}
+                        value={tag.slice(at + 1)}
+                        colour={scale.colourForTag(tag)}
+                        onRemove={() =>
+                          void onTags(detail.activity.tags.filter((held) => held !== tag))
+                        }
+                      />
+                    )
+                  })}
+                </div>
+                <TagInput
+                  tagTypes={tagTypes}
+                  scale={scale}
+                  placeholder="type:value"
+                  pending={writing}
+                  onSubmit={(tag, newType) => onTags([...detail.activity.tags, tag], newType)}
+                />
               </div>
-              <TagInput
-                tagTypes={tagTypes}
-                scale={scale}
-                placeholder="type:value"
-                pending={writing}
-                onSubmit={(tag, newType) => onTags([...detail.activity.tags, tag], newType)}
-              />
-            </div>
+            ) : null}
           </>
         ) : null}
       </div>

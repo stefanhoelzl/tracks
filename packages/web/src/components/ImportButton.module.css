@@ -1,8 +1,8 @@
-/* The chips beside it scroll; this never shrinks, so the action stays reachable. */
+/* The chips beside it scroll; this never shrinks, so the action stays reachable. Share,
+   beside it, takes the auto margin that pushes the pair to the right. */
 .anchor {
   position: relative;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 .option {

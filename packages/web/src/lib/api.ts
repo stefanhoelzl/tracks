@@ -11,6 +11,13 @@ import {
   type Filter,
   facetsResponseSchema,
   formatFilter,
+  type Share,
+  type ShareCreate,
+  type SharedView,
+  type ShareUpdate,
+  sharedViewSchema,
+  shareSchema,
+  sharesResponseSchema,
   type TagTypesResponse,
   type TagWrite,
   type TagWriteResponse,
@@ -20,7 +27,8 @@ import {
   tagWriteResponseSchema,
   tracksResponseSchema,
 } from '@tracks/core'
-import type { z } from 'zod'
+import { createContext, useContext } from 'react'
+import { z } from 'zod'
 import { decodeActivityDetail, decodeTracks } from './tracks.ts'
 
 /**
@@ -50,6 +58,15 @@ export function message(error: unknown): string | null {
   return error instanceof Error ? error.message : String(error)
 }
 
+/**
+ * Where the reads go: `/api` for an account, `/api/share/<token>` for a link.
+ *
+ * The public routes are the signed-in ones under a longer prefix, answering the same
+ * schemas, so the hooks below need to know nothing about which they are talking to —
+ * the page decides once, at the top, and everything under it follows.
+ */
+export const ApiRoot = createContext('/api')
+
 async function get<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal })
 
@@ -67,15 +84,15 @@ async function get<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal):
 }
 
 async function send<T>(
-  method: 'POST' | 'PUT',
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body: unknown,
   schema: z.ZodType<T>,
 ): Promise<T> {
   const response = await fetch(path, {
     method,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
 
   if (!response.ok) {
@@ -88,7 +105,8 @@ async function send<T>(
     )
   }
 
-  return schema.parse(await response.json())
+  // A 204 has no body to parse; the schema says whether nothing was what was expected.
+  return schema.parse(response.status === 204 ? undefined : await response.json())
 }
 
 /**
@@ -96,8 +114,8 @@ async function send<T>(
  * cache and the URL are the same fact, and there is no third representation to keep
  * in step.
  */
-function key(route: string, filter: Filter): [string, string] {
-  return [route, formatFilter(filter).toString()]
+function key(root: string, route: string, filter: Filter): [string, string, string] {
+  return [route, formatFilter(filter).toString(), root]
 }
 
 /**
@@ -114,12 +132,13 @@ function carryOver(enabled: boolean) {
 }
 
 export function useActivities(filter: Filter, enabled = true) {
+  const root = useContext(ApiRoot)
   return useQuery({
-    queryKey: key('activities', filter),
+    queryKey: key(root, 'activities', filter),
     enabled,
     queryFn: ({ signal }) =>
       get<ActivitiesResponse>(
-        `/api/activities?${formatFilter(filter)}`,
+        `${root}/activities?${formatFilter(filter)}`,
         activitiesResponseSchema,
         signal,
       ),
@@ -129,15 +148,16 @@ export function useActivities(filter: Filter, enabled = true) {
 }
 
 export function useTracks(filter: Filter, enabled = true) {
+  const root = useContext(ApiRoot)
   return useQuery<TrackCollection>({
-    queryKey: key('tracks', filter),
+    queryKey: key(root, 'tracks', filter),
     enabled,
     // Decoded once here, so the cache holds what the map consumes rather than the wire
     // shape, and a repaint never decodes again.
     queryFn: async ({ signal }) =>
       decodeTracks(
         await get<TracksResponse>(
-          `/api/tracks?${formatFilter(filter)}`,
+          `${root}/tracks?${formatFilter(filter)}`,
           tracksResponseSchema,
           signal,
         ),
@@ -147,20 +167,22 @@ export function useTracks(filter: Filter, enabled = true) {
 }
 
 export function useFacets(filter: Filter, enabled = true) {
+  const root = useContext(ApiRoot)
   return useQuery({
-    queryKey: key('facets', filter),
+    queryKey: key(root, 'facets', filter),
     enabled,
     queryFn: ({ signal }) =>
-      get<FacetsResponse>(`/api/facets?${formatFilter(filter)}`, facetsResponseSchema, signal),
+      get<FacetsResponse>(`${root}/facets?${formatFilter(filter)}`, facetsResponseSchema, signal),
     placeholderData: carryOver(enabled),
   })
 }
 
 export function useActivityDetail(id: number | null, enabled = true) {
+  const root = useContext(ApiRoot)
   return useQuery({
-    queryKey: ['activity', id],
+    queryKey: ['activity', id, root],
     enabled: enabled && id !== null,
-    queryFn: ({ signal }) => fetchActivityDetail(id as number, signal),
+    queryFn: ({ signal }) => fetchActivityDetail(id as number, signal, root),
   })
 }
 
@@ -173,15 +195,18 @@ export function fetchActivities(filter: Filter, signal?: AbortSignal) {
   )
 }
 
-export async function fetchActivityDetail(id: number, signal?: AbortSignal) {
+/** `root` is the page's `ApiRoot`: a share link's detail comes from the link's own route. */
+export async function fetchActivityDetail(id: number, signal?: AbortSignal, root = '/api') {
   return decodeActivityDetail(
-    await get<ActivityDetailResponse>(`/api/activities/${id}`, activityDetailSchema, signal),
+    await get<ActivityDetailResponse>(`${root}/activities/${id}`, activityDetailSchema, signal),
   )
 }
 
 /**
  * The registry and the vocabulary, which change only when a tag is written — and then
  * every write invalidates them, so nothing has to guess when they went stale.
+ *
+ * Not asked for at all through a share link, which has no tags to describe.
  */
 export function useTagTypes(enabled = true) {
   return useQuery({
@@ -193,6 +218,8 @@ export function useTagTypes(enabled = true) {
   })
 }
 
+const SHARES_KEY = ['shares']
+
 /**
  * A write invalidates everything.
  *
@@ -203,7 +230,9 @@ export function useTagTypes(enabled = true) {
  */
 function useInvalidateAll() {
   const queryClient = useQueryClient()
-  return () => queryClient.invalidateQueries()
+  // Your links are the one read a tag cannot touch: they store a filter, not the rows.
+  return () =>
+    queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== SHARES_KEY[0] })
 }
 
 /** The bulk write. Its target is the filter, so the filter is in the URL, as on a read. */
@@ -234,6 +263,69 @@ export function useActivityTags(id: number | null) {
         body,
         activityTagsResponseSchema,
       ),
+    onSuccess: invalidate,
+  })
+}
+
+/**
+ * What a link says about itself before anything is drawn: that it works, and its name.
+ *
+ * Its 404 is an answer — the link is gone — so it is not retried, for the same reason the
+ * session's 401 is not.
+ */
+export function useSharedView(token: string) {
+  return useQuery<SharedView | null>({
+    queryKey: ['shared-view', token],
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async ({ signal }) => {
+      try {
+        return await get<SharedView>(`/api/share/${token}`, sharedViewSchema, signal)
+      } catch (error) {
+        if (error instanceof ApiFailure && error.status === 404) return null
+        throw error
+      }
+    },
+  })
+}
+
+/** Your links. Only the Share button reads them — for its dot, and its list. */
+export function useShares(enabled: boolean) {
+  return useQuery({
+    queryKey: SHARES_KEY,
+    enabled,
+    queryFn: ({ signal }) => get('/api/shares', sharesResponseSchema, signal),
+  })
+}
+
+function useInvalidateShares() {
+  const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries({ queryKey: SHARES_KEY })
+}
+
+/** The link for a filter — made, or the one it already had. The filter rides in the URL. */
+export function useShareCreate() {
+  const invalidate = useInvalidateShares()
+  return useMutation({
+    mutationFn: ({ filter, ...body }: ShareCreate & { filter: Filter }) =>
+      send<Share>('POST', `/api/shares?${formatFilter(filter)}`, body, shareSchema),
+    onSuccess: invalidate,
+  })
+}
+
+export function useShareUpdate() {
+  const invalidate = useInvalidateShares()
+  return useMutation({
+    mutationFn: ({ token, ...body }: ShareUpdate & { token: string }) =>
+      send<Share>('PATCH', `/api/shares/${token}`, body, shareSchema),
+    onSuccess: invalidate,
+  })
+}
+
+export function useShareRevoke() {
+  const invalidate = useInvalidateShares()
+  return useMutation({
+    mutationFn: (token: string) => send('DELETE', `/api/shares/${token}`, undefined, z.undefined()),
     onSuccess: invalidate,
   })
 }
