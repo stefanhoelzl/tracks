@@ -4,6 +4,7 @@ import { useId } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, km, metres } from '../lib/format.ts'
 import { ON_ACCENT, PANELS, ROUTE, ROUTE_WIDTH } from '../lib/mark.ts'
+import { ExportButton } from './ExportButton.tsx'
 import { FilterChips } from './FilterChips.tsx'
 import { ImportButton } from './ImportButton.tsx'
 import type { ImportSource } from './ImportDialog.tsx'
@@ -24,10 +25,10 @@ const MODES = [
  * collapsed the map fills the window, and this is the only thing still saying why
  * you are looking at 23 activities rather than 197.
  *
- * The right edge carries Import — the one control in the app that writes anything,
- * and the only thing here that is not a readout. It never shrinks while the chips
- * beside it scroll, because an action you cannot reach is worse than a filter term
- * you have to scroll to.
+ * The right edge carries Import — the one control in the app that writes anything —
+ * and Export, its other half, which saves the filter as a GPX. Neither shrinks while
+ * the chips beside them scroll, because an action you cannot reach is worse than a
+ * filter term you have to scroll to.
  *
  * Beside it is the mode switch — segments rather than buttons, because each one covers
  * the list, so what you are choosing between is which of them you are reading. Two of
@@ -112,6 +113,7 @@ export function TopBar({
       </div>
 
       <ImportButton onPick={onImport} />
+      <ExportButton filter={filter} count={summary?.count} />
 
       <div className={styles.account}>
         <span className={styles.email}>{email}</span>

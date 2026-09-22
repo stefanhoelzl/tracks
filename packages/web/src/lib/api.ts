@@ -137,11 +137,23 @@ export function useActivityDetail(id: number | null) {
   return useQuery({
     queryKey: ['activity', id],
     enabled: id !== null,
-    queryFn: async ({ signal }) =>
-      decodeActivityDetail(
-        await get<ActivityDetailResponse>(`/api/activities/${id}`, activityDetailSchema, signal),
-      ),
+    queryFn: ({ signal }) => fetchActivityDetail(id as number, signal),
   })
+}
+
+/** The list, outside the cache: the export reads it once and must not hold it. */
+export function fetchActivities(filter: Filter, signal?: AbortSignal) {
+  return get<ActivitiesResponse>(
+    `/api/activities?${formatFilter(filter)}`,
+    activitiesResponseSchema,
+    signal,
+  )
+}
+
+export async function fetchActivityDetail(id: number, signal?: AbortSignal) {
+  return decodeActivityDetail(
+    await get<ActivityDetailResponse>(`/api/activities/${id}`, activityDetailSchema, signal),
+  )
 }
 
 /**
