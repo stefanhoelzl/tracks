@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import type { Filter } from '@tracks/core'
 import {
   useActivities,
@@ -8,6 +9,7 @@ import {
   useTagWrite,
   useTracks,
 } from './api.ts'
+import { type Access, SESSION_KEY } from './session.ts'
 
 /**
  * Everything the app reads and writes as somebody.
@@ -17,8 +19,18 @@ import {
  * Gathered here so that half has a single edge, and one switch: with nobody to ask for,
  * nothing is asked, rather than asked and answered 401. A lapsed session is switched off
  * too, and keeps what it had fetched on screen behind the dialog.
+ *
+ * The switch reads the session out of the cache during render, not from the `access`
+ * `App` was handed. That prop is one render behind at the moment that matters: signing out
+ * forgets the session and removes these queries, and a render already queued by the
+ * sign-out's own pending state still carries the old session — so it would rebuild every
+ * query it just lost, enabled, and fetch them all as nobody, with the last answer carried
+ * over as a placeholder while the 401s come back. The cache is already nobody by then.
  */
-export function useLibrary(filter: Filter, activity: number | null, enabled: boolean) {
+export function useLibrary(filter: Filter, activity: number | null) {
+  const session = useQueryClient().getQueryData<Access>(SESSION_KEY)
+  const enabled = session != null && !session.lapsed
+
   return {
     tagTypes: useTagTypes(enabled),
     activities: useActivities(filter, enabled),

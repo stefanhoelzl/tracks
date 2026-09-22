@@ -99,7 +99,6 @@ export function App({ access }: { access: Access }) {
   const { tagTypes, activities, tracks, facets, detail, tagWrite, activityTags } = useLibrary(
     filter,
     filter.id,
-    signedIn && !access.lapsed,
   )
 
   /**
