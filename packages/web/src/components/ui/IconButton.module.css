@@ -1,3 +1,5 @@
+/* Nothing is drawn behind an icon, not even under the pointer: the glyph itself takes
+   the colour of what pressing it does. */
 .button {
   display: flex;
   align-items: center;
@@ -7,22 +9,16 @@
   border-radius: var(--radius-pill);
   color: var(--ink-2);
   border: 1px solid transparent;
-  transition:
-    background 120ms var(--ease),
-    color 120ms var(--ease);
+  transition: color 120ms var(--ease);
 }
 
-.button:hover {
-  background: var(--sunk);
-}
-
-/* On rather than filled: colour is what says a control is active, the same way the phone's
-   camera button and its chosen sport say it. The pill that used to invert the icon was the
-   last filled thing in the chrome. */
-.active {
+.button:hover,
+.button:focus-visible {
   color: var(--accent);
 }
 
-.active:hover {
-  background: var(--accent-soft);
+/* What ends or takes something away: a close, a remove, signing out. */
+.bad:hover,
+.bad:focus-visible {
+  color: var(--bad);
 }

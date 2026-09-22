@@ -117,7 +117,7 @@ export function TopBar({
 
       <div className={styles.account}>
         <span className={styles.email}>{email}</span>
-        <IconButton icon={LogOut} label="Sign out" onClick={onSignOut} />
+        <IconButton icon={LogOut} label="Sign out" tone="bad" onClick={onSignOut} />
       </div>
     </Panel>
   )

@@ -81,7 +81,7 @@ export function AnalyticsPanel({
         <div className={styles.head}>
           <h2 className={styles.title}>Analytics</h2>
           <div className={styles.spacer} />
-          <IconButton icon={X} label="Close analytics" size={16} onClick={onClose} />
+          <IconButton icon={X} label="Close analytics" tone="bad" size={16} onClick={onClose} />
         </div>
 
         <div className={styles.body}>
