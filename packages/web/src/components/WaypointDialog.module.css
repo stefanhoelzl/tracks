@@ -34,12 +34,13 @@
   display: flex;
   padding: 4px;
   border-radius: var(--radius-pill);
-  color: var(--muted);
+  color: var(--ink-2);
+  transition: color 120ms var(--ease);
 }
 
-.close:hover {
-  background: var(--sunk);
-  color: var(--ink-2);
+.close:hover,
+.close:focus-visible {
+  color: var(--bad);
 }
 
 .title {

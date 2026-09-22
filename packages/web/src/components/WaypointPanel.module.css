@@ -164,8 +164,9 @@
   padding: 4px;
   margin-right: 4px;
   border-radius: var(--radius-pill);
-  color: var(--muted);
+  color: var(--ink-2);
   opacity: 0;
+  transition: color 120ms var(--ease);
 }
 
 .row:hover .remove,
@@ -174,9 +175,9 @@
   opacity: 1;
 }
 
-.remove:hover {
-  background: var(--line);
-  color: var(--ink);
+.remove:hover,
+.remove:focus-visible {
+  color: var(--bad);
 }
 
 .tickButton {

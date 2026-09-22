@@ -5,7 +5,7 @@ export function IconButton({
   icon: Icon,
   label,
   onClick,
-  active = false,
+  tone = 'forward',
   size = 17,
   expanded,
 }: {
@@ -13,28 +13,24 @@ export function IconButton({
   /** Always required: an icon alone is not a name. */
   label: string
   onClick?: () => void
-  active?: boolean
-  size?: number
   /**
-   * Present when the button opens a menu, and true while it is open.
-   *
-   * A button that opens something is not a button that is pressed, so this replaces
-   * `aria-pressed` rather than joining it — saying both would describe two controls.
+   * The colour the glyph turns under the pointer: the accent for what goes forward,
+   * `bad` for what ends or takes something away.
    */
+  tone?: 'forward' | 'bad'
+  size?: number
+  /** Present when the button opens a menu, and true while it is open. */
   expanded?: boolean
 }) {
-  const menu = expanded !== undefined
-
   return (
     <button
       type="button"
-      className={[styles.button, active ? styles.active : ''].join(' ')}
+      className={[styles.button, tone === 'bad' ? styles.bad : ''].join(' ')}
       onClick={onClick}
       aria-label={label}
       title={label}
-      aria-haspopup={menu ? 'menu' : undefined}
+      aria-haspopup={expanded !== undefined ? 'menu' : undefined}
       aria-expanded={expanded}
-      aria-pressed={!menu && onClick ? active : undefined}
     >
       <Icon size={size} strokeWidth={2} />
     </button>

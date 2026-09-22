@@ -146,7 +146,13 @@ function Row({
           {reference.kind === 'route' ? <span className={styles.kind}>route</span> : null}
           <span className={styles.distance}>{km(reference.distanceM)} km</span>
         </button>
-        <IconButton icon={X} label={`Remove ${reference.name}`} size={14} onClick={onDismiss} />
+        <IconButton
+          icon={X}
+          label={`Remove ${reference.name}`}
+          tone="bad"
+          size={14}
+          onClick={onDismiss}
+        />
       </div>
 
       {open ? (
