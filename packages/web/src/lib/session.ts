@@ -32,13 +32,16 @@ export const SESSION_KEY = ['session']
 /**
  * Whether a cached query holds something fetched as somebody.
  *
- * Everything but the session itself and the routed legs: a leg is brouter.de's answer
- * about two coordinates, the same for anyone, and the plan it belongs to survives signing
- * in and out — so routing it again would be a request for nothing.
+ * Everything but the session itself, the routed legs and a share link's reads: a leg is
+ * brouter.de's answer about two coordinates, the same for anyone, and the plan it belongs
+ * to survives signing in and out — so routing it again would be a request for nothing. A
+ * link's rows are the link's, answered alike whoever asks, so signing in or out over one
+ * leaves them where they are.
  */
 function asSomebody(query: Query): boolean {
-  const [route] = query.queryKey
-  return route !== SESSION_KEY[0] && route !== 'leg'
+  const [route, , root] = query.queryKey
+  if (route === SESSION_KEY[0] || route === 'leg' || route === 'shared-view') return false
+  return !(typeof root === 'string' && root.startsWith('/api/share/'))
 }
 
 /**

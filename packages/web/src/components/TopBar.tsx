@@ -4,11 +4,12 @@ import { useId } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, km, metres } from '../lib/format.ts'
 import { ON_ACCENT, PANELS, ROUTE, ROUTE_WIDTH } from '../lib/mark.ts'
+import type { Plan } from '../lib/plan.ts'
 import { ExportButton } from './ExportButton.tsx'
 import { FilterChips } from './FilterChips.tsx'
 import { ImportButton } from './ImportButton.tsx'
 import type { ImportSource } from './ImportDialog.tsx'
-import { ShareButton } from './ShareButton.tsx'
+import { ShareButton, SharePlanButton } from './ShareButton.tsx'
 import styles from './TopBar.module.css'
 import { IconButton } from './ui/IconButton.tsx'
 import { Panel } from './ui/Panel.tsx'
@@ -45,11 +46,15 @@ const MODES = [
  * of those rows stay in the switch, unpressable: what signing in would get you is on the
  * bar you are looking at, rather than behind a door you have to open to find out.
  *
- * Through a share link it is the signed-in bar with everything that belongs to an
- * account taken off it: no Share, Import, Export or address, no Planning, and no way in —
- * a link is somebody else's, and signing in would not make it yours. The link's label
- * stands where the name does, because it is what the sender called what you are looking
- * at; the chips are the viewer's own, since the link's filter is never shown.
+ * While planning, Share is the plan's own link, copied rather than made: a plan lives in
+ * its address, so there is nothing to create or manage, and it is there signed out too.
+ *
+ * Through a share link it is the same bar with the link's rows in place of an account's.
+ * What would act on your own account — the link popover and Import — goes; Export stays,
+ * and saves what the link shows. The account end is what it is anywhere else, since who
+ * you are is not the link's business either way, and the brand leads back to the app. The
+ * link's label stands where the name does, because it is what the sender called what you
+ * are looking at; the chips are the viewer's own, since the link's filter is never shown.
  */
 export function TopBar({
   summary,
@@ -58,6 +63,7 @@ export function TopBar({
   scale,
   mode,
   view,
+  plan,
   email,
   shared,
   onChange,
@@ -74,6 +80,7 @@ export function TopBar({
   scale: ColourScale
   mode: Mode
   view: View
+  plan: Plan
   /** Null when nobody is signed in. */
   email: string | null
   /** Seen through a share link: what it is called. */
@@ -90,20 +97,32 @@ export function TopBar({
   const signedIn = email !== null
   /** Whether there are rows to read — an account's, or a link's. */
   const reading = signedIn || shared !== null
-  const modes = shared ? MODES.filter(({ mode: value }) => value !== 'planning') : MODES
+  const planning = mode === 'planning'
+
+  const brand = (
+    <>
+      <span className={styles.mark}>
+        <Mark />
+      </span>
+      {shared?.label ? (
+        <span className={styles.label}>{shared.label}</span>
+      ) : (
+        <span className={styles.name}>Tracks</span>
+      )}
+    </>
+  )
 
   return (
     <Panel className={styles.bar}>
-      <div className={styles.brand}>
-        <span className={styles.mark}>
-          <Mark />
-        </span>
-        {shared?.label ? (
-          <span className={styles.label}>{shared.label}</span>
-        ) : (
-          <span className={styles.name}>Tracks</span>
-        )}
-      </div>
+      {/* A link is a page of its own, so its brand is the way back to the app — your own
+          map, or the planner if you are nobody. On the app it would lead where you are. */}
+      {shared ? (
+        <a className={[styles.brand, styles.home].join(' ')} href="/" title="Open Tracks">
+          {brand}
+        </a>
+      ) : (
+        <div className={styles.brand}>{brand}</div>
+      )}
 
       {summary ? (
         <div className={styles.stats}>
@@ -132,7 +151,7 @@ export function TopBar({
       {/* No group role: each segment names itself and says whether it is the one
           showing, which is everything a group label would have added. */}
       <div className={styles.views}>
-        {modes.map(({ mode: value, label, icon: Icon }) => (
+        {MODES.map(({ mode: value, label, icon: Icon }) => (
           <button
             key={value}
             type="button"
@@ -148,23 +167,27 @@ export function TopBar({
         ))}
       </div>
 
-      {shared ? null : signedIn ? (
-        <>
+      <div className={styles.actions}>
+        {planning ? (
+          <SharePlanButton plan={plan} />
+        ) : signedIn && !shared ? (
           <ShareButton filter={filter} view={view} tagTypes={tagTypes} onOpen={onOpenShare} />
-          <ImportButton onPick={onImport} />
-          <ExportButton filter={filter} count={summary?.count} />
+        ) : null}
+        {signedIn && !shared ? <ImportButton onPick={onImport} /> : null}
+        {reading ? <ExportButton filter={filter} count={summary?.count} /> : null}
 
+        {signedIn ? (
           <div className={styles.account}>
             <span className={styles.email}>{email}</span>
             <IconButton icon={LogOut} label="Sign out" tone="bad" onClick={onSignOut} />
           </div>
-        </>
-      ) : (
-        <button type="button" className={styles.signIn} onClick={onSignIn}>
-          <LogIn size={14} strokeWidth={2} />
-          Sign in
-        </button>
-      )}
+        ) : (
+          <button type="button" className={styles.signIn} onClick={onSignIn}>
+            <LogIn size={14} strokeWidth={2} />
+            Sign in
+          </button>
+        )}
+      </div>
     </Panel>
   )
 }

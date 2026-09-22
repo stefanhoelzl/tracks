@@ -53,21 +53,25 @@ function Gate() {
 }
 
 /**
- * A share link's gate: whether the link works, asked instead of who you are.
+ * A share link's gate: whether the link works, and who you are.
  *
- * Nobody signs in here — the token is the credential — so the session is never asked
- * for, and being signed in changes nothing: your own link opens as anybody else sees it.
- * Everything under it reads from the link's routes, which is what `ApiRoot` says.
+ * The token is the credential for the rows, so being signed in changes nothing about
+ * them: your own link opens as anybody else sees it. Who you are is asked all the same,
+ * for the bar to say so — and to offer a way in otherwise, which leaves you on the link.
+ * Both in parallel, and nothing drawn until both have answered, for the reason `Gate`
+ * waits. Everything under it reads from the link's routes, which is what `ApiRoot` says.
  */
 function SharedGate({ token }: { token: string }) {
   const shared = useSharedView(token)
+  const session = useSession()
 
   if (shared.isPending) return null
   if (!shared.data) return <LinkGone />
+  if (session.isPending) return null
 
   return (
     <ApiRoot.Provider value={`/api/share/${token}`}>
-      <App access={null} shared={shared.data} />
+      <App access={session.data ?? null} shared={shared.data} />
     </ApiRoot.Provider>
   )
 }
