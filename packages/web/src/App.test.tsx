@@ -535,9 +535,10 @@ describe('the app', () => {
     await renderApp()
     await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
 
-    // The first two are the start and the end, with no kind toggle at all.
+    // The first two are the start and the end, with no kind toggle at all — and the first
+    // is not even asked about: an empty plan has nothing to choose between.
     await userEvent.click(screen.getByRole('button', { name: 'click the map' }))
-    await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
+    expect(screen.queryByRole('button', { name: 'End' })).toBeNull()
 
     await waitFor(() => expect(window.location.hash).toContain('kinds=p'))
     expect(window.location.hash).toContain('at=')
@@ -558,7 +559,7 @@ describe('the app', () => {
     await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
 
     await userEvent.click(screen.getByRole('button', { name: 'click the map' }))
-    await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(window.location.hash).toContain('kinds=p'))
     await userEvent.click(screen.getByRole('button', { name: 'click elsewhere' }))
     await userEvent.click(await screen.findByRole('button', { name: 'End' }))
     await waitFor(() => expect(window.location.hash).toContain('kinds=pp'))
@@ -582,9 +583,23 @@ describe('the app', () => {
     await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
     await userEvent.click(await screen.findByText('Vent'))
 
-    // The row raises the pinned dialog there — and takes the camera with it, since a
-    // dialog pinned off screen is a dialog about nothing you can see.
+    // The row puts the place on the plan — or raises the pinned dialog there, once the plan
+    // has a start — and takes the camera with it either way, since a stop or a dialog off
+    // screen is one you have to go and find.
     expect(flyTo).toHaveBeenCalledWith({ lat: 46.86, lon: 10.91 })
+  })
+
+  it('starts an empty plan at a searched place without asking', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    await userEvent.type(screen.getByLabelText('Search for a place'), 'Vent')
+    await userEvent.click(await screen.findByText('Vent'))
+
+    await waitFor(() => expect(window.location.hash).toContain('poi=Vent'))
+    expect(window.location.hash).toContain('kinds=p')
+    expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
   })
 
   it('goes and looks at a result the pointer rests on', async () => {
