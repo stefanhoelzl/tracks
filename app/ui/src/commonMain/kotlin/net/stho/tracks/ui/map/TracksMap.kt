@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -49,6 +50,11 @@ import kotlinx.serialization.json.JsonPrimitive
 import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.sensors.Fix
 import net.stho.tracks.sensors.Heading
+import net.stho.tracks.ui.measure.Ablation
+import net.stho.tracks.ui.measure.MapFrames
+import net.stho.tracks.ui.measure.MapIdles
+import net.stho.tracks.ui.measure.MeasureOverrides
+import net.stho.tracks.ui.measure.RecomposeCounts
 import net.stho.tracks.ui.resources.Res
 import net.stho.tracks.ui.theme.Tokens
 import org.maplibre.compose.camera.CameraMoveReason
@@ -203,11 +209,18 @@ fun TracksMap(
     highlightRidden: Boolean = false,
     onIdle: () -> Unit = {},
 ) {
+    SideEffect { RecomposeCounts.tracksMap++ }
     // A Metal or Vulkan surface created at 0×0 never recovers (the KRAIL pitfalls): wait for a size, once.
     var sized by remember { mutableStateOf(false) }
     Box(modifier.onSizeChanged { if (it.width > 0 && it.height > 0) sized = true }) {
-        if (sized) {
-            MapLibreMap(style, camera, plan, ridden, fix, heading, drawing, onTap, onPlace, onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onGesture, marker, highlight, highlightRidden, onIdle)
+        when {
+            !sized -> {}
+            // Measure-only (Ablation): the screen without its map, and a camera that never follows.
+            Ablation.noMap -> {}
+            else -> MapLibreMap(
+                style, if (Ablation.staticCamera) MapCamera.Free else camera, plan, ridden, fix, heading, drawing, onTap, onPlace,
+                onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onGesture, marker, highlight, highlightRidden, onIdle,
+            )
         }
     }
 }
@@ -295,7 +308,7 @@ private fun Fix.measurement() = LocationMeasurement(
 /**
  * How long Follow glides to each new fix. Fixes come once a second, and at the 950 ms this was the camera moved 95% of
  * the time — and a moving camera keeps MapLibre building render trees and re-placing symbols for as long as it moves:
- * 250 ms took 18.6% off the app's CPU on the SE2 (app/docs/battery/REPORT.md, "The cause: FOLLOW_MS = 950"). The price
+ * 250 ms, with the frame cap below, is the largest part of what the battery fixes saved (app/docs/BATTERY.md). The price
  * is a map that steps once a second rather than gliding continuously, a few pixels a step at riding zoom.
  */
 private const val FOLLOW_MS = 250L
@@ -309,9 +322,9 @@ private const val FLIGHT_MS = 950L
  *
  * Any change on the map — a dot moved once a second is enough — restarts MapLibre's symbol-placement cross-fade, and
  * while it fades MapLibre draws at the display's rate; so a riding map drew 60 frames a second for the whole ride, at
- * ~0.44 of an A13 core. Capped at 15 that was 60% cheaper on the SE2 (app/docs/battery/REPORT.md, "Root cause: the
+ * ~0.44 of an A13 core. Capped at 15 that was 60% cheaper on the SE2 (app/docs/BATTERY.md, "Root cause: the
  * symbol placement cross-fade"). The fade itself can be switched off only through an API maplibre-compose 0.16 keeps
- * internal, so that fix waits upstream; the cap is public. At riding zoom a fix moves the map a few pixels, which
+ * internal; with this cap and Follow's short step it would save nothing more, measured. At riding zoom a fix moves the map a few pixels, which
  * 15 frames a second draws as smoothly as 60.
  *
  * It is lifted — [RenderOptions.Standard], the display's rate — for everything a person would see stutter, and only
@@ -400,6 +413,7 @@ private fun MapLibreMap(
     highlightRidden: Boolean,
     onIdle: () -> Unit,
 ) {
+    SideEffect { RecomposeCounts.mapLibreMap++ }
     val currentCamera by rememberUpdatedState(camera)
     val currentFix by rememberUpdatedState(fix)
     val currentHeading by rememberUpdatedState(heading)
@@ -495,7 +509,13 @@ private fun MapLibreMap(
     }
 
     LaunchedEffect(state) {
-        state.events.collect { if (it == MapEvent.Idle) currentOnIdle() }
+        state.events.collect {
+            if (it is MapEvent.FrameRendered) MapFrames.count++
+            if (it == MapEvent.Idle) {
+                MapIdles.count++
+                currentOnIdle()
+            }
+        }
     }
 
     // The overlays are layers of the style (`Overlays.kt`): fed by id once it has loaded, and again whenever it reloads.
@@ -560,7 +580,8 @@ private fun MapLibreMap(
                         val step = suspend {
                             state.animateCameraPosition(
                                 CameraPosition(target = Position(aim.lon, aim.lat), zoom = zoom, bearing = bearing),
-                                duration = FOLLOW_MS.milliseconds,
+                                // Measure-only: TRACKS_FOLLOW_MS in place of the product's glide.
+                                duration = (MeasureOverrides.followMs ?: FOLLOW_MS).milliseconds,
                             )
                         }
                         if (arrived) {
@@ -613,6 +634,15 @@ private fun MapLibreMap(
         }
     }
 
+    // Measure-only: TRACKS_MAX_FPS in place of MAX_FPS while capped; 0 switches the cap off.
+    val measuredCap = remember {
+        when (val fps = MeasureOverrides.maxFps) {
+            null -> CAPPED
+            0 -> RenderOptions.Standard
+            else -> RenderOptions { maximumFps = fps }
+        }
+    }
+
     Box(
         Modifier.pointerInput(Unit) {
             // Watched before anything below takes the touch, and never consumed: the map and the handles still get it.
@@ -643,7 +673,7 @@ private fun MapLibreMap(
     ) {
         MaplibreMap(
             state = state,
-            renderOptions = if (uncapped) RenderOptions.Standard else CAPPED,
+            renderOptions = if (uncapped) RenderOptions.Standard else measuredCap,
             interactions = remember {
                 MapInteractions {
                     callbacks {

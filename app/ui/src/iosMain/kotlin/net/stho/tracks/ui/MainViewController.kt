@@ -36,7 +36,17 @@ import net.stho.tracks.ui.offline.segmentsDirectory
 import net.stho.tracks.ui.recording.Recorder
 import net.stho.tracks.ui.recording.RecorderState
 import net.stho.tracks.ui.sensors.LocationSensors
+import net.stho.tracks.ui.measure.Ablation
+import net.stho.tracks.ui.measure.IdleMeasure
+import net.stho.tracks.ui.measure.MeasuredRide
+import net.stho.tracks.ui.measure.configureMeasurement
+import net.stho.tracks.ui.measure.RideMeasure
+import net.stho.tracks.ui.measure.countingHeadings
+import net.stho.tracks.ui.measure.seedJournal
+import net.stho.tracks.ui.measure.withHeadingsFrom
+import net.stho.tracks.ui.measure.withSyntheticHeadings
 import net.stho.tracks.ui.sensors.ReplaySensors
+import net.stho.tracks.ui.sensors.RideReplay
 import net.stho.tracks.ui.sensors.Sensors
 import net.stho.tracks.ui.sensors.shared
 import net.stho.tracks.ui.upload.KeychainSessionStore
@@ -65,6 +75,10 @@ import platform.UIKit.UIViewController
  *
  * - `TRACKS_REPLAY=<second>` replays the bundled ride from that second — the same ride the desktop harness and the
  *   screenshot tests draw, which is how the three are compared.
+ * - `TRACKS_RIDE_MEASURE=<label>` measures a ride: it starts at launch, replayed, and its cost is sampled into
+ *   `Documents/out/ride-<label>.jsonl`. Named apart from M10's `TRACKS_MEASURE`, which the Swift shell takes before
+ *   Compose is ever built. The switches that go with it are read by `configureMeasurement` and listed in
+ *   app/docs/PROFILING.md; `app/iosApp/ride-measure.sh` drives it.
  * - `TRACKS_SERVER=<url>` uploads somewhere else: a dev server on this network, `http://<address>:<port>`, which is how a
  *   ride is uploaded from the phone without reaching production.
  *
@@ -83,6 +97,7 @@ fun MainViewController(): UIViewController {
 private fun TracksScreen() {
     val environment = NSProcessInfo.processInfo.environment
     val replayFrom = (environment["TRACKS_REPLAY"] as? String)?.toIntOrNull()
+    val measured = remember { configureMeasurement { environment[it] as? String } }
     val server = (environment["TRACKS_SERVER"] as? String) ?: PRODUCTION_SERVER
 
     // brouter.de while there is a network, as the web routes; the engine on the phone without one. One engine: the
@@ -117,12 +132,37 @@ private fun TracksScreen() {
 
     // The UI's own scope, on the main thread: what the recorder and the queue need theirs to be.
     val scope = rememberCoroutineScope()
-    val location = remember { LocationSensors().takeIf { replayFrom == null } }
-    val sensors by produceState<Sensors?>(null) {
+    // A measured run replays: CoreLocation cannot be told to ride the Reschenpass indoors.
+    val replaying = (replayFrom != null || measured != null) && measured?.realSensors != true
+    val location = remember { LocationSensors().takeIf { !replaying || measured?.realHeading == true } }
+    val replay by produceState<RideReplay?>(null) {
+        if (replaying) value = measured?.gpx?.let { RideReplay.gpx(readDocument(it)) } ?: bundledRide()
+    }
+    val sensors by produceState<Sensors?>(null, replay) {
         // One stream for the map and the recorder: collected twice, it would be two rides.
-        value = if (replayFrom != null) ReplaySensors(bundledRide(), fromSecond = replayFrom).shared(scope) else location!!.shared(scope)
+        val base: Sensors? = when {
+            !replaying -> location
+            // Seeded depth is where the replay picks up, so the rider does not teleport back to the start.
+            else -> replay?.let { ReplaySensors(it, fromSecond = maxOf(replayFrom ?: 0, measured?.seed ?: 0)) }
+                ?.let { if (measured?.realHeading == true && location != null) it.withHeadingsFrom(location) else it }
+        }
+        value = base
+            ?.let { sensors -> measured?.let { m -> m.headingHz?.let { sensors.withSyntheticHeadings(it, m.headingJitter) } } ?: sensors }
+            ?.let { if (measured != null) it.countingHeadings() else it }
+            ?.shared(scope)
     }
     val rides = remember { Rides(ridesDirectory()) }
+    // Before the Recorder, which decides what to offer by reading the journals once.
+    val seeded = replay
+    remember(seeded) {
+        // Also for seed 0 and for Idle: the clearing is the point, so no run inherits the last one's journal.
+        if (measured != null && seeded != null) {
+            seedJournal(rides, seeded, measured.seed, Clock.System.now().toEpochMilliseconds(), id = "seed-${measured.label}")
+        } else if (measured?.realSensors == true) {
+            // Nothing to seed from on real sensors, but the clearing matters just as much.
+            rides.all().forEach { rides.delete(it.id) }
+        }
+    }
     val queue = remember { UploadQueue(rides, TracksApi(tracksHttpClient(), server), KeychainSessionStore(), scope) }
 
     sensors?.let { shared ->
@@ -152,6 +192,11 @@ private fun TracksScreen() {
             }
         }
 
+        measured?.let { run ->
+            val measure = remember(run) { RideMeasure(measureOutput(run.label), run.label) }
+            // Ablation.Idle is the app's own floor: nothing recorded, still sampled.
+            if (Ablation.idle) IdleMeasure(measure, countFrames = run.countFrames) else MeasuredRide(recorder, measure, countFrames = run.countFrames)
+        }
         TracksApp(
             library = library,
             router = router,
@@ -165,6 +210,13 @@ private fun TracksScreen() {
         )
     }
 }
+
+/** A file pushed into the app's Documents — `pymobiledevice3 apps push` — read as text. */
+private fun readDocument(name: String): String =
+    FileSystem.SYSTEM.read((directory(name, NSDocumentDirectory)).toPath()) { readUtf8() }
+
+/** Where a measured run writes, beside M10's own measurements. */
+private fun measureOutput(label: String) = directory("out/ride-$label.jsonl", NSDocumentDirectory).toPath()
 
 private fun directory(name: String, base: ULong): String {
     val root = NSFileManager.defaultManager.URLsForDirectory(base, NSUserDomainMask).first() as NSURL

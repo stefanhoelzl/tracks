@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import net.stho.tracks.codec.Coordinate
@@ -29,6 +31,8 @@ import net.stho.tracks.plan.moveStop
 import net.stho.tracks.plan.removeWaypoint
 import net.stho.tracks.plan.setKind
 import net.stho.tracks.plan.updateWaypoint
+import net.stho.tracks.ui.measure.Ablation
+import net.stho.tracks.ui.measure.RecomposeCounts
 import net.stho.tracks.ui.plans.PinTarget
 import net.stho.tracks.ui.plans.PlaceSearch
 import net.stho.tracks.ui.plans.WaypointDialog
@@ -73,10 +77,13 @@ fun Riding(
     modifier: Modifier = Modifier,
     onIdle: () -> Unit = {},
 ) {
+    SideEffect { RecomposeCounts.riding++ }
     val state by recorder.state.collectAsState()
     val fix by remember(sensors) { sensors.fixes }.collectAsState(null)
     // Collected here, where the sensors are, but never read here: only the map reads it (see RidingScreen).
-    val heading = remember(sensors) { sensors.headings }.collectAsState(null)
+    // Measure-only: Ablation.NoHeading never collects the compass.
+    val headingFlow = remember(sensors) { if (Ablation.noHeading) emptyFlow() else sensors.headings }
+    val heading = headingFlow.collectAsState(null)
     val ridden by recorder.track.collectAsState()
     val elevation by recorder.elevation.collectAsState()
     val navigation by navigator.state.collectAsState()

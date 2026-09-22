@@ -37,6 +37,11 @@ import net.stho.tracks.ui.AppPlatform
 import net.stho.tracks.ui.TracksApp
 import net.stho.tracks.ui.harness.bundledRide
 import net.stho.tracks.ui.map.DesktopMapHost
+import net.stho.tracks.ui.measure.Ablation
+import net.stho.tracks.ui.measure.MeasuredRide
+import net.stho.tracks.ui.measure.RideMeasure
+import net.stho.tracks.ui.measure.applyMeasureOverrides
+import net.stho.tracks.ui.measure.seedJournal
 import net.stho.tracks.ui.map.configureDesktopMap
 import net.stho.tracks.ui.offline.offlineData
 import net.stho.tracks.ui.recording.Recorder
@@ -74,6 +79,13 @@ val PHONE = DpSize(393.dp, 852.dp)
  *     --server <url>      the Tracks that saved rides upload to: http://[::1]:5173 for `pnpm dev:local`, which listens
  *                         on IPv6 loopback only. No default, so it is never tracks.stho.net by accident: without it,
  *                         nothing uploads.
+ *     --seed <n>          start from a journal n fixes deep, as if the ride had already been running that long:
+ *                         what the ridden line costs at hour six, without riding six hours to find out
+ *     --measure <file>    measure the ride: start it at launch and sample CPU, frames and depth into <file> as JSONL,
+ *                         in the same shape the phone writes (app/docs/PROFILING.md)
+ *     --label <name>      what to call this run in that file (default: the ablation, or `baseline`)
+ *     --ablate <name>     switch one path off so the difference prices it: NoMap, NoHeading, Idle, StaticCamera;
+ *                         the phone's value overrides (TRACKS_FOLLOW_MS, TRACKS_MAX_FPS, …) come from the environment
  *     --offline <dir>     keep offline data around the replay, as the phone does around you: map packs from
  *                         tiles.versatiles.org and segment tiles from brouter.de, about 1 GB, into <dir>; routing then
  *                         reads <dir>/segments unless --segments says otherwise. Off by default, so the harness
@@ -102,6 +114,12 @@ fun main(args: Array<String>) {
     val shotAt = option("--shot-at")?.toDouble() ?: 20.0
     val rides = option("--rides")?.let(::File) ?: File(System.getProperty("user.home"), ".local/share/tracks-harness/rides")
     val server = option("--server")
+    val ablation = Ablation.of(option("--ablate")).also { Ablation.current = it }
+    val label = option("--label") ?: ablation?.name ?: "baseline"
+    val measure = option("--measure")?.let { RideMeasure(it.toPath(), label) }
+    // The phone's TRACKS_FOLLOW_MS, TRACKS_MAX_FPS, … from the environment, so one name means one thing everywhere.
+    if (measure != null) applyMeasureOverrides(System::getenv)
+    val seed = option("--seed")?.toInt()
 
     // brouter.de, as the phone routes with a network; the engine when brouter.de cannot be reached. One engine: the
     // library's background routing and the editor's share it, one route at a time.
@@ -151,6 +169,8 @@ fun main(args: Array<String>) {
                 replay?.let { ride ->
                     // One replay for the map and the recorder: collected twice, it would be two rides.
                     val sensors = remember(ride) { ReplaySensors(ride, from, speedup).shared(scope) }
+                    // Before the Recorder, which decides what to offer by reading the journals once.
+                    remember(ride) { seed?.let { seedJournal(store, ride, it, System.currentTimeMillis(), id = "seed-$label") } }
                     val recorder = remember(sensors) { Recorder(store, sensors, scope, dateTitle = ::localDate, onSaved = { queue?.kick() }) }
                     val offline = remember(sensors) {
                         offlineDirectory?.let { dir ->
@@ -160,6 +180,8 @@ fun main(args: Array<String>) {
                             )
                         }
                     }
+                    // Frames counted: the desktop's map draws on the frame clock, so fps is the harness's main reading.
+                    measure?.let { MeasuredRide(recorder, it, countFrames = true) }
                     TracksApp(
                         library = library,
                         router = router,

@@ -1,0 +1,12 @@
+# What each battery lever is worth on the current build, switching one back at a time.
+# base runs first and last: the two must agree within ~0.015 cores, or the session drifted (heat, background work).
+#
+#   ./ride-measure.sh --ipa <app.ipa> --gpx <ride.gpx> ride-plans/levers.plan
+#   ./ride-table.py <results> base:base-end base:cap-off base:glide-950 base:compass-30hz base:no-map base:zoom-15
+base
+cap-off         TRACKS_MAX_FPS=0
+glide-950       TRACKS_FOLLOW_MS=950
+compass-30hz    TRACKS_HEADING_HZ=30
+zoom-15         TRACKS_RIDING_ZOOM=15.0
+no-map          TRACKS_ABLATE=NoMap
+base-end

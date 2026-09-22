@@ -11,6 +11,7 @@ import net.stho.tracks.codec.Coordinate
 import net.stho.tracks.sensors.Fix
 import net.stho.tracks.sensors.Heading
 import net.stho.tracks.sensors.Pressure
+import net.stho.tracks.ui.measure.MeasureOverrides
 import platform.CoreLocation.CLActivityTypeFitness
 import platform.CoreLocation.CLBackgroundActivitySession
 import platform.CoreLocation.CLHeading
@@ -71,8 +72,8 @@ class LocationSensors : Sensors {
         listener.manager.apply {
             // Five degrees, not one. At one, a phone moved by hand reported ~30 headings a second (on the SE2), and
             // each is work for the map; the facing cone is 60° wide and the compass turns the map only below walking
-            // pace, so a finer heading than this shows nothing a rider could see. app/docs/battery/REPORT.md.
-            headingFilter = 5.0
+            // pace, so a finer heading than this shows nothing a rider could see. app/docs/BATTERY.md.
+            headingFilter = MeasureOverrides.headingFilter ?: 5.0
             startUpdatingHeading()
         }
         awaitClose { listener.stop() }
