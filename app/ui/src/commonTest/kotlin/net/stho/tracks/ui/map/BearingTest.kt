@@ -39,6 +39,22 @@ class BearingTest {
     }
 
     @Test
+    fun aSmallChangeLeavesTheMapWhereItIs() {
+        assertEquals(90.0, steadyBearing(95.0, current = 90.0))
+        assertEquals(90.0, steadyBearing(80.0, current = 90.0))
+        assertEquals(101.0, steadyBearing(101.0, current = 90.0))
+        assertEquals(79.0, steadyBearing(79.0, current = 90.0))
+    }
+
+    @Test
+    fun theThresholdIsMeasuredTheShortWayRoundNorth() {
+        assertEquals(355.0, steadyBearing(3.0, current = 355.0))
+        assertEquals(20.0, steadyBearing(20.0, current = 355.0))
+        assertEquals(-5.0, steadyBearing(350.0, current = -5.0))
+        assertEquals(340.0, steadyBearing(340.0, current = -5.0))
+    }
+
+    @Test
     fun theCompassTurnsTheMapOnlyWhereMapBearingUsesIt() {
         assertTrue(compassTurnsMap(Orientation.HeadingUp, fix(90.0, 3.9)))
         assertTrue(compassTurnsMap(Orientation.HeadingUp, fix(null, 18.0)))
