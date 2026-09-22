@@ -35,7 +35,6 @@ export type PinTarget =
 
 export function WaypointDialog({
   target,
-  count,
   kindIsAChoice,
   onAdd,
   onKind,
@@ -44,8 +43,6 @@ export function WaypointDialog({
   onClose,
 }: {
   target: PinTarget
-  /** How many waypoints the plan holds, which decides what placement can mean. */
-  count: number
   /** False for the first two, which are the start and the end and have no toggle. */
   kindIsAChoice: boolean
   onAdd: (kind: Waypoint['kind'], placement: Placement) => void
@@ -83,15 +80,9 @@ export function WaypointDialog({
               {target.leg !== null ? (
                 <GlyphButton glyph="mid" label="Insert" onClick={() => onAdd('poi', 'nearest')} />
               ) : null}
-              {count === 0 ? (
-                // The first waypoint is where the line starts, whatever the button is called.
-                <GlyphButton glyph="start" label="Add" onClick={() => onAdd('poi', 'end')} />
-              ) : (
-                <>
-                  <GlyphButton glyph="start" label="Start" onClick={() => onAdd('poi', 'start')} />
-                  <GlyphButton glyph="end" label="End" onClick={() => onAdd('poi', 'end')} />
-                </>
-              )}
+              {/* Never on an empty plan: its first waypoint is added without asking. */}
+              <GlyphButton glyph="start" label="Start" onClick={() => onAdd('poi', 'start')} />
+              <GlyphButton glyph="end" label="End" onClick={() => onAdd('poi', 'end')} />
             </div>
           </div>
 

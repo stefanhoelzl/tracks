@@ -301,16 +301,27 @@ export function usePlanner({
   /**
    * A place, and the leg it is nearest — which is what makes *insert* and *shaping
    * point* offerable from a click anywhere rather than only from a click on the line.
+   *
+   * Except the first. An empty plan's only answer is *start here*, so it is added without
+   * the dialog: a dialog with one button in it asks nothing. Named the way the dialog's
+   * Add would have named it.
    */
   const dropPin = useCallback(
     (at: LatLon, name: string | null) => {
+      if (plan.waypoints.length === 0) {
+        setPlan(addWaypoint(plan, { ...at, kind: 'poi', name }, 0))
+        setPin(null)
+        if (name === null) void nameStop(at, 0)
+        return
+      }
+
       const leg = nearestLeg(plan, legs, at)
       setPin({
         at,
         target: { state: 'new', leg, between: leg === null ? null : legLabel(plan, leg), name },
       })
     },
-    [plan, legs],
+    [plan, legs, setPlan, nameStop],
   )
 
   return {

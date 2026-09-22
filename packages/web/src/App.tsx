@@ -310,7 +310,6 @@ export function App({ access, shared = null }: { access: Access; shared?: Shared
           pin ? (
             <WaypointDialog
               target={pin.target}
-              count={plan.waypoints.length}
               kindIsAChoice={kindIsAChoice(plan)}
               onAdd={addFromPin}
               onKind={(kind) => {
