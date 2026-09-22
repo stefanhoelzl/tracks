@@ -100,9 +100,10 @@ function key(route: string, filter: Filter): [string, string] {
   return [route, formatFilter(filter).toString()]
 }
 
-export function useActivities(filter: Filter) {
+export function useActivities(filter: Filter, enabled = true) {
   return useQuery({
     queryKey: key('activities', filter),
+    enabled,
     queryFn: ({ signal }) =>
       get<ActivitiesResponse>(
         `/api/activities?${formatFilter(filter)}`,
@@ -114,9 +115,10 @@ export function useActivities(filter: Filter) {
   })
 }
 
-export function useTracks(filter: Filter) {
+export function useTracks(filter: Filter, enabled = true) {
   return useQuery<TrackCollection>({
     queryKey: key('tracks', filter),
+    enabled,
     // Decoded once here, so the cache holds what the map consumes rather than the wire
     // shape, and a repaint never decodes again.
     queryFn: async ({ signal }) =>
@@ -131,19 +133,20 @@ export function useTracks(filter: Filter) {
   })
 }
 
-export function useFacets(filter: Filter) {
+export function useFacets(filter: Filter, enabled = true) {
   return useQuery({
     queryKey: key('facets', filter),
+    enabled,
     queryFn: ({ signal }) =>
       get<FacetsResponse>(`/api/facets?${formatFilter(filter)}`, facetsResponseSchema, signal),
     placeholderData: (previous) => previous,
   })
 }
 
-export function useActivityDetail(id: number | null) {
+export function useActivityDetail(id: number | null, enabled = true) {
   return useQuery({
     queryKey: ['activity', id],
-    enabled: id !== null,
+    enabled: enabled && id !== null,
     queryFn: ({ signal }) => fetchActivityDetail(id as number, signal),
   })
 }
@@ -167,9 +170,10 @@ export async function fetchActivityDetail(id: number, signal?: AbortSignal) {
  * The registry and the vocabulary, which change only when a tag is written — and then
  * every write invalidates them, so nothing has to guess when they went stale.
  */
-export function useTagTypes() {
+export function useTagTypes(enabled = true) {
   return useQuery({
     queryKey: ['tag-types'],
+    enabled,
     staleTime: Number.POSITIVE_INFINITY,
     queryFn: ({ signal }) =>
       get<TagTypesResponse>('/api/tag-types', tagTypesResponseSchema, signal),

@@ -62,8 +62,8 @@ export function titleOf({ mode, plan, activity, pending }: TitleState): string {
  * Set the tab title, brand and all.
  *
  * The brand lives here rather than in `titleOf` so exactly one place knows what the app
- * is called — `SignIn` renders above `App` and needs a title too, and it passes only its
- * own half of one.
+ * is called — a lapsed session titles the tab `Sign in` without going through `titleOf`,
+ * and passes only its own half of one.
  */
 export function useDocumentTitle(part: string): void {
   useEffect(() => {

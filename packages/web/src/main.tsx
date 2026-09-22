@@ -2,22 +2,19 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@ta
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
-import { SignIn } from './components/SignIn.tsx'
 import { ApiFailure } from './lib/api.ts'
-import { SESSION_KEY, useSession } from './lib/session.ts'
+import { lapse, useSession } from './lib/session.ts'
 import './styles/global.css'
 
 /**
- * A session that has lapsed is not an error to render — it is the sign-in page.
+ * A session that has lapsed is not an error to render — it is the sign-in dialog.
  *
  * Handled once, here, because otherwise every query and every mutation in the app
- * needs to know what a 401 means. Emptying the session cache is enough: the gate below
- * is watching it, and swaps the app for the form on the next render.
+ * needs to know what a 401 means. Marking the session is enough: `App` is watching it,
+ * and raises the dialog over whatever it was showing on the next render.
  */
 const onError = (error: unknown) => {
-  if (error instanceof ApiFailure && error.status === 401) {
-    client.setQueryData(SESSION_KEY, null)
-  }
+  if (error instanceof ApiFailure && error.status === 401) lapse(client)
 }
 
 const client = new QueryClient({
@@ -38,9 +35,10 @@ const client = new QueryClient({
 /**
  * Nothing renders until the app knows who is asking.
  *
- * A gate above `App` rather than a branch inside it: every hook in there fetches, and
- * a signed-out visit would fire the lot of them at a wall of 401s before deciding to
- * show a form instead.
+ * Everybody gets the app — nobody gets the planner in it — but not before the answer:
+ * `App` fetches an account's rows the moment it is told there is one, and drawing it as
+ * nobody first would flash the planner at somebody who is about to see their activities.
+ * A session check that fails outright is nobody too; the planner is still worth having.
  */
 function Gate() {
   const session = useSession()
@@ -49,7 +47,7 @@ function Gate() {
   // spinner that appears and leaves inside 20ms is worse than the blank it replaces.
   if (session.isPending) return null
 
-  return session.data ? <App email={session.data.email} /> : <SignIn />
+  return <App access={session.data ?? null} />
 }
 
 createRoot(document.getElementById('root')!).render(

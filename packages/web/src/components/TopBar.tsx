@@ -1,5 +1,5 @@
 import type { FacetsResponse, Filter, Mode, TagType } from '@tracks/core'
-import { ChartColumn, List, LogOut, Route } from 'lucide-react'
+import { ChartColumn, List, LogIn, LogOut, Route } from 'lucide-react'
 import { useId } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
 import { duration, km, metres } from '../lib/format.ts'
@@ -38,6 +38,11 @@ const MODES = [
  * The account sits at the far end, and is one address and one way out. There is nothing
  * to administer: an account has no name, no picture and no settings, so what would be a
  * menu is the address itself and one button, wearing what Import wears.
+ *
+ * Signed out, the bar is the brand, the switch and a way in. Everything that reads or
+ * writes an account's rows goes — the totals, the chips, Import and Export — and the two modes made
+ * of those rows stay in the switch, unpressable: what signing in would get you is on the
+ * bar you are looking at, rather than behind a door you have to open to find out.
  */
 export function TopBar({
   summary,
@@ -50,6 +55,7 @@ export function TopBar({
   onClear,
   onImport,
   onMode,
+  onSignIn,
   onSignOut,
 }: {
   summary: FacetsResponse['summary'] | undefined
@@ -57,13 +63,17 @@ export function TopBar({
   tagTypes: TagType[]
   scale: ColourScale
   mode: Mode
-  email: string
+  /** Null when nobody is signed in. */
+  email: string | null
   onChange: (next: Filter) => void
   onClear: () => void
   onImport: (source: ImportSource) => void
   onMode: (mode: Mode) => void
+  onSignIn: () => void
   onSignOut: () => void
 }) {
+  const signedIn = email !== null
+
   return (
     <Panel className={styles.bar}>
       <div className={styles.brand}>
@@ -87,13 +97,15 @@ export function TopBar({
         </div>
       ) : null}
 
-      <FilterChips
-        filter={filter}
-        tagTypes={tagTypes}
-        scale={scale}
-        onChange={onChange}
-        onClear={onClear}
-      />
+      {signedIn ? (
+        <FilterChips
+          filter={filter}
+          tagTypes={tagTypes}
+          scale={scale}
+          onChange={onChange}
+          onClear={onClear}
+        />
+      ) : null}
 
       {/* No group role: each segment names itself and says whether it is the one
           showing, which is everything a group label would have added. */}
@@ -104,6 +116,8 @@ export function TopBar({
             type="button"
             className={[styles.view, mode === value ? styles.viewOn : ''].join(' ')}
             aria-pressed={mode === value}
+            disabled={!signedIn && value !== 'planning'}
+            title={!signedIn && value !== 'planning' ? 'Sign in to see your activities' : undefined}
             onClick={() => onMode(value)}
           >
             <Icon size={14} strokeWidth={2} />
@@ -112,13 +126,22 @@ export function TopBar({
         ))}
       </div>
 
-      <ImportButton onPick={onImport} />
-      <ExportButton filter={filter} count={summary?.count} />
+      {signedIn ? (
+        <>
+          <ImportButton onPick={onImport} />
+          <ExportButton filter={filter} count={summary?.count} />
 
-      <div className={styles.account}>
-        <span className={styles.email}>{email}</span>
-        <IconButton icon={LogOut} label="Sign out" tone="bad" onClick={onSignOut} />
-      </div>
+          <div className={styles.account}>
+            <span className={styles.email}>{email}</span>
+            <IconButton icon={LogOut} label="Sign out" tone="bad" onClick={onSignOut} />
+          </div>
+        </>
+      ) : (
+        <button type="button" className={styles.signIn} onClick={onSignIn}>
+          <LogIn size={14} strokeWidth={2} />
+          Sign in
+        </button>
+      )}
     </Panel>
   )
 }
