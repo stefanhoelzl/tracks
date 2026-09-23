@@ -46,13 +46,9 @@ export function ShareButton({
   onOpen: (filter: Filter) => void
 }) {
   const [open, setOpen] = useState(false)
-  // As somebody, or not at all: this stays mounted through a sign-out's last render.
   const shares = useShares(useSomebody())
-
   const stored = shareFilterOf(filter)
-  const all = shares.data?.shares ?? []
-  const current = all.find((share) => share.filter === stored) ?? null
-  const labels = new Map(tagTypes.map((type) => [type.name, type.label]))
+  const current = (shares.data?.shares ?? []).find((share) => share.filter === stored) ?? null
 
   return (
     <div className={styles.anchor}>
@@ -65,39 +61,68 @@ export function ShareButton({
       {current && !current.expired ? <span className={styles.dot} aria-hidden="true" /> : null}
 
       <Popover open={open} onClose={() => setOpen(false)} width={380} align="end">
-        <div className={styles.body}>
-          {current ? (
-            <Current
-              key={current.token}
-              share={current}
-              terms={describeShare(current.filter, labels)}
-            />
-          ) : (
-            <Create filter={filter} terms={describeShare(stored, labels)} empty={stored === ''} />
-          )}
-
-          {/* Every link, the one above included — marked rather than left out, so the list
-              is always the whole answer to "what have I shared?". */}
-          {all.length > 0 ? (
-            <div className={styles.links}>
-              <span className={styles.heading}>Your links</span>
-              {all.map((share) => (
-                <Row
-                  key={share.token}
-                  share={share}
-                  current={share === current}
-                  terms={describeShare(share.filter, labels)}
-                  view={view}
-                  // Left open, so the row you picked turns green: it is now the filter on
-                  // screen, and its label and expiry are the ones above. Your viewport
-                  // stays yours — a link never had one.
-                  onApply={() => onOpen({ ...parseFilter(share.filter), bbox: filter.bbox })}
-                />
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <SharePanel filter={filter} view={view} tagTypes={tagTypes} onOpen={onOpen} />
       </Popover>
+    </div>
+  )
+}
+
+/**
+ * What Share opens: the link for the filter on screen, or the form that makes one, and every
+ * link you have made. In a popover under the button on the desktop, and in a dialog from the
+ * menu on a phone — the same panel in either.
+ */
+export function SharePanel({
+  filter,
+  view,
+  tagTypes,
+  onOpen,
+}: {
+  filter: Filter
+  view: View
+  tagTypes: TagType[]
+  onOpen: (filter: Filter) => void
+}) {
+  // As somebody, or not at all: this stays mounted through a sign-out's last render.
+  const shares = useShares(useSomebody())
+
+  const stored = shareFilterOf(filter)
+  const all = shares.data?.shares ?? []
+  const current = all.find((share) => share.filter === stored) ?? null
+  const labels = new Map(tagTypes.map((type) => [type.name, type.label]))
+
+  return (
+    <div className={styles.body}>
+      {current ? (
+        <Current
+          key={current.token}
+          share={current}
+          terms={describeShare(current.filter, labels)}
+        />
+      ) : (
+        <Create filter={filter} terms={describeShare(stored, labels)} empty={stored === ''} />
+      )}
+
+      {/* Every link, the one above included — marked rather than left out, so the list
+          is always the whole answer to "what have I shared?". */}
+      {all.length > 0 ? (
+        <div className={styles.links}>
+          <span className={styles.heading}>Your links</span>
+          {all.map((share) => (
+            <Row
+              key={share.token}
+              share={share}
+              current={share === current}
+              terms={describeShare(share.filter, labels)}
+              view={view}
+              // Left open, so the row you picked turns green: it is now the filter on
+              // screen, and its label and expiry are the ones above. Your viewport
+              // stays yours — a link never had one.
+              onApply={() => onOpen({ ...parseFilter(share.filter), bbox: filter.bbox })}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -110,25 +135,33 @@ export function ShareButton({
  * Planning is: signed in, signed out, and over somebody's link.
  */
 export function SharePlanButton({ plan }: { plan: Plan }) {
-  const [copied, setCopied] = useState(false)
-  const empty = plan.waypoints.length === 0
+  const { copied, empty, copy } = useCopyPlan(plan)
 
   return (
     <IconButton
       icon={copied ? Check : Share2}
       label={copied ? 'Copied' : empty ? 'Nothing to share yet' : 'Copy a link to this plan'}
-      onClick={
-        empty
-          ? undefined
-          : () => {
-              void navigator.clipboard.writeText(planUrl(window.location.origin, plan)).then(() => {
-                setCopied(true)
-                setTimeout(() => setCopied(false), 1500)
-              })
-            }
-      }
+      onClick={empty ? undefined : copy}
     />
   )
+}
+
+/** The plan's own link onto the clipboard, and a moment of *Copied* — for the button and the menu. */
+export function useCopyPlan(plan: Plan): { copied: boolean; empty: boolean; copy: () => void } {
+  const [copied, setCopied] = useState(false)
+  const empty = plan.waypoints.length === 0
+
+  return {
+    copied,
+    empty,
+    copy: () => {
+      if (empty) return
+      void navigator.clipboard.writeText(planUrl(window.location.origin, plan)).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      })
+    },
+  }
 }
 
 function Create({ filter, terms, empty }: { filter: Filter; terms: string; empty: boolean }) {

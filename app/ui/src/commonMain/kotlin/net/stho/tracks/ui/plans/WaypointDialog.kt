@@ -6,9 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -48,12 +49,15 @@ sealed interface PinTarget {
  * a tap on the map, a search result — adding it is this; and a waypoint's name, kind and removal are here.
  *
  * Its choices are one row of icons without words, each named for a screen reader: placing a stop in accent, the rest
- * quiet.
+ * quiet. The row runs in the order the route does — Start, Stop, Shaping point, End — and the two in the middle need a
+ * leg to go into. An empty plan's first waypoint is added without asking, so the dialog never offers one choice.
+ *
+ * It is as wide as what it holds, so it can stand on its waypoint in the editor (TracksMap's `pinned`), as the web's
+ * does; the riding screen gives it the width of the sheet it replaces.
  */
 @Composable
 fun WaypointDialog(
     target: PinTarget,
-    count: Int,
     kindIsAChoice: Boolean,
     onAdd: (WaypointKind, Placement) -> Unit,
     onKind: (WaypointKind) -> Unit,
@@ -63,7 +67,7 @@ fun WaypointDialog(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier.fillMaxWidth().background(Tokens.surface, Shapes.panel).padding(16.dp),
+        modifier.width(IntrinsicSize.Max).background(Tokens.surface, Shapes.panel).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         when (target) {
@@ -73,21 +77,16 @@ fun WaypointDialog(
                     Close(onClose)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(Icons.Start, "Start", onClick = { onAdd(WaypointKind.Poi, Placement.Start) }, tint = Tokens.accent)
                     // Splitting a leg is on offer as soon as there is a leg to split.
                     if (target.leg != null) {
                         IconButton(Icons.Mid, "Insert", onClick = { onAdd(WaypointKind.Poi, Placement.Nearest) }, tint = Tokens.accent)
-                    }
-                    if (count == 0) {
-                        // The first waypoint is where the line starts, whatever the button is called.
-                        IconButton(Icons.Start, "Add", onClick = { onAdd(WaypointKind.Poi, Placement.End) }, tint = Tokens.accent)
-                    } else {
-                        IconButton(Icons.Start, "Start", onClick = { onAdd(WaypointKind.Poi, Placement.Start) }, tint = Tokens.accent)
-                        IconButton(Icons.End, "End", onClick = { onAdd(WaypointKind.Poi, Placement.End) }, tint = Tokens.accent)
                     }
                     // A shaping hint with no leg to shape has nowhere to go.
                     if (kindIsAChoice && target.leg != null) {
                         IconButton(Icons.Shaping, "Shaping point", onClick = { onAdd(WaypointKind.Routing, Placement.Nearest) })
                     }
+                    IconButton(Icons.End, "End", onClick = { onAdd(WaypointKind.Poi, Placement.End) }, tint = Tokens.accent)
                 }
             }
 
@@ -113,7 +112,7 @@ fun WaypointDialog(
                                     field()
                                 }
                             },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.width(180.dp),
                         )
                     } else {
                         BasicText("Shaping point", style = Type.title, modifier = Modifier.weight(1f))

@@ -47,43 +47,65 @@ import net.stho.tracks.ui.map.UNDER_MAP_CREDIT
 /** What the open sheet leaves above it: the map's attribution and the screen's own buttons. */
 private val TOP_CLEARANCE = UNDER_MAP_CREDIT + 56.dp
 
+/** Where a [SnapSheet] rests: its header only, half the screen, or open to the top. */
+enum class SheetDetent { Header, Half, Full }
+
 /**
- * A sheet with two states and nothing between them: minimised to its [header], or open to the top of the screen with
- * [content] under the header. A drag on the header snaps to whichever state it is let go nearer — or flung towards —
- * and a tap on it switches.
+ * A sheet that rests at one of its [detents]: minimised to its [header], at half the screen, or open to the top of the
+ * screen with [content] under the header. A drag on the header snaps to whichever detent it is let go nearest — or one
+ * step the way it was flung — and a tap on it steps up one, from the top back to the bottom, as the riding sheet and the
+ * web's sheet do.
  *
- * [onHeaderHeight] reports how much of the screen the minimised sheet covers, for a map to keep what it frames clear
- * of it.
+ * The plan preview has two detents; the editor has all three, as the web's sheet does, because a plan is edited with
+ * the map and the stops both in view.
+ *
+ * [onHeaderHeight] reports how much of the screen the minimised sheet covers, for a map to keep what it frames clear of
+ * it; [onCovered] reports how much it covers where it rests now, for a card on the map to stay out from under it.
  */
 @Composable
 fun SnapSheet(
-    expanded: Boolean,
-    onExpanded: (Boolean) -> Unit,
+    detent: SheetDetent,
+    onDetent: (SheetDetent) -> Unit,
     modifier: Modifier = Modifier,
+    detents: List<SheetDetent> = listOf(SheetDetent.Header, SheetDetent.Full),
     onHeaderHeight: (Dp) -> Unit = {},
+    onCovered: (Dp) -> Unit = {},
     header: @Composable ColumnScope.() -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val full = maxHeight - TOP_CLEARANCE
+        val fullPx = with(density) { full.toPx() }
         val bottomInset = WindowInsets.safeDrawing.getBottom(density)
         var headerPx by remember { mutableIntStateOf(0) }
-        val travel = (with(density) { full.toPx() } - headerPx - bottomInset).coerceAtLeast(0f)
+        val travel = (fullPx - headerPx - bottomInset).coerceAtLeast(0f)
+        val halfPx = with(density) { (maxHeight / 2).toPx() }
+        fun offsetOf(at: SheetDetent) = when (at) {
+            SheetDetent.Full -> 0f
+            SheetDetent.Half -> (fullPx - halfPx).coerceIn(0f, travel)
+            SheetDetent.Header -> travel
+        }
         val offset = remember { Animatable(0f) }
         var placed by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
 
         // Where the sheet rests. Placed without animation until the header has been measured, so it never opens
         // itself on the way to being minimised.
-        LaunchedEffect(expanded, travel) {
-            val target = if (expanded) 0f else travel
+        LaunchedEffect(detent, travel) {
+            val target = offsetOf(detent)
+            onCovered(with(density) { (fullPx - target).toDp() })
             if (placed) {
                 offset.animateTo(target)
             } else {
                 offset.snapTo(target)
                 if (headerPx > 0) placed = true
             }
+        }
+
+        fun step(by: Int): SheetDetent {
+            val at = detents.indexOf(detent).coerceAtLeast(0)
+            return detents[(at + by).coerceIn(0, detents.lastIndex)]
         }
 
         Column(
@@ -107,13 +129,18 @@ fun SnapSheet(
                         },
                         orientation = Orientation.Vertical,
                         onDragStopped = { velocity ->
-                            val open = velocity < -800f || (velocity <= 800f && offset.value < travel / 2)
-                            onExpanded(open)
-                            offset.animateTo(if (open) 0f else travel)
+                            val next = when {
+                                velocity < -800f -> step(+1)
+                                velocity > 800f -> step(-1)
+                                else -> detents.minBy { kotlin.math.abs(offsetOf(it) - offset.value) }
+                            }
+                            onDetent(next)
+                            offset.animateTo(offsetOf(next))
                         },
                     )
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                        onExpanded(!expanded)
+                        val at = detents.indexOf(detent).coerceAtLeast(0)
+                        onDetent(detents[(at + 1) % detents.size])
                     }
                     .padding(horizontal = 16.dp)
                     .padding(top = 8.dp, bottom = 12.dp),

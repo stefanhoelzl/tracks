@@ -2,11 +2,10 @@
    an edge — so it carries a tail pointing at the pin it belongs to. */
 .dialog {
   position: relative;
-  width: 232px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 13px;
+  gap: 6px;
+  padding: 10px 10px 6px 12px;
   border-radius: var(--radius-panel);
   background: var(--glass-hi);
   backdrop-filter: var(--blur);
@@ -17,7 +16,8 @@
 .dialog::after {
   content: "";
   position: absolute;
-  left: 50%;
+  /* On the pin, even when the dialog has slid sideways to stay on screen. */
+  left: calc(50% + var(--tail-shift, 0px));
   bottom: -6px;
   width: 12px;
   height: 12px;
@@ -25,6 +25,14 @@
   rotate: 45deg;
   background: var(--glass-hi);
   border-bottom-right-radius: 2px;
+}
+
+/* Hung below the pin when the top bar leaves no room above it: the tail points up. */
+:global([data-below]) > .dialog::after {
+  bottom: auto;
+  top: -6px;
+  border-bottom-right-radius: 0;
+  border-top-left-radius: 2px;
 }
 
 .close {
@@ -51,7 +59,8 @@
 }
 
 .name {
-  width: 100%;
+  width: 180px;
+  margin-right: 22px;
   padding: 6px 9px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-ctrl);
@@ -67,37 +76,14 @@
   border-color: var(--accent);
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.label {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 .row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.go,
-.quiet,
-.remove {
-  padding: 5px 11px;
-  border-radius: var(--radius-pill);
-  font-size: var(--text-base);
-  font-weight: 600;
+  align-items: center;
+  gap: 2px;
 }
 
 /* Nothing behind an icon: the four marks draw straight on the card, green for the three that
-   are stops and ink for the shaping point, with a 32px target around each. */
+   are stops and ink for the shaping point, with a 32px target around each — 40 for a finger. */
 .glyph,
 .glyphQuiet {
   display: flex;
@@ -118,36 +104,27 @@
   background: var(--sunk);
 }
 
-.go {
-  background: var(--accent);
-  color: #fff;
+@media (pointer: coarse) {
+  .glyph,
+  .glyphQuiet {
+    width: 40px;
+    height: 40px;
+  }
 }
 
-.go:hover {
-  background: var(--accent-deep);
-}
-
-.quiet {
-  background: var(--sunk);
-  color: var(--ink-2);
-}
-
-.quiet:hover {
-  background: var(--line);
-}
-
+/* Remove is the one red thing on the card, and like the marks it is drawn with nothing
+   behind it. */
 .remove {
-  background: transparent;
-  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  border-radius: var(--radius-pill);
+  color: var(--bad);
 }
 
 .remove:hover {
-  color: var(--ink);
   background: var(--sunk);
-}
-
-.hint {
-  font-size: var(--text-sm);
-  color: var(--muted);
-  line-height: 1.45;
 }

@@ -1,0 +1,97 @@
+.anchor {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* A row per action, as tall as a finger: the menu exists because the phone's bar is small. */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: var(--radius-ctrl);
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: left;
+  color: var(--ink);
+}
+
+.item svg {
+  flex-shrink: 0;
+  color: var(--ink-2);
+}
+
+.item:hover:not(:disabled) {
+  background: var(--sunk);
+}
+
+.item:disabled {
+  cursor: default;
+  color: var(--muted);
+}
+
+/* The mode showing, as the desktop's segment marks it. */
+.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.on svg {
+  color: var(--accent);
+}
+
+/* Colour is meaning: red takes something away, green is the way forward. */
+.bad,
+.bad svg {
+  color: var(--bad);
+}
+
+.go,
+.go svg {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.divider {
+  margin: 4px 2px;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.email {
+  padding: 4px 10px 2px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+.done {
+  align-self: flex-end;
+  margin-top: 12px;
+  padding: 7px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--sunk);
+  font-weight: 700;
+}

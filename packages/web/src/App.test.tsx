@@ -6,6 +6,7 @@ import { altitudesToScalars, encodeScalars, TRACK_PRECISION } from '@tracks/core
 import { useImperativeHandle } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiFailure } from './lib/api.ts'
+import { setWidth } from './test-width.ts'
 
 /** What the app asked the map to do. Reset per test in `beforeEach`. */
 const flyTo = vi.fn()
@@ -862,5 +863,110 @@ describe('the app', () => {
       expect(screen.queryByRole('region', { name: 'Sport' })).toBeNull()
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
     })
+  })
+
+  describe('on a phone', () => {
+    beforeEach(() => setWidth(390))
+
+    it('is one sheet over the map, and reads everything but writes nothing', async () => {
+      await renderApp()
+      await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+
+      // The list is in the sheet, with the totals the top bar has no room for.
+      const sheet = screen.getByRole('region', { name: 'Activities' })
+      expect(within(sheet).getByText('1 activity')).toBeTruthy()
+      expect(within(sheet).getByText('24 km · 1 900 m up')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Collapse filters' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Zoom in' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Import' })).toBeNull()
+
+      // An activity opens in the sheet, with its tags shown and nothing to edit them with.
+      await userEvent.click(within(sheet).getByText('Orla Perc'))
+      await waitFor(() => expect(window.location.search).toContain('activity=7'))
+      expect(screen.queryByRole('textbox', { name: 'type:value' })).toBeNull()
+    })
+
+    it('puts the modes and the actions in the menu, and nothing that writes', async () => {
+      await renderApp()
+      await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+
+      await userEvent.click(screen.getByRole('button', { name: 'Menu' }))
+      expect(screen.getByRole('button', { name: 'Activities', pressed: true })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Share this filter' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Export GPX' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /import/i })).toBeNull()
+
+      // A mode is picked here, and the sheet becomes it: the charts, with no slide-over to close.
+      await userEvent.click(screen.getByRole('button', { name: 'Analytics' }))
+      await waitFor(() => expect(window.location.search).toContain('mode=analytics'))
+      const sheet = screen.getByRole('region', { name: 'Analytics' })
+      expect(within(sheet).getByRole('heading', { name: 'Analytics' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Close analytics' })).toBeNull()
+    })
+
+    it('drops the filter from the funnel, live, and without the tagging that writes', async () => {
+      await renderApp()
+      await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+      expect(screen.queryByRole('region', { name: 'Sport' })).toBeNull()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Filters' }))
+      const drop = screen.getByRole('dialog', { name: 'Filters' })
+      expect(within(drop).getByRole('region', { name: 'Sport' })).toBeTruthy()
+      expect(within(drop).queryByRole('textbox', { name: 'type:value' })).toBeNull()
+
+      // Nothing to confirm: Show says how many, and closes.
+      await userEvent.click(within(drop).getByRole('button', { name: 'Show 1 activity' }))
+      expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull()
+    })
+
+    it('signed out, lists only what can be used: the plan’s link and the way in', async () => {
+      signedInAs = null
+      await renderGated()
+      await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+      // Nothing to filter, so no funnel and no chips.
+      expect(screen.queryByRole('button', { name: 'Filters' })).toBeNull()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Menu' }))
+      expect(screen.getByRole('button', { name: 'Nothing to share yet' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
+      // The desktop shows the locked modes disabled; a phone's menu leaves them out.
+      expect(screen.queryByRole('button', { name: 'Activities' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Analytics' })).toBeNull()
+    })
+  })
+
+  it('offers a new waypoint as one row of marks, in the order the route runs', async () => {
+    window.history.replaceState(null, '', '/?mode=planning')
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Click the map to start')).toBeTruthy())
+
+    await userEvent.click(screen.getByRole('button', { name: 'click the map' }))
+    await waitFor(() => expect(window.location.hash).toContain('kinds=p'))
+    await userEvent.click(screen.getByRole('button', { name: 'click elsewhere' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'End' }))
+    await waitFor(() => expect(window.location.hash).toContain('kinds=pp'))
+    await userEvent.click(screen.getByRole('button', { name: 'click the map' }))
+
+    const start = await screen.findByRole('button', { name: 'Start' })
+    const row = [...(start.parentElement?.children ?? [])].map((button) =>
+      button.getAttribute('aria-label'),
+    )
+    expect(row).toEqual(['Start', 'Insert', 'Shaping point', 'End'])
+  })
+
+  it('between phone and desktop, keeps one panel open at a time', async () => {
+    setWidth(1000)
+    await renderApp()
+    await waitFor(() => expect(screen.getByText('Orla Perc')).toBeTruthy())
+
+    // The list wins on the way in; the filter waits on its rail.
+    expect(screen.getByRole('button', { name: 'Show filters' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Collapse list' })).toBeTruthy()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show filters' }))
+    expect(screen.getByRole('button', { name: 'Collapse filters' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Show list' })).toBeTruthy()
   })
 })

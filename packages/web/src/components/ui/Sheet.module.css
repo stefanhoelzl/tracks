@@ -1,0 +1,62 @@
+/* The phone's panel: the same glass as every other one, rounded only where it meets the map,
+   and running under the home indicator rather than stopping short of it. */
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-hi);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-bottom: none;
+  box-shadow: var(--shadow-sheet);
+  overflow: hidden;
+  transition: height 320ms var(--ease);
+}
+
+/* Following the finger, not easing after it. */
+.sheet[data-dragging] {
+  transition: none;
+}
+
+/* The whole strip drags, not just the bar drawn on it: a 5px target is a target nobody hits. */
+.grab {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding: 7px 0 5px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.handle {
+  width: 40px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--line-2);
+}
+
+.handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    transition: none;
+  }
+}

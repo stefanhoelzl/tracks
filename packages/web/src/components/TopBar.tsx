@@ -1,10 +1,12 @@
 import type { FacetsResponse, Filter, Mode, SharedView, TagType, View } from '@tracks/core'
-import { ChartColumn, List, LogIn, LogOut, Route } from 'lucide-react'
+import { ChartColumn, Funnel, List, LogIn, LogOut, Route } from 'lucide-react'
 import { useId } from 'react'
 import type { ColourScale } from '../lib/colour.ts'
-import { duration, km, metres } from '../lib/format.ts'
+import { activeTerms } from '../lib/filter-ops.ts'
+import { duration, km, metres, RANGE_UNITS } from '../lib/format.ts'
 import { ON_ACCENT, PANELS, ROUTE, ROUTE_WIDTH } from '../lib/mark.ts'
 import type { Plan } from '../lib/plan.ts'
+import { AppMenu } from './AppMenu.tsx'
 import { ExportButton } from './ExportButton.tsx'
 import { FilterChips } from './FilterChips.tsx'
 import { ImportButton } from './ImportButton.tsx'
@@ -73,6 +75,9 @@ export function TopBar({
   onOpenShare,
   onSignIn,
   onSignOut,
+  phone = false,
+  filtersOpen = false,
+  onFilters,
 }: {
   summary: FacetsResponse['summary'] | undefined
   filter: Filter
@@ -93,6 +98,15 @@ export function TopBar({
   onOpenShare: (filter: Filter) => void
   onSignIn: () => void
   onSignOut: () => void
+  /**
+   * The phone's arrangement: the brand, the mode and ☰ on one row, and the funnel and the
+   * chips on a second. The totals go to the list's header and the actions into the menu.
+   */
+  phone?: boolean
+  /** On a phone, whether the filter drop-down is open. */
+  filtersOpen?: boolean
+  /** On a phone, the funnel: opens and closes the filter. */
+  onFilters?: () => void
 }) {
   const signedIn = email !== null
   /** Whether there are rows to read — an account's, or a link's. */
@@ -111,6 +125,70 @@ export function TopBar({
       )}
     </>
   )
+
+  if (phone) {
+    const labels = new Map(tagTypes.map((type) => [type.name, type.label]))
+    const terms = activeTerms(filter, labels, RANGE_UNITS).length
+    return (
+      <Panel className={styles.phone}>
+        <div className={styles.row}>
+          {shared ? (
+            <a className={[styles.brand, styles.home].join(' ')} href="/" title="Open Tracks">
+              {brand}
+            </a>
+          ) : (
+            <div className={styles.brand}>{brand}</div>
+          )}
+          <span className={styles.mode}>{MODES.find((entry) => entry.mode === mode)?.label}</span>
+          <div className={styles.menu}>
+            <AppMenu
+              mode={mode}
+              reading={reading}
+              signedIn={signedIn}
+              shared={shared !== null}
+              email={email}
+              plan={plan}
+              filter={filter}
+              view={view}
+              tagTypes={tagTypes}
+              count={summary?.count}
+              onMode={onMode}
+              onOpenShare={onOpenShare}
+              onSignIn={onSignIn}
+              onSignOut={onSignOut}
+            />
+          </div>
+        </div>
+
+        {/* Signed out there is nothing to filter, so the row is not drawn at all. */}
+        {reading ? (
+          <div className={styles.row}>
+            <span className={styles.funnel}>
+              <IconButton
+                icon={Funnel}
+                label={filtersOpen ? 'Close filters' : 'Filters'}
+                size={17}
+                expanded={filtersOpen}
+                onClick={onFilters}
+              />
+              {terms > 0 ? (
+                <span className={styles.badge} aria-hidden="true">
+                  {terms}
+                </span>
+              ) : null}
+            </span>
+            <FilterChips
+              filter={filter}
+              tagTypes={tagTypes}
+              scale={scale}
+              onChange={onChange}
+              onClear={onClear}
+            />
+          </div>
+        ) : null}
+      </Panel>
+    )
+  }
 
   return (
     <Panel className={styles.bar}>
@@ -133,8 +211,10 @@ export function TopBar({
           <span className={styles.stat}>{km(summary.distanceM, 0)} km</span>
           <span className={styles.sep} />
           <span className={styles.stat}>{metres(summary.elevationGainM)} m up</span>
-          <span className={styles.sep} />
-          <span className={styles.stat}>{duration(summary.durationS)} h</span>
+          <span className={[styles.sep, styles.spare].join(' ')} />
+          <span className={[styles.stat, styles.spare].join(' ')}>
+            {duration(summary.durationS)} h
+          </span>
         </div>
       ) : null}
 
@@ -158,11 +238,12 @@ export function TopBar({
             className={[styles.view, mode === value ? styles.viewOn : ''].join(' ')}
             aria-pressed={mode === value}
             disabled={!reading && value !== 'planning'}
-            title={!reading && value !== 'planning' ? 'Sign in to see your activities' : undefined}
+            title={!reading && value !== 'planning' ? 'Sign in to see your activities' : label}
+            aria-label={label}
             onClick={() => onMode(value)}
           >
             <Icon size={14} strokeWidth={2} />
-            {label}
+            <span className={styles.viewLabel}>{label}</span>
           </button>
         ))}
       </div>

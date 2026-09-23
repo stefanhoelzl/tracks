@@ -208,6 +208,8 @@ fun TracksMap(
     /** Whether [highlight] is a stretch of the ride rather than of the plan: it then wears the ride's colour. */
     highlightRidden: Boolean = false,
     onIdle: () -> Unit = {},
+    /** A card standing on a place: the editor's waypoint dialog. */
+    pinned: Pinned? = null,
 ) {
     SideEffect { RecomposeCounts.tracksMap++ }
     // A Metal or Vulkan surface created at 0×0 never recovers (the KRAIL pitfalls): wait for a size, once.
@@ -220,6 +222,7 @@ fun TracksMap(
             else -> MapLibreMap(
                 style, if (Ablation.staticCamera) MapCamera.Free else camera, plan, ridden, fix, heading, drawing, onTap, onPlace,
                 onLongPress, onLongPlace, onWaypointTap, onWaypointDrag, onGesture, marker, highlight, highlightRidden, onIdle,
+                pinned,
             )
         }
     }
@@ -412,6 +415,7 @@ private fun MapLibreMap(
     highlight: List<Coordinate>,
     highlightRidden: Boolean,
     onIdle: () -> Unit,
+    pinned: Pinned?,
 ) {
     SideEffect { RecomposeCounts.mapLibreMap++ }
     val currentCamera by rememberUpdatedState(camera)
@@ -720,6 +724,8 @@ private fun MapLibreMap(
         drawing?.takeIf { it.editable }?.let {
             WaypointHandles(state, it.waypoints, { fingers }, { index -> held = index }, onWaypointTap, onWaypointDrag)
         }
+
+        pinned?.let { PinnedCard(state, it) }
     }
 }
 

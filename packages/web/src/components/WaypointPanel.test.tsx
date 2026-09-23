@@ -134,6 +134,29 @@ describe('the waypoint panel', () => {
     expect(onSelect).toHaveBeenCalledWith(1)
   })
 
+  it('under a finger, measures from the first tap and opens on the second', async () => {
+    const { onSelect } = panel({ waypoints: [poi(0, 'Vent'), poi(1, 'Hut'), poi(2, 'Lake')] }, [
+      leg(1000, 10),
+      leg(2000, 20),
+    ])
+    const finger = userEvent.setup()
+    const tap = (name: string) =>
+      finger.pointer([
+        { keys: '[TouchA>]', target: screen.getByText(name) },
+        { keys: '[/TouchA]', target: screen.getByText(name) },
+      ])
+
+    // A finger has no hover: the first tap is the pointer arriving, so the other rows are
+    // measured from Hut — the one behind it reads negative, and Hut itself reads nothing.
+    await tap('Hut')
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.getByText('-1.0 km · -10 m up')).toBeDefined()
+
+    // The second tap on the row measured from is the click: its dialog.
+    await tap('Hut')
+    expect(onSelect).toHaveBeenCalledWith(1)
+  })
+
   it('writes the profile into the plan, since it changes the line', () => {
     const { onPlan } = panel({ waypoints: [poi(0, 'a'), poi(1, 'b')] })
 

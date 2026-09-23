@@ -53,8 +53,9 @@ import net.stho.tracks.ui.theme.Type
  * the way to the next one — so fifteen hints and two real places read as the trip they are.
  *
  * Each row carries the distance and the climb to it, measured from the row that is selected: *how far is the hut from
- * here*. With nothing selected they are measured from the start. A tap selects a row; its × removes it; a long press
- * picks a stop up to move it, and the stops it passes make room where it will land.
+ * here*. With nothing selected they are measured from the start. A tap selects a row, and a tap on the selected row
+ * edits it; its ×, where there is one, removes it; a long press picks a stop up to move it, and the stops it passes make
+ * room where it will land.
  */
 @Composable
 fun StopList(
@@ -63,7 +64,12 @@ fun StopList(
     base: Int,
     onBase: (Int) -> Unit,
     onEdit: (Int) -> Unit,
-    onRemove: (Int) -> Unit,
+    /**
+     * Removes a waypoint from its row's ×. Null for no × at all: the editor's rows have none, and Remove is in the stop's
+     * dialog, as on the web; the riding sheet keeps it, since tapping a row there turns the pages rather than opening
+     * a dialog.
+     */
+    onRemove: ((Int) -> Unit)?,
     onMoveStop: (from: Int, to: Int) -> Unit,
     modifier: Modifier = Modifier,
     carried: StopDrag? = null,
@@ -179,7 +185,7 @@ fun StopList(
                             style = Type.mono,
                         )
                     }
-                    Remove { onRemove(index) }
+                    onRemove?.let { remove -> Remove { remove(index) } }
                 }
             } else {
                 Row(
@@ -197,7 +203,7 @@ fun StopList(
                         style = Type.mono,
                         modifier = Modifier.weight(1f).clickable { onEdit(index) }.padding(horizontal = 12.dp, vertical = 8.dp),
                     )
-                    Remove { onRemove(index) }
+                    onRemove?.let { remove -> Remove { remove(index) } }
                 }
             }
         }

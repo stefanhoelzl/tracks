@@ -184,7 +184,6 @@ fun Riding(
                         // anywhere else on the riding map still does nothing at all.
                         editable != null && stored != null -> WaypointDialog(
                             target = PinTarget.Edit(editable.first, editable.second),
-                            count = stored.plan.waypoints.size,
                             kindIsAChoice = kindIsAChoice(stored.plan),
                             onAdd = { _, _ -> },
                             onKind = { kind ->
@@ -200,6 +199,9 @@ fun Riding(
                                 tapped = null
                             },
                             onClose = { tapped = null },
+                            // In the sheet's place, as wide as it: riding, the dialog is not on the map but under the
+                            // thumb, where the rest of the riding screen's controls are.
+                            modifier = Modifier.fillMaxWidth(),
                         )
                         else -> Unit
                     }

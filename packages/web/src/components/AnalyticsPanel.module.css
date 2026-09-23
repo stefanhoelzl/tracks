@@ -74,3 +74,23 @@
   font-size: var(--text-base);
   color: var(--muted);
 }
+
+/* In the phone's sheet, which is the panel: just the column the cards scroll in. */
+.contained {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.contained .head {
+  padding: 2px 16px 10px;
+}
+
+.contained .title {
+  font-size: var(--text-xl);
+}
+
+.contained .body {
+  padding: 0 12px 16px;
+}

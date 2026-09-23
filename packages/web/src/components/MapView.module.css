@@ -2,6 +2,9 @@
   position: absolute;
   inset: 0;
   background: var(--ground);
+  /* A long press on the map picks up a stop; it must not also offer to save the canvas. */
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 /*

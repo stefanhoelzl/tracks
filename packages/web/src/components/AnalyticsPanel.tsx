@@ -20,6 +20,10 @@ import { VolumeTrend } from './VolumeTrend.tsx'
  * It carries no summary of its own. The top bar is above it, showing the same totals
  * for the same filter, and a panel that repeats them is a row of numbers agreeing with
  * itself.
+ *
+ * On a phone it is not a slide-over but the sheet's content: `contained` drops the scrim,
+ * the glass and the close button, since the sheet is all three and the menu is the way to
+ * another mode. The cards are the same cards in one column.
  */
 export function AnalyticsPanel({
   rows,
@@ -31,6 +35,7 @@ export function AnalyticsPanel({
   calendar,
   calendarColour,
   insetLeft,
+  contained = false,
   scale,
   onBucket,
   onMetric,
@@ -53,6 +58,8 @@ export function AnalyticsPanel({
   calendarColour: 'ramp' | 'tag'
   /** Where the filter sidebar ends — the panel starts there and runs to the edge. */
   insetLeft: number
+  /** Inside a container that already is a panel: the phone's sheet. */
+  contained?: boolean
   scale: ColourScale
   onBucket: (bucket: Bucket) => void
   onMetric: (metric: Metric) => void
@@ -66,6 +73,70 @@ export function AnalyticsPanel({
   // `year` colours the map by something no tag type owns, and there is nothing to
   // stack by in it — so the trend goes unsplit rather than inventing a category.
   const splitBy = colourBy !== null && labels.has(colourBy) ? colourBy : null
+
+  const body = (
+    <div className={styles.body}>
+      {rows.length === 0 ? (
+        <div className={styles.empty}>
+          <strong>Nothing matches</strong>
+          <span>
+            {narrowingFacets(filter, labels).join(' · ') ||
+              'There are no activities in the database yet'}
+          </span>
+        </div>
+      ) : (
+        <>
+          <VolumeTrend
+            rows={rows}
+            bucket={bucket}
+            metric={metric}
+            splitBy={splitBy}
+            scale={scale}
+            onBucket={onBucket}
+            onMetric={onMetric}
+            onRange={(from, to) => onFilter({ ...filter, from, to })}
+          />
+
+          <CalendarCard
+            rows={rows}
+            metric={metric}
+            range={calendar}
+            colourBy={calendarColour === 'tag' ? splitBy : null}
+            scale={scale}
+            onRange={onCalendar}
+            // Picking a type here is picking the app's colour by — one legend
+            // across the map, the list bars, the trend's stack and these cells.
+            onColour={(type) => {
+              if (type === null) onCalendarColour('ramp')
+              else {
+                onColourBy(type)
+                onCalendarColour('tag')
+              }
+            }}
+            onDate={(date) => onFilter({ ...filter, from: date, to: date })}
+          />
+
+          <Distributions
+            rows={rows}
+            onBand={(key: BandKey, min, max) =>
+              onFilter({ ...filter, ranges: { ...filter.ranges, [key]: { min, max } } })
+            }
+          />
+        </>
+      )}
+    </div>
+  )
+
+  if (contained) {
+    return (
+      <div className={styles.contained}>
+        <div className={styles.head}>
+          <h2 className={styles.title}>Analytics</h2>
+        </div>
+        {body}
+      </div>
+    )
+  }
 
   return (
     <>
@@ -84,56 +155,7 @@ export function AnalyticsPanel({
           <IconButton icon={X} label="Close analytics" tone="bad" size={16} onClick={onClose} />
         </div>
 
-        <div className={styles.body}>
-          {rows.length === 0 ? (
-            <div className={styles.empty}>
-              <strong>Nothing matches</strong>
-              <span>
-                {narrowingFacets(filter, labels).join(' · ') ||
-                  'There are no activities in the database yet'}
-              </span>
-            </div>
-          ) : (
-            <>
-              <VolumeTrend
-                rows={rows}
-                bucket={bucket}
-                metric={metric}
-                splitBy={splitBy}
-                scale={scale}
-                onBucket={onBucket}
-                onMetric={onMetric}
-                onRange={(from, to) => onFilter({ ...filter, from, to })}
-              />
-
-              <CalendarCard
-                rows={rows}
-                metric={metric}
-                range={calendar}
-                colourBy={calendarColour === 'tag' ? splitBy : null}
-                scale={scale}
-                onRange={onCalendar}
-                // Picking a type here is picking the app's colour by — one legend
-                // across the map, the list bars, the trend's stack and these cells.
-                onColour={(type) => {
-                  if (type === null) onCalendarColour('ramp')
-                  else {
-                    onColourBy(type)
-                    onCalendarColour('tag')
-                  }
-                }}
-                onDate={(date) => onFilter({ ...filter, from: date, to: date })}
-              />
-
-              <Distributions
-                rows={rows}
-                onBand={(key: BandKey, min, max) =>
-                  onFilter({ ...filter, ranges: { ...filter.ranges, [key]: { min, max } } })
-                }
-              />
-            </>
-          )}
-        </div>
+        {body}
       </Panel>
     </>
   )

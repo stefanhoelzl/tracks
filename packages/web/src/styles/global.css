@@ -17,6 +17,16 @@ body,
   margin: 0;
 }
 
+/* The dynamic viewport where there is one, so a phone's browser toolbar sliding in and out
+   resizes the app rather than covering the bottom of it — which is where the sheet is. */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
 body {
   background: var(--ground);
   color: var(--ink);
@@ -26,6 +36,26 @@ body {
      jittering as it changes under a filter. */
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+}
+
+/* A double tap on a control is two taps, never a zoom: the map pinches, and nothing else
+   on the page wants to be magnified by accident. */
+button,
+input,
+select,
+label {
+  touch-action: manipulation;
+}
+
+/* Safari zooms the page into any field set smaller than 16px when a finger focuses it, and
+   leaves it zoomed. Every field is 16px under a finger instead. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    /* biome-ignore lint/complexity/noImportantStyles: every field's own size must yield here, and a component's class outranks an element selector. */
+    font-size: 16px !important;
+  }
 }
 
 button {

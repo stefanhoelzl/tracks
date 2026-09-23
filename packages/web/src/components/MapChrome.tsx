@@ -20,6 +20,8 @@ export function MapChrome({
   onZoom,
   insetRight,
   insetLeft,
+  phone = false,
+  hidden = false,
 }: {
   grouped: boolean
   basemap: 'map' | 'satellite'
@@ -41,6 +43,14 @@ export function MapChrome({
   onZoom: (delta: number) => void
   insetRight: number
   insetLeft: number
+  /**
+   * The phone's arrangement: no zoom buttons, since a phone pinches, and the other three in
+   * a column at the right edge riding on top of the sheet — where the phone app keeps its
+   * camera. They follow `--sheet-h`, which the sheet writes as it moves.
+   */
+  phone?: boolean
+  /** The sheet is at full and there is no map to put them on. */
+  hidden?: boolean
 }) {
   const label = grouped ? 'Grouping nearby starts' : 'Showing every track'
   const fit = planning
@@ -49,22 +59,29 @@ export function MapChrome({
       ? 'Zoom to this activity'
       : 'Zoom out to all activities'
 
+  if (hidden) return null
+
   return (
     <>
-      <div className={styles.zoom} style={{ right: insetRight + 12 }}>
-        <button type="button" onClick={() => onZoom(1)} aria-label="Zoom in">
-          <Plus size={17} strokeWidth={2} />
-        </button>
-        <div className={styles.divider} />
-        <button type="button" onClick={() => onZoom(-1)} aria-label="Zoom out">
-          <Minus size={17} strokeWidth={2} />
-        </button>
-      </div>
+      {phone ? null : (
+        <div className={styles.zoom} style={{ right: insetRight + 12 }}>
+          <button type="button" onClick={() => onZoom(1)} aria-label="Zoom in">
+            <Plus size={17} strokeWidth={2} />
+          </button>
+          <div className={styles.divider} />
+          <button type="button" onClick={() => onZoom(-1)} aria-label="Zoom out">
+            <Minus size={17} strokeWidth={2} />
+          </button>
+        </div>
+      )}
 
       {/* Centred in whatever the panels leave, along the bottom edge. Grouping trades
           the tracks for a tally at low zoom, so turning it off says "show me the actual
           lines" — which is the whole point of a track map, and why *off* is the lit state. */}
-      <div className={styles.grouping} style={{ left: insetLeft, right: insetRight }}>
+      <div
+        className={phone ? styles.column : styles.grouping}
+        style={phone ? undefined : { left: insetLeft, right: insetRight }}
+      >
         {/* The viewport is always the filter, so widening it is how you get back to
             everything — a camera move, not a filter you clear. */}
         <button
@@ -111,7 +128,10 @@ export function MapChrome({
         )}
       </div>
 
-      <div className={styles.attribution} style={{ left: insetLeft + 16 }}>
+      <div
+        className={phone ? styles.attributionPhone : styles.attribution}
+        style={phone ? undefined : { left: insetLeft + 16 }}
+      >
         OpenStreetMap · VersaTiles
       </div>
     </>

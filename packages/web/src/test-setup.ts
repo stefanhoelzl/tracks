@@ -1,7 +1,11 @@
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach } from 'vitest'
+import { installMatchMedia } from './test-width.ts'
 
 afterEach(cleanup)
+
+// A desktop window, unless a test asks for a phone with `setWidth`.
+beforeEach(installMatchMedia)
 
 /**
 jsdom implements `<dialog>` the element but not its methods.
@@ -119,4 +123,13 @@ for (const method of ['setPointerCapture', 'releasePointerCapture'] as const) {
 }
 if (typeof Element.prototype.hasPointerCapture !== 'function') {
   Element.prototype.hasPointerCapture = () => false
+}
+
+/**
+ * jsdom has no layout, so it has no `scrollIntoView` either. The list scrolls a row the map
+ * is hovering into view; with nothing laid out there is nowhere to scroll, and a no-op is
+ * the whole of the behaviour.
+ */
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => {}
 }
