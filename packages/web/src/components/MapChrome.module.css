@@ -96,3 +96,51 @@
   font-size: var(--text-xs);
   color: var(--muted);
 }
+
+/* On a phone: a column at the right edge, standing on the sheet and moving with it. */
+.column {
+  position: absolute;
+  right: 10px;
+  bottom: calc(var(--sheet-h, 0px) + 10px);
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  transition: bottom 320ms var(--ease);
+}
+
+.attributionPhone {
+  position: absolute;
+  left: 10px;
+  bottom: calc(var(--sheet-h, 0px) + 10px);
+  z-index: 9;
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  transition: bottom 320ms var(--ease);
+}
+
+/* Following the sheet under a finger, not easing after it. */
+:global([data-sheet-dragging]) .column,
+:global([data-sheet-dragging]) .attributionPhone {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .column,
+  .attributionPhone {
+    transition: none;
+  }
+}
+
+/* Between the phone and the desktop the free width between the panels is too short for the
+   camera buttons and the credit side by side, so the credit steps up over them. */
+@media (max-width: 1099px) {
+  .attribution {
+    bottom: calc(var(--gap) + 46px);
+  }
+}

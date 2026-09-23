@@ -12,6 +12,14 @@
   letter-spacing: var(--tracking-tighter);
 }
 
+.totals {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .spacer {
   flex: 1;
 }

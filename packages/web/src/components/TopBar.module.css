@@ -159,3 +159,77 @@
 .signIn:hover {
   background: var(--accent-deep);
 }
+
+/* Between the phone and the desktop the bar is one row short of room: the address and the
+   hours go, the two things on it nobody is reading the map for. Sign out stays. */
+@media (max-width: 1099px) {
+  .email,
+  .spare {
+    display: none;
+  }
+
+  .account {
+    padding-left: 4px;
+  }
+
+  /* The segments keep their icons, which the menu on a phone and the tooltips here name. */
+  .viewLabel {
+    display: none;
+  }
+
+  .view {
+    padding: 6px 10px;
+  }
+}
+
+/* The phone's bar: two rows rather than one, since one row of a phone holds the brand and
+   little else. Its height is whatever the rows make it, and the sheet is told where it ends. */
+.phone {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px 6px 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  min-width: 0;
+}
+
+.mode {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.menu {
+  margin-left: auto;
+}
+
+.funnel {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: -6px;
+}
+
+/* How many terms the filter has, on the funnel that opens it. */
+.badge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--surface);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  pointer-events: none;
+}

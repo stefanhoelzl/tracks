@@ -1,5 +1,8 @@
 package net.stho.tracks.ui.plans
 
+import net.stho.tracks.ui.theme.SheetDetent
+import net.stho.tracks.ui.map.Pinned
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -115,8 +118,10 @@ fun PlanEditorScreen(
     initialDialog: PinTarget? = null,
     onIdle: () -> Unit = {},
 ) {
-    var expanded by remember { mutableStateOf(initiallyExpanded) }
+    var detent by remember { mutableStateOf(if (initiallyExpanded) SheetDetent.Full else SheetDetent.Header) }
     var covered by remember { mutableStateOf(0.dp) }
+    /** How much of the screen the sheet covers where it rests: what the pinned dialog stays clear of. */
+    var sheetCovers by remember { mutableStateOf(0.dp) }
     // The first height the header was measured at: a header that grows while editing must not move the map.
     var firstCovered by remember { mutableStateOf<Dp?>(null) }
     val state by editor.state.collectAsState()
@@ -184,11 +189,6 @@ fun PlanEditorScreen(
         }
     }
 
-    fun pin(at: Coordinate, name: String?) {
-        val leg = nearestLeg(plan, legs, at)
-        dialog = PinTarget.New(at, leg, name)
-    }
-
     fun add(target: PinTarget.New, kind: WaypointKind, placement: Placement) {
         val index = placementAt(plan, legs, placement, target.leg, target.at)
         val name = if (kind == WaypointKind.Poi) target.name else null
@@ -207,6 +207,44 @@ fun PlanEditorScreen(
                     null
                 } ?: return@launch
                 editor.nameFound(placed, found)
+            }
+        }
+    }
+
+    fun pin(at: Coordinate, name: String?) {
+        val leg = nearestLeg(plan, legs, at)
+        val target = PinTarget.New(at, leg, name)
+        // An empty plan's only answer is where it starts, so its first waypoint is added without asking — the web's
+        // rule: a dialog with one choice in it is a question with one answer.
+        if (plan.waypoints.isEmpty()) add(target, WaypointKind.Poi, Placement.End) else dialog = target
+    }
+
+    // The dialog stands on its waypoint, as the web's does: over the place a tap chose, or on the stop being edited.
+    val topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
+    val pinned = dialog?.let { target ->
+        val at = when (target) {
+            is PinTarget.New -> target.at
+            is PinTarget.Edit -> plan.waypoints.getOrNull(target.index)?.let { Coordinate(it.lat, it.lon) }
+        }
+        at?.let {
+            Pinned(it, inset = PaddingValues(top = topInset + UNDER_MAP_CREDIT, bottom = sheetCovers)) {
+                WaypointDialog(
+                    target = target,
+                    kindIsAChoice = kindIsAChoice(plan),
+                    onAdd = { kind, placement -> if (target is PinTarget.New) add(target, kind, placement) },
+                    onKind = { kind ->
+                        if (target is PinTarget.Edit) editor.update(setKind(plan, target.index, kind))
+                        dialog = null
+                    },
+                    onRename = { name ->
+                        if (target is PinTarget.Edit) editor.update(updateWaypoint(plan, target.index) { it.copy(name = name.ifEmpty { null }) })
+                    },
+                    onRemove = {
+                        if (target is PinTarget.Edit) editor.update(removeWaypoint(plan, target.index))
+                        dialog = null
+                    },
+                    onClose = { dialog = null },
+                )
             }
         }
     }
@@ -242,6 +280,7 @@ fun PlanEditorScreen(
                 marker = picked,
                 highlight = highlighted,
                 onIdle = onIdle,
+                pinned = pinned,
             )
         }
 
@@ -259,8 +298,11 @@ fun PlanEditorScreen(
 
         val stops = plan.waypoints.count { it.kind == WaypointKind.Poi }
         SnapSheet(
-            expanded = expanded,
-            onExpanded = { expanded = it },
+            detent = detent,
+            onDetent = { detent = it },
+            // All three, as the web's sheet has: the map and the stops both in view is how a plan is edited.
+            detents = listOf(SheetDetent.Header, SheetDetent.Half, SheetDetent.Full),
+            onCovered = { sheetCovers = it },
             onHeaderHeight = {
                 covered = it
                 if (firstCovered == null && it > 0.dp) firstCovered = it
@@ -277,7 +319,7 @@ fun PlanEditorScreen(
         ) {
             if (stops < 2) {
                 BasicText(
-                    "Tap the map to start. The first two points are the start and the end; after that, add stops, or long-press the line to shape the route.",
+                    "Tap the map to start. The first two points are the start and the end; after that, add stops, or long-press the map to shape the route.",
                     style = Type.note,
                 )
             } else {
@@ -311,36 +353,14 @@ fun PlanEditorScreen(
                     base = base.coerceIn(0, maxOf(0, stops - 1)),
                     onBase = { base = it },
                     onEdit = { index -> dialog = PinTarget.Edit(index, plan.waypoints[index]) },
-                    onRemove = { index -> editor.update(removeWaypoint(plan, index)) },
+                    // No × on the rows: a delete that can be hit while scrolling the list is worse than one tap further
+                    // away, so Remove is in the stop's dialog, as on the web.
+                    onRemove = null,
                     onMoveStop = { from, to -> editor.update(moveStop(plan, from, to)) },
                 )
             }
         }
 
-        dialog?.let { target ->
-            WaypointDialog(
-                target = target,
-                count = plan.waypoints.size,
-                kindIsAChoice = kindIsAChoice(plan),
-                onAdd = { kind, placement -> if (target is PinTarget.New) add(target, kind, placement) },
-                onKind = { kind ->
-                    if (target is PinTarget.Edit) editor.update(setKind(plan, target.index, kind))
-                    dialog = null
-                },
-                onRename = { name ->
-                    if (target is PinTarget.Edit) editor.update(updateWaypoint(plan, target.index) { it.copy(name = name.ifEmpty { null }) })
-                },
-                onRemove = {
-                    if (target is PinTarget.Edit) editor.update(removeWaypoint(plan, target.index))
-                    dialog = null
-                },
-                onClose = { dialog = null },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-                    .padding(12.dp),
-            )
-        }
     }
 }
 

@@ -44,6 +44,7 @@ import net.stho.tracks.ui.map.TracksMap
 import net.stho.tracks.sensors.Fix
 import net.stho.tracks.ui.theme.IconButton
 import net.stho.tracks.ui.theme.Icons
+import net.stho.tracks.ui.theme.SheetDetent
 import net.stho.tracks.ui.theme.SnapSheet
 import net.stho.tracks.ui.theme.Tokens
 import net.stho.tracks.ui.theme.Type
@@ -116,8 +117,8 @@ fun PlanPreview(
         }
 
         SnapSheet(
-            expanded = expanded,
-            onExpanded = { expanded = it },
+            detent = if (expanded) SheetDetent.Full else SheetDetent.Header,
+            onDetent = { expanded = it == SheetDetent.Full },
             onHeaderHeight = { covered = it },
             header = {
                 Row(verticalAlignment = Alignment.CenterVertically) {

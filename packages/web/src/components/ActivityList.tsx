@@ -185,6 +185,7 @@ export function ActivityList({
   onColourBy,
   onSort,
   onClear,
+  totals = false,
 }: {
   activities: ActivityRow[] | undefined
   facets: FacetsResponse | undefined
@@ -201,6 +202,11 @@ export function ActivityList({
   onColourBy: (next: string) => void
   onSort: (key: SortKey, order: 'asc' | 'desc') => void
   onClear: () => void
+  /**
+   * The filter's totals in the header — on a phone, where the top bar has no room for them
+   * and this is the header of the one panel there is.
+   */
+  totals?: boolean
 }) {
   const [sortOpen, setSortOpen] = useState(false)
   const count = facets?.summary.count ?? activities?.length ?? 0
@@ -211,6 +217,11 @@ export function ActivityList({
         <div className={styles.count}>
           {count} {count === 1 ? 'activity' : 'activities'}
         </div>
+        {totals && facets ? (
+          <span className={styles.totals}>
+            {km(facets.summary.distanceM, 0)} km · {metres(facets.summary.elevationGainM)} m up
+          </span>
+        ) : null}
         <div className={styles.spacer} />
         <div className={styles.anchor}>
           <button type="button" className={styles.sort} onClick={() => setSortOpen((was) => !was)}>

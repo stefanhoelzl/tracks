@@ -48,6 +48,27 @@
   background: var(--sunk);
 }
 
+.forMouse,
+.forFinger {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.forFinger {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .forMouse {
+    display: none;
+  }
+
+  .forFinger {
+    display: flex;
+  }
+}
+
 .empty strong {
   font-size: var(--text-md);
 }
@@ -91,14 +112,31 @@
   display: flex;
   align-items: center;
   border-radius: var(--radius-ctrl);
+  transition: transform 180ms var(--ease);
 }
 
-.row:hover {
+.tick {
+  transition: transform 180ms var(--ease);
+}
+
+.row:hover,
+.rowBase {
   background: var(--sunk);
 }
 
 .rowDragging {
   opacity: 0.45;
+}
+
+/* Carried by a finger rather than by the platform's drag image: it is the row itself that
+   moves, so it is lifted rather than faded. */
+@media (pointer: coarse) {
+  .rowDragging {
+    position: relative;
+    opacity: 1;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
 }
 
 .rowButton {
@@ -173,6 +211,14 @@
 .tick:hover .remove,
 .remove:focus-visible {
   opacity: 1;
+}
+
+/* A finger has no hover to arrive by, so the quiet × would be either invisible or always
+   there. Neither: under a finger, Remove is in the stop's own dialog. */
+@media (hover: none) {
+  .remove {
+    display: none;
+  }
 }
 
 .remove:hover,

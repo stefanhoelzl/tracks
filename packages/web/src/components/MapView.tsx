@@ -1,7 +1,14 @@
 import type { ActivityDetail, Filter, TrackCollection } from '@tracks/core'
 import { formatFilter } from '@tracks/core'
 import type { LatLon, Leg } from '@tracks/routing'
-import type { GeoJSONSource, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap } from 'maplibre-gl'
+import type {
+  GeoJSONSource,
+  LngLatBoundsLike,
+  MapLayerMouseEvent,
+  MapLayerTouchEvent,
+  MapLibreMap,
+  MapTouchEvent,
+} from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
 import { cumulativeDistances } from '../lib/geo.ts'
 import { sliceBetween } from '../lib/profile.ts'
@@ -123,7 +130,34 @@ interface Drag {
   index: number
   waypoints: Plan['waypoints']
   moved: boolean
+  /** Where it was last seen: a finger's `touchend` carries no position of its own. */
+  last?: LatLon
 }
+
+/** The camera's padding for every fit: the visible map, and a margin inside it. */
+function paddingOf(insets: { left: number; right: number; top?: number; bottom?: number }) {
+  return {
+    top: (insets.top ?? DESKTOP_TOP) + 24,
+    bottom: (insets.bottom ?? 0) + 40,
+    left: insets.left + 32,
+    right: insets.right + 32,
+  }
+}
+
+/** How close the pinned dialog may come to an edge of the visible map. */
+const PIN_EDGE_PX = 8
+/** How far above its pin the dialog sits: clear of the pin's head. */
+const PIN_OFFSET_PX = 14
+
+/** Where the desktop's top bar ends: its gap, its height. */
+const DESKTOP_TOP = 16 + 56
+
+/** How long a finger has to rest on a stop or the line before it picks it up. */
+const LONG_PRESS_MS = 450
+/** How far it may wander meanwhile. Any further and it was a pan, which the map is doing. */
+const PRESS_SLOP_PX = 8
+/** How long after a drag the click it ends in is swallowed, rather than read as a new waypoint. */
+const SUPPRESS_CLICK_MS = 500
 
 export function MapView({
   ref,
@@ -155,6 +189,7 @@ export function MapView({
   onSelect,
   onViewportChange,
   onMapClick,
+  onLongPress,
   onWaypointClick,
   onWaypointMove,
   onShapingDrop,
@@ -176,8 +211,12 @@ export function MapView({
   selectedId: number | null
   /** Which point of the selected track the elevation cursor is on. */
   cursor: number | null
-  /** Left and right panel widths, so a fit centres in the visible map, not under glass. */
-  panelInsets: { left: number; right: number }
+  /**
+   * How much of the map is under glass on each side, so a fit centres in what can be seen.
+   * `top` is where the top bar ends and `bottom` how tall the phone's sheet stands; left
+   * out, they are the desktop's bar and nothing.
+   */
+  panelInsets: { left: number; right: number; top?: number; bottom?: number }
   /** While this is on the tracks are dim and inert, and every click means *waypoint*. */
   planning: boolean
   plan: Plan
@@ -216,6 +255,8 @@ export function MapView({
    * — a hit test would make shaping a route a game of aiming at a few pixels.
    */
   onMapClick: (at: LatLon) => void
+  /** A finger held still on the map, off any stop: a shaping point, where the phone app drops one. */
+  onLongPress: (at: LatLon) => void
   onWaypointClick: (index: number) => void
   onWaypointMove: (index: number, at: LatLon) => void
   /** A drag off the line: insert a shaping point at `index`, where it was let go. */
@@ -233,8 +274,12 @@ export function MapView({
   const clusters = useRef<ClusterMarkers | null>(null)
   const [ready, setReady] = useState(false)
   const drag = useRef<Drag | null>(null)
-  /** A drag ends in a click MapLibre will still deliver; this is how it is ignored. */
-  const suppressClick = useRef(false)
+  /**
+   * A drag ends in a click MapLibre will still deliver; this is how it is ignored. A time
+   * rather than a flag, because a finger's gesture may end in no click at all, and a flag
+   * left standing would swallow the next real one.
+   */
+  const suppressClick = useRef(0)
   /**
    * Where the pinned dialog is drawn, as a box this component positions by hand.
    *
@@ -261,6 +306,9 @@ export function MapView({
   const [dropping, setDropping] = useState(false)
   const dragDepth = useRef(0)
 
+  const insets = useRef(panelInsets)
+  insets.current = panelInsets
+
   useImperativeHandle(ref, () => ({
     zoomBy: (delta: number) =>
       map.current?.zoomTo(map.current.getZoom() + delta, { duration: 250 }),
@@ -277,6 +325,9 @@ export function MapView({
       map.current?.flyTo({
         center: [at.lon, at.lat],
         zoom: Math.max(map.current.getZoom(), 13),
+        // Into the part of the map that can be seen, not the middle of the window, which on
+        // a phone is behind the sheet.
+        padding: paddingOf(insets.current),
         duration: 450,
       }),
     fitBounds: ([west, south, east, north]: [number, number, number, number]) =>
@@ -286,12 +337,7 @@ export function MapView({
           [east, north],
         ],
         {
-          padding: {
-            top: 88 + 24,
-            bottom: 40,
-            left: panelInsets.left + 32,
-            right: panelInsets.right + 32,
-          },
+          padding: paddingOf(insets.current),
           duration: 700,
           maxZoom: 14,
         },
@@ -312,6 +358,7 @@ export function MapView({
     onHover,
     onCursor,
     onMapClick,
+    onLongPress,
     onWaypointClick,
     onWaypointMove,
     onShapingDrop,
@@ -330,6 +377,7 @@ export function MapView({
     onHover,
     onCursor,
     onMapClick,
+    onLongPress,
     onWaypointClick,
     onWaypointMove,
     onShapingDrop,
@@ -432,7 +480,7 @@ export function MapView({
     /** Only the layers that exist: a style reload takes them, and querying one throws. */
     const present = (ids: string[]) => ids.filter((id) => instance.getLayer(id))
 
-    const at = (event: MapLayerMouseEvent): LatLon => ({
+    const at = (event: MapLayerMouseEvent | MapTouchEvent): LatLon => ({
       lat: event.lngLat.lat,
       lon: event.lngLat.lng,
     })
@@ -506,12 +554,10 @@ export function MapView({
     instance.on('mousedown', PLAN_FAILED_LAYER, grabLine)
     instance.on('mousedown', PLAN_PENDING_LAYER, grabLine)
 
-    instance.on('mousemove', (event: MapLayerMouseEvent) => {
-      const state = drag.current
-      if (!state) return
+    /** The waypoint being dragged follows the pointer, on beelines. */
+    const follow = (state: Drag, point: LatLon) => {
       state.moved = true
-
-      const point = at(event)
+      state.last = point
       const waypoints = state.waypoints.map((waypoint, index) =>
         index === state.index ? { ...waypoint, lat: point.lat, lon: point.lon } : waypoint,
       )
@@ -520,19 +566,120 @@ export function MapView({
       // what keeps one drag to one request rather than forty.
       instance.getSource<GeoJSONSource>(PLAN_SOURCE)?.setData(beelineFeatures(waypoints))
       instance.getSource<GeoJSONSource>(PLAN_POINTS_SOURCE)?.setData(waypointFeatures(waypoints))
+    }
+
+    /** Where the gesture ended becomes the plan, and the click it ends in is not a waypoint. */
+    const commit = (state: Drag, point: LatLon | undefined) => {
+      endDrag()
+      if (!state.moved || !point) return
+      suppressClick.current = performance.now() + SUPPRESS_CLICK_MS
+      if (state.kind === 'waypoint') live.current.onWaypointMove(state.index, point)
+      else live.current.onShapingDrop(state.index, point)
+    }
+
+    instance.on('mousemove', (event: MapLayerMouseEvent) => {
+      const state = drag.current
+      if (state) follow(state, at(event))
     })
 
     instance.on('mouseup', (event: MapLayerMouseEvent) => {
       const state = drag.current
-      if (!state) return
-      endDrag()
-      if (!state.moved) return
-
-      suppressClick.current = true
-      const point = at(event)
-      if (state.kind === 'waypoint') live.current.onWaypointMove(state.index, point)
-      else live.current.onShapingDrop(state.index, point)
+      if (state) commit(state, at(event))
     })
+
+    /**
+     * A finger's gestures: the phone app's, behind a long press.
+     *
+     * A finger that lands on a stop is far more often starting a pan or a pinch than
+     * picking the stop up, so nothing happens until it has rested there for a moment — the
+     * rule the phone app's editor follows, and for the same reason. Wandering off first
+     * makes it a pan, which the map is already doing. Held on a stop, it picks the stop up,
+     * the map stops panning and the gesture is the mouse's: follow, then commit on release.
+     * Held anywhere else, it drops a shaping point there, as the app does.
+     */
+    const press: {
+      timer?: ReturnType<typeof setTimeout>
+      x: number
+      y: number
+      arm?: () => Drag | null
+    } = { x: 0, y: 0 }
+    const cancelPress = () => {
+      clearTimeout(press.timer)
+      press.timer = undefined
+      press.arm = undefined
+    }
+
+    const pressOn = (event: MapTouchEvent, arm: () => Drag | null) => {
+      // First come, first served: a stop sits on the line, and the stop is what was meant.
+      if (!live.current.planning || drag.current || press.arm) return
+      if (event.points.length !== 1) return
+      press.x = event.point.x
+      press.y = event.point.y
+      press.arm = arm
+      press.timer = setTimeout(() => {
+        const pick = press.arm
+        cancelPress()
+        if (!pick) return
+        const state = pick()
+        navigator.vibrate?.(10)
+        // The lift that ends a press is not also a tap on the map.
+        suppressClick.current = performance.now() + LONG_PRESS_MS + SUPPRESS_CLICK_MS
+        if (state) beginDrag(state)
+      }, LONG_PRESS_MS)
+    }
+
+    const pressWaypoint = (event: MapLayerTouchEvent) => {
+      const index = event.features?.[0]?.properties?.index
+      if (typeof index !== 'number') return
+      pressOn(event, () => ({
+        kind: 'waypoint',
+        index,
+        waypoints: live.current.plan.waypoints,
+        moved: false,
+      }))
+    }
+    instance.on('touchstart', PLAN_POI_LAYER, pressWaypoint)
+    instance.on('touchstart', PLAN_SHAPING_LAYER, pressWaypoint)
+
+    /**
+     * Anywhere else, a long press drops a shaping point into the nearest leg, where the finger is — the phone app's
+     * gesture, where a mouse drags one out of the line. No line to aim at: a finger is wider than the line, and
+     * "bend the route here" does not need one. Registered after the stops, so a press on a stop is the stop's.
+     */
+    instance.on('touchstart', (event: MapTouchEvent) => {
+      const point = at(event)
+      pressOn(event, () => {
+        live.current.onLongPress(point)
+        return null
+      })
+    })
+
+    instance.on('touchmove', (event: MapTouchEvent) => {
+      if (press.arm) {
+        const dx = event.point.x - press.x
+        const dy = event.point.y - press.y
+        if (dx * dx + dy * dy > PRESS_SLOP_PX * PRESS_SLOP_PX || event.points.length !== 1) {
+          cancelPress()
+        }
+        return
+      }
+      const state = drag.current
+      if (!state) return
+      // Or the page scrolls, and the browser turns the lift into a click.
+      event.preventDefault()
+      follow(state, at(event))
+    })
+
+    const release = () => {
+      cancelPress()
+      const state = drag.current
+      if (!state) return
+      // Held and let go without moving is still a gesture: the tap it ends in is not a waypoint.
+      suppressClick.current = performance.now() + SUPPRESS_CLICK_MS
+      commit(state, state.last)
+    }
+    instance.on('touchend', release)
+    instance.on('touchcancel', release)
 
     /**
      * One click handler rather than one per layer.
@@ -543,8 +690,8 @@ export function MapView({
      */
     instance.on('click', (event: MapLayerMouseEvent) => {
       if (!live.current.planning) return
-      if (suppressClick.current) {
-        suppressClick.current = false
+      if (performance.now() < suppressClick.current) {
+        suppressClick.current = 0
         return
       }
 
@@ -899,16 +1046,11 @@ export function MapView({
 
     fitted.current = fitKey
     map.current.fitBounds(target, {
-      padding: {
-        top: 88 + 24,
-        bottom: 40,
-        left: panelInsets.left + 32,
-        right: panelInsets.right + 32,
-      },
+      padding: paddingOf(insets.current),
       duration: 700,
       maxZoom: 14,
     })
-  }, [ready, fitKey, extent, planning, panelInsets.left, panelInsets.right])
+  }, [ready, fitKey, extent, planning])
 
   /**
    * A shared plan link, framed once.
@@ -930,30 +1072,66 @@ export function MapView({
     if (!bounds) return
 
     map.current.fitBounds(bounds, {
-      padding: {
-        top: 88 + 24,
-        bottom: 40,
-        left: panelInsets.left + 32,
-        right: panelInsets.right + 32,
-      },
+      padding: paddingOf(insets.current),
       duration: 0,
       maxZoom: 14,
     })
-  }, [ready, planning, panelInsets.left, panelInsets.right])
+  }, [ready, planning])
 
   /** Keeps the dialog over its place while the camera moves — see `pinBox`. */
   useEffect(() => {
     const instance = map.current
     if (!ready || !instance || !pinAt) return
 
+    /**
+     * Over the place, and on the screen. The dialog is centred above its pin, slid sideways
+     * when that would put it past an edge — its tail stays on the pin — and hung below the
+     * pin instead when the top bar leaves no room above. On a phone both happen often.
+     */
     const place = () => {
       const box = pinBox.current
       if (!box) return
       const at = instance.project([pinAt.lon, pinAt.lat])
       box.style.transform = `translate(${at.x}px, ${at.y}px)`
+
+      const dialog = box.firstElementChild as HTMLElement | null
+      if (!dialog) return
+      const width = instance.getContainer().clientWidth
+      const w = dialog.offsetWidth
+      const h = dialog.offsetHeight
+      const left = at.x - w / 2
+      const shift =
+        left < PIN_EDGE_PX
+          ? PIN_EDGE_PX - left
+          : left + w > width - PIN_EDGE_PX
+            ? width - PIN_EDGE_PX - (left + w)
+            : 0
+      const below = at.y - PIN_OFFSET_PX - h < (insets.current.top ?? DESKTOP_TOP) + PIN_EDGE_PX
+      dialog.style.translate = `calc(-50% + ${shift}px) ${below ? `${PIN_OFFSET_PX}px` : `calc(-100% - ${PIN_OFFSET_PX}px)`}`
+      dialog.style.setProperty('--tail-shift', `${-shift}px`)
+      dialog.toggleAttribute('data-below', below)
     }
 
     place()
+
+    /**
+     * A pin opened where it cannot be seen — a stop picked from the list that is under the
+     * sheet, or off the side — brings the map to it, by as little as puts it in view.
+     */
+    const at = instance.project([pinAt.lon, pinAt.lat])
+    const box = instance.getContainer()
+    const { left, right, top, bottom } = insets.current
+    const minX = left + PIN_EDGE_PX
+    const maxX = box.clientWidth - right - PIN_EDGE_PX
+    const minY = (top ?? DESKTOP_TOP) + PIN_EDGE_PX
+    const maxY = box.clientHeight - (bottom ?? 0) - PIN_EDGE_PX * 3
+    const dx = at.x < minX ? at.x - minX : at.x > maxX ? at.x - maxX : 0
+    const dy = at.y < minY ? at.y - minY : at.y > maxY ? at.y - maxY : 0
+    // Not while the camera is already flying there, which is what a search result does.
+    if ((dx !== 0 || dy !== 0) && maxX > minX && maxY > minY && !instance.isMoving()) {
+      instance.panBy([dx, dy], { duration: 300 })
+    }
+
     instance.on('move', place)
     return () => {
       instance.off('move', place)

@@ -8,14 +8,14 @@ tagged, filtered and counted on your own machine.
 | **Deployment** | One Edge Script at [tracks.stho.net](https://tracks.stho.net), over Bunny Database |
 | **Dataset** | 197 activities (73 Strava, 124 Komoot), 1.02M track points |
 | **Stack** | Node 24 · pnpm · libSQL · React · MapLibre · Deno at the edge · Kotlin Multiplatform on the phone |
-| **Status** | M1–M15 and M18–M20 complete · M21 half done: the basemap's labels shipped, its water and summits open · M16–M17 planned: the iPhone app's lock screen, battery and release |
+| **Status** | M1–M15, M18–M20 and M22 complete · M21 half done: the basemap's labels shipped, its water and summits open · M16–M17 planned: the iPhone app's lock screen, battery and release |
 
 ---
 
 ## Scope
 
 You open it in a browser and sign in, and an account sees its own activities and nobody
-else's. Planning a route needs no account: anybody who opens the site, or a plan link
+else's. That browser can be a phone's, where the app is read-only (*On a phone*). Planning a route needs no account: anybody who opens the site, or a plan link
 somebody sent them, gets the planner without signing in. The tool imports them from Strava and Komoot, draws them on a map, lets you tag
 and filter them, and counts them.
 
@@ -838,9 +838,10 @@ geometry is the full-resolution track rather than the simplified line.
 
 Zero results show an empty state naming the facets doing the narrowing, with the map holding its
 camera rather than lurching at empty bounds. A filter change keeps the previous results on screen
-until the new ones arrive, so nothing flashes empty mid-drag. The layout is fluid to about 1100 px;
-below that the panels would eat the map, and it says so instead of degrading. This is a desktop
-tool and does not pretend otherwise.
+until the new ones arrive, so nothing flashes empty mid-drag. The layout is fluid to about 1100 px.
+Below that the panels would cover the map. Until M22 the app said so with a notice instead of a
+degraded layout; now there are layouts built for narrower screens rather than squeezed into
+them (*On a phone*).
 
 | Group | Facets |
 |---|---|
@@ -1157,6 +1158,9 @@ A map click drops a provisional pin with a small dialog on it; a search result r
 same dialog in the same place. One commit path, however the place was found. The pin is
 transient — it belongs to neither the plan nor the URL — and clicking a waypoint that
 already exists reopens that same dialog in an edit state, with rename and remove on it.
+Since M22 it is compact on both platforms: the name, then one row of marks in route order.
+It lost its label and its hints, and it stays attached to its waypoint on a phone too
+(*On a phone*).
 
 Placement is decided there, and differs by kind, because the kinds want different things:
 
@@ -1309,9 +1313,14 @@ engine and profile sit where the source badge does. Building a synthetic `Activi
 reuse the component untouched was considered and rejected: it fabricates a `startedAt` and a
 `source` for something that has neither, and grows `if (isPlan)` branches anyway.
 
-Under it, in the same scroll, sit the things that *change* a plan: the search field, the
-profile pills and the list of stops. Outputs above, inputs below — the order the activity
-detail already uses, where the tags you edit sit under the numbers you read.
+Under it, in the same scroll, sit the things that *change* a plan: the profile pills, the
+search field and the list of stops. Outputs above, inputs below — the order the activity
+detail already uses, where the tags you edit sit under the numbers you read. The profile comes
+first because it reroutes every leg, so it belongs straight under the numbers it produces; the
+search comes next, straight over the list it adds to. It was the other way round until M22
+found the phone app already in this order, and the two were made one.
+A search result's row offers its placements in route order, as the dialog does: Start,
+Insert, End.
 
 The **filter sidebar stays put in every mode**, and only the right panel changes. It was
 briefly the other way round — the waypoint list took the sidebar's side — which meant both
@@ -1475,6 +1484,237 @@ A dropped file that is not parseable, not a track file, or has no trackpoints is
 and changes nothing — and in a multi-file drop the good files load and the bad ones are
 named, which is M3.5's rule about a bad frame, unchanged.
 
+## On a phone
+
+M22. Until then a window narrower than 1100 px got a notice instead of the app. The design
+was settled by an interview and a clickable mockup, and then corrected by looking at it on a
+phone-sized screen; where building it changed the design, this section says so.
+
+People who open the web on a phone are mostly **visitors**: somebody sent them a plan link or
+a share link, and many of them are on Android, or on an iPhone without the app. The rest are
+**you, away from a desk**, looking something up in your own rides. Neither of them imports,
+tags or edits. So the phone gets everything that reads and nothing that writes rows:
+
+| | |
+|---|---|
+| **On a phone** | Activities (the filter, the list, a detail and its elevation profile), Planning, Analytics, Share and Export |
+| **Not on a phone** | Import, tag editing, bulk tagging |
+
+Planning is on the list even though it edits something: a plan is a fragment in the address
+bar, not a row (*The plan is a fragment*), so it writes nothing to the server.
+
+### Two rules the rest follows from
+
+**Responsive, not duplicated.** There is one component per thing, and every layout uses it.
+Only the container changes: the list is the same list in a side panel and in the sheet, and
+the elevation profile is the same `<svg>` at any width. There is no `MobileDetailPanel` next
+to `DetailPanel`. Two copies look alike on the day they are split and drift apart after that,
+which is the reason `PlanPanel` was rejected as a separate panel. Layout decisions come from
+CSS and one `useLayout()` hook over `matchMedia`. A change of behaviour lands in both layouts
+at once. The compact waypoint dialog below is the first example: it was designed for a phone
+and replaces the desktop dialog as well.
+
+**The web on a phone behaves like the iPhone app wherever they overlap.** Somebody who opens a
+plan link on Android and later installs the app on an iPhone should not have to learn the
+editor twice. So the web uses the app's gestures, its compact waypoint dialog, its stop list
+with the four marks, and one sheet over a full-bleed map. Where the two differ, the difference
+is written down here with its reason. The web has no riding screen, for example, because
+riding is the app's job.
+
+### Width decides
+
+| Width | Layout |
+|---|---|
+| ≥ 1100 px | The desktop, as described under *Filters & UI* |
+| 900–1100 px | The desktop layout with one panel open at a time: opening one collapses the other to its rail |
+| < 900 px | The phone layout, and read-only |
+
+**Width alone decides the layout and read-only.** A desktop window made narrow is read-only
+as well, and an iPad in landscape gets the desktop. Making read-only follow `pointer: coarse`
+would describe the device more faithfully, but it adds a second axis that every test would
+have to cross with the first. **Gestures are the exception.** They follow the input that
+produced each event, as the elevation profile's already do, so a touch laptop at desktop
+width still gets long-press shaping.
+
+**The middle band had one more thing to give up.** At 900 px the desktop's top bar did not fit:
+the account's address ran off the right edge. Below 1100 px the bar now drops the address and
+the hours total, and the mode switch keeps its icons without their words. Each segment is
+still named by its tooltip and its accessible name. Sign out, Share, Import and Export stay.
+The map's credit steps up over the camera buttons, which it would otherwise overlap.
+
+### One sheet over the map
+
+The map runs full-bleed, as it does on the desktop, and **one bottom sheet** holds what the
+right panel holds there. It snaps to three heights: peek, half and full. At full it stops a
+gap below the top bar and never covers it, so the chips and ☰ can always be reached. The
+top bar is one row high signed out and two rows signed in, and full follows its real height.
+
+The sheet holds only the current mode's content, with no tabs inside it:
+
+| Mode | The sheet | Opens at |
+|---|---|---|
+| Activities | The list, with the totals in its header. A row opens the detail in its place, with ‹ All activities to go back | Half |
+| Analytics | The cards in one column | Full, because the map says little in this mode |
+| Planning | The plan panel: the title, tiles, profile, search, profile pills and stops | Peek, because the map is where a plan is made |
+
+Switching modes sets the sheet's height, and after that it stays wherever it is dragged.
+**Every camera fit is padded by the sheet's height**, so an opened activity or a whole plan
+is framed in the part of the map that can be seen. This is the rule *padded past both panels*
+from the desktop, applied to a panel that sits at the bottom. A tap on a track opens its
+detail, as a click does on the desktop.
+
+### The top bar and ☰
+
+The first row holds the brand, the name of the current mode and **☰** at the right edge. The
+second row holds the **funnel** and then the filter chips, which scroll, and each chip removes
+its own term when tapped. The totals move from the bar into the list's header, because a
+phone's top bar has no room for three things that change on every filter.
+
+**☰ lists only what can be used right now**, each entry with the icon the desktop bar gives it:
+
+- Signed in: Activities, Analytics and Planning; then Share and Export GPX; then Sign out, in red.
+- Signed out: Copy plan link and Sign in, in green. No modes are listed, because Planning is the only one.
+
+The desktop shows the locked modes as disabled buttons, on the grounds that what signing in
+would get you should be visible on the bar you are looking at (*Without an account*). On a
+phone that argument loses to space. A menu of disabled entries is a list of things you cannot
+do, one tap away from anything you can. Signed out, the second row is not drawn at all, since
+there is nothing to filter.
+
+### Filters drop down
+
+The funnel opens the **filter sidebar as a drop-down** from the top bar. It covers about two
+thirds of the screen, so the tracks below it can be seen narrowing while you choose. The facets
+are the sidebar's own, from the same component. They apply live, as on the desktop, so there
+is nothing to confirm. The dialog closes with the **×** in its header, with **Show 37
+activities** at its foot, or with a tap on the map. The funnel's badge counts the terms in the
+filter. The filter is the same one in every mode, just as the sidebar stays put in every mode
+on the desktop (*Both panels*).
+
+**The sheet sinks to peek while the filter is down.** At half, the sheet and the drop-down met
+in the middle of the screen and no map was left between them, which undid the reason for the
+drop-down. The sheet goes back to wherever it was when the filter closes.
+
+### The map's controls
+
+Zoom ± is left out, because on a phone you pinch. **Fit, satellite and grouping** stand in a
+column at the right edge, just above the sheet. They move with the sheet and disappear when it
+is at full, which is where the app's riding screen keeps its camera and undo (M20). Grouping is
+still absent while planning.
+
+### The waypoint dialog, attached to its waypoint
+
+On a phone, the desktop dialog took a third of the screen to offer four choices. It becomes
+**compact, on both platforms**: the name and an ×, then **one row of marks in route order:
+Start, Stop, Shaping point, End**. Stop and Shaping point appear only once there is a leg to
+add them to. Editing shows the name field, then one row with the kind flip and **Remove as a
+red Trash2**. The "Add to A → B" label and the hints are removed. Each mark keeps its word as a
+tooltip and as its accessible name, which is the rule the glyphs were introduced under (M18).
+
+Compact enough, it **stays attached to its waypoint** on the phone too: the new pin, or the
+marker of the stop being edited. It is clamped inside the screen edges, and it hangs below
+the pin when the top bar leaves no room above. The sheet does not move. The camera pans only
+if the pin would end up under the sheet or the bar.
+
+The app's editor does the same, from the same rules: TracksMap takes a `pinned` card — a place,
+what covers the map's edges, and the dialog — and stands it on the place, tail and all, sliding
+and flipping it as the web does and bringing the map to a stop opened from under the sheet.
+Its dialog lost the one-choice *Add* it offered an empty plan, since its first waypoint is now
+added without asking, as the web's is. The riding screen keeps the dialog in the sheet's place:
+riding, the controls are under the thumb, and a card on a map that follows you would move.
+
+### Touch
+
+Planning uses **the editor's gestures from the app** (*The plan arrives as the link it
+already is*):
+
+- A tap on the map places a point through the one dialog. An empty plan's first tap is its
+  start, with no dialog.
+- A long press picks up a stop, and only then can it be dragged, so a pinch never moves one.
+- **A long press anywhere else drops a shaping point** into the nearest leg, where the finger
+  is. A mouse drags one out of the line; a finger is wider than the line, and *bend the route
+  here* does not need one to aim at.
+- A long press on a stop row picks it up, and the stops it passes ease aside to make room
+  where it will land.
+
+The desktop's handlers are `mousedown` only today, which is why they cannot simply be reused.
+
+What the desktop does on hover, a phone does on tap:
+
+- **Stop distances are measured from the tapped row**, or from the first stop when no row is
+  tapped. *How far is the hut from here* survives the move to a phone.
+- **A tap on the row already being measured from opens its dialog.** A shaping tick carries
+  no numbers, so the first tap on one opens its dialog.
+- The row's quiet × is gone. Remove is in the dialog. The app's editor dropped its ×, which it
+  showed on every row, for the same reason: a delete that can be hit while scrolling a list
+  is worse than one a tap further away.
+- Hover linking between the list and the map is not replaced. On touch, a tap already selects.
+
+The elevation profile keeps the finger rules it already has: a tap puts the bar down, and a
+long press and a drag sweeps a stretch. The empty plan's hint says so in a finger's words —
+*Tap the map to start*, *long-press the map* — where a mouse is told to click and drag.
+
+### Made one with the app
+
+Holding the web on a phone against the app's editor found them apart in more places than the
+dialog. Each was settled one way, and both now go that way:
+
+| | Now, on both | Came from |
+|---|---|---|
+| The dialog's marks | Start, Stop, Shaping point, End — the order the route runs | The web |
+| Where the dialog is | On its waypoint | The web |
+| An empty plan's first tap | Its start, with no dialog | The web |
+| A long press off any stop | A shaping point in the nearest leg | The app |
+| The editor's sheet | Three detents: header, half, full; a tap on the header steps up | The web, and the app's own riding sheet |
+| A stop row's × | None; Remove is in the dialog | The web |
+| Profile pills and place search | The pills first, then the search | The app |
+| Carrying a stop in the list | The stops it passes make room | The app |
+
+Left apart on purpose:
+
+| | Web | App | Why |
+|---|---|---|---|
+| Undo | Back | Undo and Redo on the map | On the web every edit pushes to history, so Back already is the undo (M8); buttons would be a second one that disagrees with it |
+| The riding stop list's × | — | Kept | Riding, a tap on a row turns the pages rather than opening a dialog, so the × is the list's only way to remove |
+| Naming a new stop | The geocoder | The map's own label under the tap | The app has to work with no signal |
+| The map's buttons | Fit, satellite, grouping | Camera, following | The web has no rider to follow; the app has no satellite and no grouping |
+| Save, Copy, Cancel | — | In the editor's ⋯ menu | A web plan is its address; the app stores plans |
+
+### Still a page
+
+The phone layout **stays in the browser**. The manifest keeps `display: browser`, and there is
+no service worker and no offline mode, because offline is the app's premise and the web would
+be a second, worse copy of it. `viewport-fit=cover` with safe-area insets keeps the bar and the
+sheet clear of the notch and the home indicator. The height is `100dvh`, so Safari's toolbar
+does not cover the sheet. Controls do not double-tap zoom.
+
+On an iPhone with the app installed, a planning link still opens in the app through its
+universal link, so the web planner on a phone is for everyone else. There is no "open in the
+app" prompt while TestFlight is not open to every account (M17).
+
+### In code
+
+| | |
+|---|---|
+| **`lib/layout.ts`** | `useLayout()`, the one reader of `matchMedia`: `phone`, `narrow` or `wide`. `App` asks it once and decides the rest. CSS media queries write the same two numbers out, `899px` and `1099px`, because a query cannot read a custom property |
+| **`ui/Sheet.tsx`** | The sheet: three detents, a handle that drags and flicks, and a tap that steps it. While a finger drags it, the height goes straight to the node and to `--sheet-h`, so the map's controls follow without re-rendering the app. The map hears only where it comes to rest |
+| **`AppMenu.tsx`** | ☰. Share opens the desktop's `SharePanel` in a dialog. Copy plan link is `useCopyPlan` and Export is `useExport`, the hooks the desktop's buttons run on. The export belongs to the menu rather than to its popover, so closing the menu does not cancel it |
+| **`FilterDrop.tsx`** | The drop-down: a container around the same `FilterSidebar` the desktop docks, given no `onWrite`, so bulk tagging is not there |
+| **Unchanged components** | `TopBar` gains a `phone` arrangement rather than a sibling. `AnalyticsPanel` gains `contained` for the sheet. `ActivityList` shows the totals when the bar cannot. `MapChrome` gains its column. `MapView` takes a `top` and a `bottom` inset, so every fit, `flyTo` and pinned dialog keeps to the visible map |
+| **Touch in `MapView`** | `touchstart` on a stop or the line arms a 450 ms timer. Moving 8 px first is a pan, and cancels it. Once it fires, the map stops panning and the drag is the mouse's `follow` and `commit`. A drag ends in a click that is swallowed for 500 ms, not by a flag: a finger's gesture may end in no click at all, and a flag left standing would swallow the next real one |
+
+`useLayout()` being the one reader of `matchMedia` is what lets jsdom render the phone layout:
+`test-width.ts` answers `max-width` queries against a width a test sets. The tests check that
+nothing that writes is on a phone's screen, that the menu holds the modes and actions, that
+the filter drops down and closes on Show, that the menu signed out has only the plan's link
+and the way in, that a new waypoint's marks are in route order, that the middle band keeps one
+panel open, the sheet's detents, and the tap-then-tap on a stop row under a finger. What jsdom
+cannot show was looked at in a real browser at 390 × 844, 900 and 1000 px. Playwright was
+considered for that and left out (*Considered and rejected*).
+
+It was planned as three steps (visitors, then an account, then the middle band) and shipped
+as one, since the steps share every component.
+
 ---
 
 ## The iPhone app
@@ -1581,11 +1821,13 @@ flight — the engine stops mid-search. On the phone a long leg takes seconds: a
 dashed, pulsing beeline, pulsed by MapLibre's own transition, and why it never holds up the map or the
 recording.
 
-The editor is the web's rules with a phone's gestures. A tap places a point through the one dialog,
-POI or ROUTING; **a stop moves only once a long press has picked it up**, so a pinch never drags one; a
-long press on the line shapes it, where the web drags the line; a long press on a stop in the list
-reorders it. Every edit can be undone and redone. The profile pills, the stop list and the elevation
-profile sit under the numbers, as on the web, and Cancel, Copy and Save live in the editor's ⋯ menu.
+The editor is the web's rules with a phone's gestures, and since M22 the web on a phone has the
+same ones (*Made one with the app*). A tap places a point through the one dialog, which stands on the
+place; **a stop moves only once a long press has picked it up**, so a pinch never drags one; a long
+press anywhere else drops a shaping point into the nearest leg, where a mouse on the web drags the
+line; a long press on a stop in the list reorders it. Every edit can be undone and redone. The profile
+pills, the search and the stop list sit under the numbers, as on the web, on a sheet with three
+detents, and Cancel, Copy and Save live in the editor's ⋯ menu.
 
 **Tapping a plan in the list opens it read-only**, with its stops and profile on a sheet. Navigating
 it is **Navigate in its ⋯ menu** — in the list and in the plan view, beside Edit, Copy, Share link and
@@ -2073,6 +2315,7 @@ inspected through a SQLite browser.
 | **M19** | One elevation profile | The same drawing, the same numbers and the same gestures in the web's activity detail and plan panel, the phone's plan preview, its editor and its riding sheet. The web drops ECharts for this one chart and hand-draws SVG mirroring the Kotlin Canvas, over `lib/profile.ts` — axis choice, hit-testing, range figures, the done/to-come split — mirrored into Kotlin and pinned by `profile.json`. Axes with round steps and gridlines, a bar that reads `km · height · gradient` over a flanking row, and a stretch between two bars that reports distance, ↑ and ↓ and is drawn on the map. Kotlin→Wasm was weighed as the way to have one source instead of two, and declined: a few hundred lines of arithmetic do not pay for a JDK in the web's build path and a stdlib in the browser's bundle. |
 | **M20** | The riding sheet | Three detents, each adding below the one before: a line of figures, then the pages, then the stops. The pages become what you have ridden, a page per stop still ahead, and the whole trip — the leg you are on drawn stop to stop with a bar where you are. The large detent is the editor's own stop list, so *Edit plan* goes and with it the copy-to-follow it carried; a tap on a waypoint opens the editor's dialog, and every edit goes through the ride's one undo stack. Undo, redo and the camera move off the top of the screen to sit just above the sheet. Pause and Stop become buttons under the profile at the large detent, and the ⋯ menu goes. Left out: a free ride cannot be given a plan from the sheet, which needs making one and following it rather than a new layout. |
 | **M21** | What the map says | Half shipped. River and stream names, which `colorful` drew nowhere at all, placed along the line and repeated; town, village and hamlet labels started at the zoom their data starts at rather than the one the style chose; and `place=locality` drawn for the first time, which in the Alps is what carries Kramer and Kuhflucht. **Open**: water sources and summits, which Shortbread has no POIs below z14 for and no peaks at any zoom, so they need an extract of our own — whether that is one region-scoped GeoJSON or a tileset, what it covers and how it refreshes is its own workspace. |
+| **M22** | The web on a phone | Below 900 px the notice gives way to a full-bleed map, one sheet holding the current mode, ☰ for the modes and actions, and the filter as a drop-down from a funnel. It is read-only for an account and the whole planner for a visitor. There is one component per thing, and it behaves like the app wherever the two overlap: the app's long presses, and its compact waypoint dialog, which the desktop takes too. From 900 to 1100 px the desktop keeps one panel open at a time. Planned as three steps (visitors, then an account, then the middle band) and shipped as one. |
 
 ---
 
@@ -2237,9 +2480,39 @@ will otherwise propose all of these again.
 | Profiles shipped with the app | brouter.de changes profiles without a release, so a phone routing with the bundled files would draw legs the web does not until the next app update. They follow brouter.de weekly instead. |
 | Routing tiles along the plan's line only | Smaller, and a re-plan that leaves the line — which is what re-planning is for — would have no data. The plan's box plus 25 km instead. |
 
+| Rejected | Why |
+|---|---|
+| Map, List and Filters as tabs | Three full-screen views behind a tab bar is the simplest phone layout to build. You never see the list and the map at once, and an opened activity sits on one screen while its track is on another. |
+| A fixed split | The map on top at a fixed height and the panel scrolling below. There are no gestures to build, but the map is always small and the panel always cramped, whatever you are doing. |
+| Filters \| Activities inside the sheet | Proposed first: a switch at the top of the sheet between the filter and the mode's content. It made the sheet do two jobs, and in Planning and Analytics it was not clear what the second tab should be. A funnel in the top bar keeps the sheet to the one mode. |
+| Filters full-screen | More room for histograms, but the tracks narrowing is the reason to filter on a map, and a full-screen dialog hides them. A drop-down leaves a third of the map in view. |
+| The waypoint dialog in the sheet | Shipped in no version, and in the mockup for one round. The sheet had to rise to show four icons and the camera had to pan the pin clear of it. Made compact, the dialog fits beside its waypoint, which is where the desktop always had it. |
+| Read-only by `pointer: coarse` | More honest about the device: an iPad would be read-only and a narrow desktop window would not. It adds a second axis to every layout test. Width decides alone, and only gestures follow the input. |
+| A tablet layout of its own | A third layout between the phone and the desktop, for a device nobody has asked about. The desktop with one panel at a time covers 900–1100 px with no new components. |
+| Locked modes in ☰ | The desktop shows them disabled, so that what signing in would get you is on the bar. In a phone's menu they would be three entries you cannot use, next to the one you can. |
+| Zoom buttons on a phone | You pinch. |
+| An installable PWA, or offline | Standalone loses the address bar, and with it Back and the plan links the planner is made of. Offline is the app's premise, and a second offline copy of it in the browser would be a worse one. |
+| Phone copies of components | Two copies look the same on the day they are split and drift apart after that. One component per thing, in whatever container the layout gives it (*Two rules the rest follows from*). |
+| Playwright for the phone layout | It would catch CSS regressions that jsdom cannot see, at the cost of a browser in CI. The layout decisions go through one stubbable hook, and a real phone checks what the tests cannot. |
+
 ---
 
 ## Still undecided
+
+**The phone's open details** *(M22)*:
+
+- **Nothing has run on a real phone yet.** The layouts were looked at in a desktop browser at
+  phone size, and the gestures were tested in jsdom. Still unseen:
+  - the long presses on the map and in the stop list under a real finger;
+  - the sheet's drag and flick;
+  - the safe-area insets around a notch;
+  - whether Safari's 16 px rule for fields keeps the page from zooming.
+- The sheet's exact heights and how dragging it feels.
+- Whether 900 px is the right line, which real tablets will settle.
+- How the attached waypoint dialog avoids the keyboard while a stop is renamed.
+- The elevation profile's last distance label runs into the one before it at a phone's
+  width, as it already did in the desktop's 356 px panel. The axis is shared arithmetic with
+  the phone app (*Drawn by hand rather than charted*), so it is changed on both or neither.
 
 **Two things about Bunny a deploy has not answered yet** — what Edge Scripting's request
 body limit is, against a largest activity of 1.7MB of JSON, and whether "rows read" means

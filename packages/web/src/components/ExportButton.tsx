@@ -6,7 +6,7 @@ import { type ExportProgress, exportFileName, exportGpx, saveFile } from '../lib
 import styles from './ExportButton.module.css'
 import { IconButton } from './ui/IconButton.tsx'
 
-type State =
+export type ExportState =
   | { kind: 'idle' }
   | { kind: 'running'; progress: ExportProgress; controller: AbortController }
   | { kind: 'failed'; message: string }
@@ -22,42 +22,7 @@ const FAILED_FOR_MS = 2500
  * is the way out; nothing is saved from a cancelled or a failed run.
  */
 export function ExportButton({ filter, count }: { filter: Filter; count: number | undefined }) {
-  const [state, setState] = useState<State>({ kind: 'idle' })
-  const running = useRef<AbortController | null>(null)
-  const root = useContext(ApiRoot)
-
-  // Leaving the page mid-export stops the fetches rather than saving into nowhere.
-  useEffect(() => () => running.current?.abort(), [])
-
-  useEffect(() => {
-    if (state.kind !== 'failed') return
-    const timer = setTimeout(() => setState({ kind: 'idle' }), FAILED_FOR_MS)
-    return () => clearTimeout(timer)
-  }, [state])
-
-  const start = async () => {
-    const controller = new AbortController()
-    running.current = controller
-    setState({ kind: 'running', progress: { done: 0, total: count ?? 0 }, controller })
-    try {
-      const blob = await exportGpx(filter, {
-        signal: controller.signal,
-        onProgress: (progress) => setState({ kind: 'running', progress, controller }),
-        root,
-      })
-      if (!controller.signal.aborted) saveFile(blob, exportFileName())
-      setState({ kind: 'idle' })
-    } catch (error) {
-      setState(
-        controller.signal.aborted
-          ? { kind: 'idle' }
-          : { kind: 'failed', message: error instanceof Error ? error.message : String(error) },
-      )
-    } finally {
-      if (running.current === controller) running.current = null
-    }
-  }
-
+  const { state, start } = useExport(filter, count)
   if (state.kind === 'running') {
     const { done, total } = state.progress
     return (
@@ -93,4 +58,51 @@ export function ExportButton({ filter, count }: { filter: Filter; count: number 
         : `Export ${count ?? 'all'} activities as GPX`
 
   return <IconButton icon={FileDown} label={label} onClick={count === 0 ? undefined : start} />
+}
+
+/**
+ * One export, from start to saved file: what the button shows and the phone's menu shows,
+ * run by whichever of them is on screen.
+ */
+export function useExport(
+  filter: Filter,
+  count: number | undefined,
+): { state: ExportState; start: () => void } {
+  const [state, setState] = useState<ExportState>({ kind: 'idle' })
+  const running = useRef<AbortController | null>(null)
+  const root = useContext(ApiRoot)
+
+  // Leaving the page mid-export stops the fetches rather than saving into nowhere.
+  useEffect(() => () => running.current?.abort(), [])
+
+  useEffect(() => {
+    if (state.kind !== 'failed') return
+    const timer = setTimeout(() => setState({ kind: 'idle' }), FAILED_FOR_MS)
+    return () => clearTimeout(timer)
+  }, [state])
+
+  const start = async () => {
+    const controller = new AbortController()
+    running.current = controller
+    setState({ kind: 'running', progress: { done: 0, total: count ?? 0 }, controller })
+    try {
+      const blob = await exportGpx(filter, {
+        signal: controller.signal,
+        onProgress: (progress) => setState({ kind: 'running', progress, controller }),
+        root,
+      })
+      if (!controller.signal.aborted) saveFile(blob, exportFileName())
+      setState({ kind: 'idle' })
+    } catch (error) {
+      setState(
+        controller.signal.aborted
+          ? { kind: 'idle' }
+          : { kind: 'failed', message: error instanceof Error ? error.message : String(error) },
+      )
+    } finally {
+      if (running.current === controller) running.current = null
+    }
+  }
+
+  return { state, start: () => void start() }
 }

@@ -1,5 +1,5 @@
 import type { Waypoint } from '@tracks/routing'
-import { X } from 'lucide-react'
+import { Trash2, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { Placement } from '../lib/plan-ops.ts'
 import { WAYPOINT_LABELS, type WaypointGlyph, WaypointMark } from './ui/Waypoint.tsx'
@@ -71,38 +71,34 @@ export function WaypointDialog({
         <>
           <div className={styles.title}>{target.name ?? 'Waypoint'}</div>
 
-          <div className={styles.group}>
-            <span className={styles.label}>
-              {target.leg !== null && target.between ? `Add to ${target.between}` : 'Add as stop'}
-            </span>
-            <div className={styles.row}>
-              {/* Splitting a leg is on offer as soon as there is a leg to split. */}
-              {target.leg !== null ? (
-                <GlyphButton glyph="mid" label="Insert" onClick={() => onAdd('poi', 'nearest')} />
-              ) : null}
-              {/* Never on an empty plan: its first waypoint is added without asking. */}
-              <GlyphButton glyph="start" label="Start" onClick={() => onAdd('poi', 'start')} />
-              <GlyphButton glyph="end" label="End" onClick={() => onAdd('poi', 'end')} />
-            </div>
-          </div>
-
-          {/* A shaping hint with no leg to shape has nowhere to go, and before the start
-              and the end exist there is no leg at all. */}
-          {kindIsAChoice && target.leg !== null ? (
-            <div className={styles.group}>
+          {/* One row, in the order the route runs: where it starts, what it stops at, what
+              it bends through, where it ends. The two in the middle need a leg to go into,
+              and an empty plan's first waypoint is added without asking at all. */}
+          <div className={styles.row}>
+            <GlyphButton glyph="start" label="Start" onClick={() => onAdd('poi', 'start')} />
+            {target.leg !== null ? (
+              <GlyphButton
+                glyph="mid"
+                label="Insert"
+                detail={target.between ? `into ${target.between}` : undefined}
+                onClick={() => onAdd('poi', 'nearest')}
+              />
+            ) : null}
+            {kindIsAChoice && target.leg !== null ? (
               <GlyphButton
                 glyph="shape"
                 label="Shaping point"
+                detail={
+                  target.between
+                    ? `bends ${target.between} without stopping there`
+                    : 'bends this leg without stopping there'
+                }
                 quiet
                 onClick={() => onAdd('routing', 'nearest')}
               />
-              <span className={styles.hint}>
-                {target.between
-                  ? `Bends ${target.between} without stopping there`
-                  : 'Bends this leg without stopping there'}
-              </span>
-            </div>
-          ) : null}
+            ) : null}
+            <GlyphButton glyph="end" label="End" onClick={() => onAdd('poi', 'end')} />
+          </div>
         </>
       ) : (
         <>
@@ -112,6 +108,7 @@ export function WaypointDialog({
               className={styles.name}
               defaultValue={target.waypoint.name ?? ''}
               placeholder="Name this stop"
+              aria-label="Stop name"
               onBlur={(event) => onRename(event.currentTarget.value.trim())}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') event.currentTarget.blur()
@@ -122,25 +119,27 @@ export function WaypointDialog({
           )}
 
           <div className={styles.row}>
+            {/* Because POI is a break and ROUTING a pass-through, flipping the kind merges or
+                splits a leg — so the line moves. The tooltip says so; the row has no room to. */}
             {kindIsAChoice ? (
               <GlyphButton
                 glyph={target.waypoint.kind === 'poi' ? 'shape' : 'mid'}
                 label={target.waypoint.kind === 'poi' ? 'Make shaping' : 'Make a stop'}
+                detail="redraws this part of the route"
                 quiet={target.waypoint.kind === 'poi'}
                 onClick={() => onKind(target.waypoint.kind === 'poi' ? 'routing' : 'poi')}
               />
             ) : null}
-            <button type="button" className={styles.remove} onClick={onRemove}>
-              Remove
+            <button
+              type="button"
+              className={styles.remove}
+              aria-label="Remove"
+              title="Remove"
+              onClick={onRemove}
+            >
+              <Trash2 size={19} strokeWidth={2} />
             </button>
           </div>
-
-          {kindIsAChoice ? (
-            // Because POI is a break and ROUTING a pass-through, flipping the kind
-            // merges or splits a leg — so the line moves, and saying so beforehand is
-            // the price of the semantics.
-            <span className={styles.hint}>Changing the kind redraws this part of the route</span>
-          ) : null}
         </>
       )}
     </div>
@@ -151,17 +150,21 @@ export function WaypointDialog({
  * One of the four marks, as the button that puts that kind of waypoint there.
  *
  * The word stays — as the accessible name and as the tooltip — because a glyph nobody has met
- * yet is a puzzle, and a title is cheaper than a legend. [quiet] is the shaping point, which is
- * the only one of the four that is not green.
+ * yet is a puzzle, and a title is cheaper than a legend. The dialog has no room left for a
+ * label or a hint, so what they said is in the tooltip now. [quiet] is the shaping point,
+ * which is the only one of the four that is not green.
  */
 function GlyphButton({
   glyph,
   label,
+  detail,
   quiet = false,
   onClick,
 }: {
   glyph: WaypointGlyph
   label: string
+  /** What the label cannot say in a word, for the tooltip only. */
+  detail?: string
   quiet?: boolean
   onClick: () => void
 }) {
@@ -170,7 +173,9 @@ function GlyphButton({
       type="button"
       className={quiet ? styles.glyphQuiet : styles.glyph}
       aria-label={label}
-      title={label === WAYPOINT_LABELS[glyph] ? label : `${label} · ${WAYPOINT_LABELS[glyph]}`}
+      title={[label, detail, label === WAYPOINT_LABELS[glyph] ? null : WAYPOINT_LABELS[glyph]]
+        .filter(Boolean)
+        .join(' · ')}
       onClick={onClick}
     >
       <WaypointMark glyph={glyph} size={22} />
